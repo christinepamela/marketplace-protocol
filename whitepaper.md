@@ -250,32 +250,17 @@ Global reach without giant platforms
 
 ## 17. Client Architecture (High Level)
 
-```text
-┌──────────────────────────────────────────┐
-│               RANGKAI CLIENT             │
-│                                          │
-│ ┌──────────────────────────────────────┐ │
-│ │           USER INTERFACES             │ │
-│ │ Vendor Dashboard | Buyer Marketplace | Admin │
-│ └──────────────────────────────────────┘ │
-│                                          │
-│ ┌──────────────────────────────────────┐ │
-│ │       BUSINESS LOGIC LAYER            │ │
-│ │ - Auth, vendor onboarding             │ │
-│ │ - Product management & order tracking │ │
-│ │ - Payment & messaging                 │ │
-│ │ - Malaysia-specific features          │ │
-│ └──────────────────────────────────────┘ │
-│                                          │
-│ ┌──────────────────────────────────────┐ │
-│ │       PROTOCOL SDK INTEGRATION        │ │
-│ │ - Call protocol APIs                   │ │
-│ │ - Subscribe to events                  │ │
-│ │ - Handle federated search, escrow events │
-│ └──────────────────────────────────────┘ │
-└────────────────────┬────────────────────┘
-                     ↓
-              [ Rangkai Protocol Core ]
+```mermaid
+flowchart TB
+    subgraph RangkaiClient["RANGKAI CLIENT"]
+        UI["USER INTERFACES\nVendor Dashboard | Buyer Marketplace | Admin"]
+        Logic["BUSINESS LOGIC LAYER\n- Auth, vendor onboarding\n- Product management & order tracking\n- Payment & messaging\n- Malaysia-specific features"]
+        SDK["PROTOCOL SDK INTEGRATION\n- Call protocol APIs\n- Subscribe to events\n- Handle federated search, escrow events"]
+    end
+
+    RangkaiClient --> ProtocolCore["Rangkai Protocol Core"]
+    UI --> Logic
+    Logic --> SDK
 ```
 
 Each client can localise UI, payments, and compliance
