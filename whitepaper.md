@@ -284,7 +284,35 @@ Multiple clients can plug into the same protocol
 
 Protocol upgrades remain backward compatible
 
+---
 
+## 18. Reputation Management
+
+A decentralized reputation system ensures trust across multiple marketplaces. Vendors’ reputations follow them, allowing new clients to verify their reliability without starting from scratch.
+
+**Reputation Calculation:** Scores are computed from completed transactions, ratings, dispute outcomes, delivery performance, and verification status (KYC, Nostr, or Anonymous).
+
+*Figure: Flow of reputation proof creation and verification across marketplaces.*
+
+sequenceDiagram
+    participant V as Vendor
+    participant RC as Rangkai Client
+    participant P as Protocol Core
+    participant CB as Client B
+
+    V->>RC: Complete transaction
+    RC->>P: Update reputation
+    P->>P: Recalculate score & generate signed proof
+    P-->>RC: Return ReputationProof
+
+    V->>CB: Share ReputationProof
+    CB->>P: Verify proof signature & validity
+    P-->>CB: Proof valid
+    CB->>V: Reputation imported
+
+**Portability & Verification:** Signed reputation proofs allow vendors to carry their trust scores to other clients. Any client can verify the signature and timestamp to ensure authenticity.
+
+**Security Considerations:** To prevent Sybil attacks, proofs are time-stamped, signed by the protocol, and tied to unique DIDs. Optional historical transaction hashes can provide additional auditability.
 
 ---
 
