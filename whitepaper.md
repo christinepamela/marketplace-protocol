@@ -31,12 +31,10 @@ Large businesses export what is efficient, not what is unique. Global trade reli
 
 ### Marketplace Comparison
 
-| Platform | Country of Origin | Primary Market Focus | Trade Orientation | Model | Notes |
-|----------|-----------------|-------------------|-----------------|-------|-------|
-| Alibaba | China | Global wholesale, manufacturing | Export (China → Global) | B2B | Scaled through heavy funding and deep vendor integration; optimised for large volumes |
-| Amazon | USA | Retail and consumer goods | B2C, limited B2B | B2C/B2B2C | Strong logistics but centralised; small exporters have limited flexibility |
-| Etsy | USA | Handmade, creative, niche | Global | B2C | Works for niche creators but lacks infrastructure for cross-border scaling |
-| Handshake (Shopify) | USA | Wholesale for Shopify vendors | Domestic + Export (limited) | B2B | Integrates wholesale into Shopify but keeps vendors locked into its ecosystem |
+- Alibaba (China): Global B2B wholesale platform, export-focused, scaled through heavy funding and deep vendor integration.
+- Amazon (USA): Retail and consumer goods platform, B2C with limited B2B, strong logistics but limited flexibility for small exporters.
+- Etsy (USA): Niche global B2C marketplace for handmade and creative products, lacks cross-border scaling infrastructure.
+- Handshake (Shopify, USA): Wholesale B2B platform integrated with Shopify, domestic + limited export, vendors remain locked into its ecosystem.
 
 **Today’s marketplaces** are centralised, controlled, and optimised for volume over diversity. Millions of small producers remain invisible beyond their borders. A decentralised protocol enables global commerce without a single owner, letting small vendors trade on their own terms.
 
