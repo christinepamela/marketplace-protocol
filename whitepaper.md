@@ -231,17 +231,17 @@ graph TD
     B --> E[Federated Results]
 
 
----
-
 ## 16. Protocol Architecture (Lightweight Protocol)
 
-[ Layer 6: Governance           ]
-[ Layer 5: SDK & Plugins        ]
-[ Layer 4: Trust & Compliance   ]
-[ Layer 3: Logistics            ]
-[ Layer 2: Transaction & Settlement ]
-[ Layer 1: Discovery & Catalog  ]
-[ Layer 0: Identity & Reputation ]
+| Layer | Function |
+|-------|---------|
+| 6     | Governance |
+| 5     | SDK & Plugins |
+| 4     | Trust & Compliance |
+| 3     | Logistics |
+| 2     | Transaction & Settlement |
+| 1     | Discovery & Catalog |
+| 0     | Identity & Reputation |
 
 Neutral core
 
