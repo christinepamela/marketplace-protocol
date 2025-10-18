@@ -1,0 +1,69 @@
+graph TB
+    subgraph Clients["CLIENT LAYER (Multiple Marketplaces)"]
+        Rangkai["Rangkai (Malaysia)<br/>KYC, MYR/BTC"]
+        ClientB["Client B (Europe)<br/>GDPR, EUR"]
+        ClientC["Client C (LatAm)<br/>Anonymous, BTC"]
+    end
+
+    subgraph Protocol["PROTOCOL CORE (Neutral Infrastructure)"]
+        L6["Layer 6: Governance<br/>Multisig, upgrade paths"]
+        L5["Layer 5: Developer SDK<br/>APIs, webhooks, plugins"]
+        L4["Layer 4: Trust & Compliance<br/>Reputation, disputes, sanctions advisory"]
+        L3["Layer 3: Logistics<br/>Provider registry, tracking, delivery signals"]
+        L2["Layer 2: Transaction & Settlement<br/>Escrow, payment routing, fee distribution"]
+        L1["Layer 1: Discovery & Catalog<br/>Federated search, product schema"]
+        L0["Layer 0: Identity & Reputation<br/>Portable DID, KYC optional, ratings"]
+    end
+
+    subgraph Infrastructure["INFRASTRUCTURE LAYER"]
+        Payment["Payment Rails<br/>Stripe, Lightning, BTCPay"]
+        Database["Database<br/>Supabase PostgreSQL"]
+        Storage["File Storage<br/>S3/Cloudflare R2"]
+        Messaging["Notifications<br/>Nostr, Email, SMS"]
+    end
+
+    subgraph Users["ACTORS (External Participants)"]
+        Vendors["Vendors<br/>(Sellers)"]
+        Buyers["Buyers<br/>(Purchasers)"]
+        Logistics["Logistics Providers<br/>(Couriers)"]
+    end
+
+    Vendors --> Rangkai
+    Vendors --> ClientB
+    Buyers --> Rangkai
+    Buyers --> ClientC
+    Logistics --> Rangkai
+
+    Rangkai --> L5
+    ClientB --> L5
+    ClientC --> L5
+
+    L6 -.Governs.-> L5
+    L6 -.Governs.-> L4
+    L6 -.Governs.-> L3
+    L6 -.Governs.-> L2
+    L6 -.Governs.-> L1
+    L6 -.Governs.-> L0
+    L5 --> L4
+    L4 --> L3
+    L3 --> L2
+    L2 --> L1
+    L1 --> L0
+
+    L2 --> Payment
+    L0 --> Database
+    L1 --> Database
+    L1 --> Storage
+    L3 --> Database
+    L4 --> Database
+    L4 --> Messaging
+
+    Buyers -.Federated Search.-> L1
+    L1 -.Discovery.-> Rangkai
+    L1 -.Discovery.-> ClientB
+    L1 -.Discovery.-> ClientC
+
+    style Protocol fill:#e1f5ff
+    style Clients fill:#fff4e1
+    style Infrastructure fill:#f0f0f0
+    style Users fill:#e8f5e9

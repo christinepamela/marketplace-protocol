@@ -1,0 +1,83 @@
+sequenceDiagram
+    participant V as Vendor (Malaysia)
+    participant RC as Rangkai Client
+    participant P as Protocol Core
+    participant LP as Logistics Provider
+    participant B as Buyer (Argentina)
+    participant BC as Buyer's Client
+    participant Pay as Payment Rails
+
+    Note over V,BC: PHASE 1: PRODUCT LISTING
+    V->>RC: Create product listing
+    RC->>P: POST /catalog/products
+    P->>P: Validate schema (Layer 1)
+    P->>P: Index for federated search
+    P-->>RC: Product created (ID)
+    RC-->>V: Listing live
+
+    Note over V,BC: PHASE 2: DISCOVERY
+    Note right of P: Federated Search:<br/>Malaysian vendor on Rangkai<br/>can be discovered by buyer<br/>on any client marketplace<br/>without multi-registration
+    B->>BC: Search "leather shoes size 42"
+    BC->>P: GET /search?q=leather+shoes&filters=...
+    P->>P: Query federated index (all clients)
+    P-->>BC: Results (includes Rangkai vendor)
+    BC-->>B: Display products
+    B->>BC: Select product, view details
+    BC->>P: GET /catalog/products/{id}
+    P-->>BC: Full product data
+    BC-->>B: Show product page
+
+    Note over V,BC: PHASE 3: ORDER & PAYMENT
+    Note right of Pay: Protocol supports:<br/>- Bitcoin/Lightning<br/>- Stripe (fiat)<br/>- PayPal, etc.<br/>Client configures options
+    B->>BC: Place order
+    BC->>P: POST /orders (Layer 2)
+    P->>P: Create order, generate ID
+    P->>Pay: Initialize payment (BTC Lightning)
+    Pay-->>P: Lightning invoice
+    P-->>BC: Order created + invoice
+    BC-->>B: Show payment QR/invoice
+    B->>Pay: Pay via Lightning wallet
+    Pay-->>P: Payment confirmed
+    P->>P: Lock funds in escrow
+    P-->>RC: Webhook: order paid
+    RC-->>V: Notification: new order
+
+    Note over V,BC: PHASE 4: LOGISTICS MATCHING
+    P->>LP: Broadcast shipment opportunity
+    LP->>P: Submit quote (price, timeline)
+    P-->>RC: Quotes available
+    RC-->>V: Show logistics quotes
+    V->>RC: Select provider
+    RC->>P: POST /logistics/select-provider
+    P-->>LP: Shipment assigned
+    LP-->>P: Confirm pickup details
+
+    Note over V,BC: PHASE 5: FULFILLMENT
+    V->>LP: Hand over package
+    LP->>P: POST /logistics/tracking (status: picked_up)
+    P-->>BC: Webhook: shipment in transit
+    BC-->>B: Tracking update
+    LP->>P: POST /logistics/tracking (status: delivered)
+    P-->>BC: Webhook: delivered
+    BC-->>B: Confirm delivery
+
+    Note over V,BC: PHASE 6: SETTLEMENT
+    B->>BC: Confirm receipt (or auto after 48h)
+    Note right of P: Auto-complete protects vendors<br/>Dispute window: 7 days<br/>After confirmation
+    BC->>P: POST /orders/{id}/complete
+    P->>P: Release escrow
+    P->>Pay: Transfer to vendor (97%)
+    P->>Pay: Protocol fee (3%)
+    Pay-->>P: Transfers complete
+    P-->>RC: Webhook: payment released
+    RC-->>V: Funds received notification
+
+    Note over V,BC: PHASE 7: REPUTATION
+    Note right of P: Reputation updates:<br/>- Vendor (Layer 0)<br/>- Logistics (Layer 3)<br/>Portable across clients
+    P-->>BC: Prompt buyer rating
+    B->>BC: Rate vendor & logistics (5 stars)
+    BC->>P: POST /reputation/ratings
+    P->>P: Update vendor reputation (Layer 0)
+    P->>P: Update logistics reputation (Layer 3)
+    P-->>RC: Reputation updated
+    RC-->>V: New rating received
