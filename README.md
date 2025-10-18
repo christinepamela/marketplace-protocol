@@ -17,8 +17,9 @@ Globalising small businesses is hard. Most marketplaces are optimised for scale 
 - Remains open-source and tokenless  
 - Allows multiple client marketplaces to plug in  
 
-The protocol is the brain. Client marketplaces like Rangkai are the face, delivering local experiences, compliance, and onboarding. Note, for now both protocol and client are called Rangkai. Rangkai-client is the pilot client. Builders can build their own clients. 
+The protocol is the brain. Client marketplaces like Rangkai are the face, delivering local experiences, compliance, and onboarding. For now, both protocol and client are called Rangkai, with Rangkai-client serving as the pilot. Builders can create their own clients.
 
+Option 2 (even simpler):
 ---
 
 ## Architecture Layers
