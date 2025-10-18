@@ -36,11 +36,7 @@ Large businesses export what is efficient, not what is unique. Global trade reli
 | Alibaba | China | Global wholesale, manufacturing | Export (China → Global) | B2B | Scaled through heavy funding and deep vendor integration; optimised for large volumes |
 | Amazon | USA | Retail and consumer goods | B2C, limited B2B | B2C/B2B2C | Strong logistics but centralised; small exporters have limited flexibility |
 | Etsy | USA | Handmade, creative, niche | Global | B2C | Works for niche creators but lacks infrastructure for cross-border scaling |
-| Faire | USA | Independent brands + retailers | Primarily domestic (US/EU) | B2B | Centralised, curated marketplace; strong UX but limited interoperability |
-| IndiaMART | India | Regional supplier marketplace | Export & Domestic | B2B | Dominant in India; limited global interoperability |
-| Global Sources | Hong Kong | Manufacturing, bulk buyers | Export (Asia → Global) | B2B | Targets export manufacturers; bulk-oriented, not friendly for diverse small vendors |
 | Handshake (Shopify) | USA | Wholesale for Shopify vendors | Domestic + Export (limited) | B2B | Integrates wholesale into Shopify but keeps vendors locked into its ecosystem |
-| Mercado Libre | Argentina | Retail + payments in Latin America | Regional (LatAm) | B2C/B2B2C | Dominates LatAm with logistics and payments, but tightly controlled and less flexible |
 
 **Today’s marketplaces** are centralised, controlled, and optimised for volume over diversity. Millions of small producers remain invisible beyond their borders. A decentralised protocol enables global commerce without a single owner, letting small vendors trade on their own terms.
 
