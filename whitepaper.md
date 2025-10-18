@@ -256,16 +256,17 @@ Global reach without giant platforms
 
 ## 17. Client Architecture (High Level)
 
+```text
 ┌──────────────────────────────────────────┐
-│              RANGKAI CLIENT              │
+│               RANGKAI CLIENT             │
 │                                          │
 │ ┌──────────────────────────────────────┐ │
-│ │ USER INTERFACES                       │ │
+│ │           USER INTERFACES             │ │
 │ │ Vendor Dashboard | Buyer Marketplace | Admin │
 │ └──────────────────────────────────────┘ │
 │                                          │
 │ ┌──────────────────────────────────────┐ │
-│ │ BUSINESS LOGIC LAYER                  │ │
+│ │       BUSINESS LOGIC LAYER            │ │
 │ │ - Auth, vendor onboarding             │ │
 │ │ - Product management & order tracking │ │
 │ │ - Payment & messaging                 │ │
@@ -273,14 +274,15 @@ Global reach without giant platforms
 │ └──────────────────────────────────────┘ │
 │                                          │
 │ ┌──────────────────────────────────────┐ │
-│ │ PROTOCOL SDK INTEGRATION              │ │
-│ │ - Call protocol APIs                  │ │
-│ │ - Subscribe to events                 │ │
+│ │       PROTOCOL SDK INTEGRATION        │ │
+│ │ - Call protocol APIs                   │ │
+│ │ - Subscribe to events                  │ │
 │ │ - Handle federated search, escrow events │
 │ └──────────────────────────────────────┘ │
 └────────────────────┬────────────────────┘
                      ↓
-             [ Rangkai Protocol Core ]
+              [ Rangkai Protocol Core ]
+```
 
 Each client can localise UI, payments, and compliance
 
