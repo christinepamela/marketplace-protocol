@@ -292,8 +292,8 @@ A decentralized reputation system ensures trust across multiple marketplaces. Ve
 
 **Reputation Calculation:** Scores are computed from completed transactions, ratings, dispute outcomes, delivery performance, and verification status (KYC, Nostr, or Anonymous).
 
-*Figure: Flow of reputation proof creation and verification across marketplaces.*
-
+**Reputation Proof Flow:**
+```mermaid
 sequenceDiagram
     participant V as Vendor
     participant RC as Rangkai Client
@@ -309,6 +309,7 @@ sequenceDiagram
     CB->>P: Verify proof signature & validity
     P-->>CB: Proof valid
     CB->>V: Reputation imported
+```
 
 **Portability & Verification:** Signed reputation proofs allow vendors to carry their trust scores to other clients. Any client can verify the signature and timestamp to ensure authenticity.
 
