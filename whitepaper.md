@@ -229,6 +229,7 @@ graph TD
     B --> C[Other Clients / Vendors]
     A --> D[Local Results]
     B --> E[Federated Results]
+```
 
 
 ## 16. Protocol Architecture (Lightweight Protocol)
