@@ -1,3 +1,6 @@
 # Add to .gitignore
-keys/
+node_modules/
 .env
+keys/
+dist/
+*.log
