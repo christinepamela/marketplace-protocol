@@ -137,7 +137,7 @@ Large businesses export what is efficient, not what is unique. Global trade reli
 
 | Risk | Type | Mitigation |
 |------|------|-----------|
-| Regulatory (KYC, crypto) | Legal | Client handles compliance, protocol remains neutral |
+| Regulatory (KYC, Bitcoin) | Legal | Client handles compliance, protocol remains neutral |
 | Fraud | Operational | Escrow, dispute flows |
 | Adoption | Market | Start narrow (vertical + corridor), vendor referral loop |
 | Complexity | Build | Keep protocol thin, offload heavy features |
