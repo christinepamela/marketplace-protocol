@@ -9,6 +9,7 @@
     "test": "jest",
     "test:layer0": "ts-node scripts/test-layer0.ts",
     "test:layer1": "ts-node scripts/test-layer1.ts",
+    "test:layer2": "ts-node scripts/test-layer2.ts",
     "generate-keys": "ts-node scripts/generate-keys.ts"
   },
   "keywords": [
