@@ -11,6 +11,7 @@
     "test:layer1": "ts-node scripts/test-layer1.ts",
     "test:layer2": "ts-node scripts/test-layer2.ts",
     "test:layer3": "ts-node scripts/test-layer3.ts",
+    "test:layer6": "ts-node scripts/test-layer6.ts",
     "generate-keys": "ts-node scripts/generate-keys.ts"
   },
   "keywords": [
