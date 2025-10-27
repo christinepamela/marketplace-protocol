@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2020",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "typeRoots": ["../node_modules/@types", "../src/api/types"],
+    "types": ["node", "express"]
+  },
+  "include": [
+    "./**/*.ts",
+    "../src/api/types/**/*.d.ts"
+  ]
+}

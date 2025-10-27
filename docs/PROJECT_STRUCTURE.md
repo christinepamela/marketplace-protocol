@@ -5,6 +5,7 @@ marketplace-protocol/
 ├── README.md
 ├── package.json
 ├── tsconfig.json
+├── tsconfig.api.json              # ✨ NEW: API-specific TypeScript config
 ├── .gitignore
 ├── .env.example
 │
@@ -15,6 +16,22 @@ marketplace-protocol/
 │   ├── diagrams/
 │   │   ├── protocol-architecture.mmd
 │   │   └── transaction-flow.mmd
+│   ├── specs/                      # ✨ Layer specifications
+│   │   ├── LAYER0_IDENTITY_AND_REPUTATION.md
+│   │   ├── LAYER1_DISCOVERY_AND_CATALOG.md
+│   │   ├── LAYER2_TRANSACTION.md
+│   │   ├── LAYER3_LOGISTICS.md
+│   │   ├── LAYER4_TRUST_AND_COMPLIANCE.md
+│   │   ├── LAYER5_DEVELOPER_SDK.md           # ✨ NEW
+│   │   └── LAYER6_GOVERNANCE.md
+│   ├── progress_roadmap/                      # ✨ Progress tracking
+│   │   ├── layer0-progress-roadmap.md
+│   │   ├── layer1-progress-roadmap.md
+│   │   ├── layer2-progress-roadmap.md
+│   │   ├── layer3-progress-roadmap.md
+│   │   ├── layer4-progress-roadmap.md
+│   │   ├── layer5-progress-roadmap.md
+│   │   └── layer6-progress-roadmap.md
 │   └── whitepaper/
 │       └── WHITEPAPER.md           # Full protocol specification
 │
@@ -65,27 +82,46 @@ marketplace-protocol/
 │   │       ├── upgrade.service.ts  # Protocol upgrades
 │   │       └── index.ts
 │   │
-│   ├── api/                        # Layer 5: API Gateway
-│   │   ├── routes/
+│   ├── api/                        # ✨ Layer 5: Developer SDK & API Gateway
+│   │   │
+│   │   ├── core/                   # ✨ NEW: Core API utilities
+│   │   │   ├── config.ts           # Environment & configuration
+│   │   │   ├── errors.ts           # Error handling system
+│   │   │   ├── auth.ts             # JWT & API key management
+│   │   │   ├── utils.ts            # Helper functions (retry, cache, etc.)
+│   │   │   └── client.ts           # Base API client (future)
+│   │   │
+│   │   ├── routes/                 # REST API endpoints
 │   │   │   ├── identity.routes.ts  # /api/v1/identity/*
 │   │   │   ├── catalog.routes.ts   # /api/v1/catalog/*
 │   │   │   ├── order.routes.ts     # /api/v1/orders/*
 │   │   │   ├── logistics.routes.ts # /api/v1/logistics/*
 │   │   │   ├── trust.routes.ts     # /api/v1/trust/*
-│   │   │   └── index.ts
+│   │   │   ├── governance.routes.ts # ✨ NEW: /api/v1/governance/*
+│   │   │   └── index.ts            # Route aggregator
 │   │   │
-│   │   ├── middleware/
+│   │   ├── middleware/             # ✨ Request processing middleware
 │   │   │   ├── auth.middleware.ts  # JWT/API key validation
-│   │   │   ├── ratelimit.middleware.ts # Rate limiting
-│   │   │   ├── validation.middleware.ts # Request validation
-│   │   │   ├── error.middleware.ts # Error handling
+│   │   │   ├── ratelimit.middleware.ts # 100 req/hour per client
+│   │   │   ├── validation.middleware.ts # Zod schema validation
+│   │   │   ├── error.middleware.ts # Global error handler
 │   │   │   └── index.ts
 │   │   │
-│   │   ├── websocket/
-│   │   │   ├── events.ts           # WebSocket event handlers
-│   │   │   └── server.ts           # WebSocket server setup
+│   │   ├── websocket/              # ✨ Real-time events
+│   │   │   ├── server.ts           # WebSocket server setup
+│   │   │   ├── events.ts           # Event definitions
+│   │   │   ├── subscriptions.ts    # Event handlers per layer
+│   │   │   └── index.ts
 │   │   │
-│   │   └── index.ts                # Express app setup
+│   │   ├── __tests__/              # ✨ NEW: API integration tests
+│   │   │   ├── health.test.ts      # Health check tests
+│   │   │   ├── identity.test.ts    # Layer 0 endpoint tests
+│   │   │   ├── catalog.test.ts     # Layer 1 endpoint tests
+│   │   │   ├── orders.test.ts      # Layer 2 endpoint tests
+│   │   │   └── ...
+│   │   │
+│   │   ├── index.ts                # Express app setup
+│   │   └── server.ts               # ✨ NEW: Server entry point
 │   │
 │   ├── infrastructure/             # Infrastructure adapters
 │   │   ├── database/
@@ -141,42 +177,63 @@ marketplace-protocol/
 │   │   ├── layer2-transaction/
 │   │   │   ├── order.service.test.ts
 │   │   │   └── escrow.service.test.ts
+│   │   ├── layer3-logistics/
+│   │   │   ├── provider.service.test.ts
+│   │   │   └── tracking.service.test.ts
+│   │   ├── layer4-trust/
+│   │   │   ├── dispute.service.test.ts
+│   │   │   └── rating.service.test.ts
+│   │   ├── layer6-governance/
+│   │   │   ├── multisig.service.test.ts
+│   │   │   └── upgrade.service.test.ts
 │   │   └── ...
 │   │
 │   ├── integration/                # Integration tests
 │   │   ├── order-flow.test.ts     # Full order flow
 │   │   ├── federated-search.test.ts
-│   │   └── dispute-resolution.test.ts
+│   │   ├── dispute-resolution.test.ts
+│   │   └── api-endpoints.test.ts  # ✨ NEW: API integration tests
 │   │
 │   ├── e2e/                        # End-to-end tests
-│   │   └── complete-transaction.test.ts
+│   │   ├── complete-transaction.test.ts
+│   │   └── websocket-events.test.ts # ✨ NEW
 │   │
 │   └── fixtures/                   # Test data
 │       ├── identities.json
 │       ├── products.json
-│       └── orders.json
+│       ├── orders.json
+│       └── api-keys.json          # ✨ NEW
 │
 ├── scripts/                        # Utility scripts
 │   ├── setup-db.ts                 # Database setup
 │   ├── seed-data.ts                # Seed test data
 │   ├── generate-keys.ts            # Generate signing keys
+│   ├── generate-api-keys.ts        # ✨ NEW: Generate API keys
 │   └── migrate.ts                  # Run migrations
 │
-├── client-sdk/                     # SDK for client marketplaces
+├── client-sdk/                     # ✨ SDK for client marketplaces
 │   ├── typescript/
 │   │   ├── src/
 │   │   │   ├── client.ts           # Main SDK client
-│   │   │   ├── identity.ts         # Identity methods
-│   │   │   ├── catalog.ts          # Catalog methods
-│   │   │   ├── orders.ts           # Order methods
+│   │   │   ├── identity.ts         # Identity methods (Layer 0)
+│   │   │   ├── catalog.ts          # Catalog methods (Layer 1)
+│   │   │   ├── orders.ts           # Order methods (Layer 2)
+│   │   │   ├── logistics.ts        # ✨ NEW: Logistics methods (Layer 3)
+│   │   │   ├── trust.ts            # ✨ NEW: Trust methods (Layer 4)
+│   │   │   ├── governance.ts       # ✨ NEW: Governance methods (Layer 6)
+│   │   │   ├── websocket.ts        # ✨ NEW: WebSocket client
 │   │   │   └── index.ts
 │   │   ├── package.json
-│   │   └── tsconfig.json
+│   │   ├── tsconfig.json
+│   │   └── README.md               # ✨ NEW: SDK documentation
 │   │
 │   └── examples/                   # SDK usage examples
 │       ├── create-product.ts
 │       ├── process-order.ts
-│       └── federated-search.ts
+│       ├── federated-search.ts
+│       ├── track-shipment.ts       # ✨ NEW
+│       ├── file-dispute.ts         # ✨ NEW
+│       └── listen-events.ts        # ✨ NEW: WebSocket example
 │
 ├── reference-client/               # Rangkai reference client
 │   ├── src/
@@ -211,14 +268,18 @@ marketplace-protocol/
 ├── deployments/                    # Deployment configs
 │   ├── docker/
 │   │   ├── Dockerfile
+│   │   ├── Dockerfile.api          # ✨ NEW: API-specific Docker
 │   │   └── docker-compose.yml
 │   │
 │   ├── kubernetes/
-│   │   ├── deployment.yaml
-│   │   └── service.yaml
+│   │   ├── api-deployment.yaml     # ✨ NEW
+│   │   ├── api-service.yaml        # ✨ NEW
+│   │   ├── websocket-service.yaml  # ✨ NEW
+│   │   └── ingress.yaml
 │   │
 │   └── terraform/
 │       ├── main.tf
+│       ├── api.tf                  # ✨ NEW: API infrastructure
 │       └── variables.tf
 │
 └── config/                         # Configuration files
