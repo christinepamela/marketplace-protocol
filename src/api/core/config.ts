@@ -24,6 +24,9 @@ const envSchema = z.object({
   // API Keys
   API_KEY_SALT: z.string().min(32),
   
+  // Proof Signing
+  PROOF_SIGNING_KEY: z.string().min(64),
+  
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: z.string().default('3600000'), // 1 hour
   RATE_LIMIT_MAX_REQUESTS: z.string().default('100'),
@@ -72,6 +75,9 @@ class Config {
   // API Keys
   get apiKeySalt() { return this.config.API_KEY_SALT; }
   
+  // Proof Signing
+  get proofSigningKey() { return this.config.PROOF_SIGNING_KEY; }
+  
   // Rate Limiting
   get rateLimitWindowMs() { return parseInt(this.config.RATE_LIMIT_WINDOW_MS); }
   get rateLimitMaxRequests() { return parseInt(this.config.RATE_LIMIT_MAX_REQUESTS); }
@@ -83,6 +89,7 @@ class Config {
   
   // Sandbox
   get isSandboxMode() { return this.config.SANDBOX_MODE === 'true'; }
+  
   
   // API Versioning
   get apiVersion() { return 'v1'; }

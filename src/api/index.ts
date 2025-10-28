@@ -105,14 +105,10 @@ app.get(`${config.apiPrefix}/version`, (req: Request, res: Response) => {
 app.use(`${config.apiPrefix}/*`, standardRateLimit);
 
 /**
- * Mount API routes (will be added in next phase)
+ * Mount API routes
  */
-// app.use(`${config.apiPrefix}/identity`, identityRoutes);
-// app.use(`${config.apiPrefix}/catalog`, catalogRoutes);
-// app.use(`${config.apiPrefix}/orders`, orderRoutes);
-// app.use(`${config.apiPrefix}/logistics`, logisticsRoutes);
-// app.use(`${config.apiPrefix}/trust`, trustRoutes);
-// app.use(`${config.apiPrefix}/governance`, governanceRoutes);
+import apiRoutes from './routes';
+app.use(config.apiPrefix, apiRoutes);
 
 /**
  * 404 handler

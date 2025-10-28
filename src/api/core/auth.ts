@@ -38,9 +38,10 @@ export class TokenManager {
    * Generate a JWT token
    */
   static generateToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string {
-    return jwt.sign(payload, config.jwtSecret, {
-      expiresIn: config.jwtExpiry,
-    });
+    const options: jwt.SignOptions = {
+      expiresIn: config.jwtExpiry as jwt.SignOptions['expiresIn'],
+    };
+    return jwt.sign(payload as object, config.jwtSecret as jwt.Secret, options);
   }
   
   /**
