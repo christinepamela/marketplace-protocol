@@ -15,6 +15,7 @@
     "test:layer5": "ts-node scripts/test-layer5.ts",
     "test:layer6": "ts-node scripts/test-layer6.ts",
     "test:identity-routes": "ts-node scripts/test-identity-routes.ts",
+    "test:catalog-routes": "ts-node scripts/test-catalog-routes.ts",
     "api:dev": "ts-node-dev --respawn --transpile-only -r dotenv/config src/api/server.ts",
     "api:build": "tsc --project tsconfig.api.json",
     "api:start": "node dist/api/server.js",
