@@ -7,6 +7,7 @@ import { Router } from 'express';
 import identityRoutes from './identity.routes';
 import catalogRoutes from './catalog.routes';
 import orderRoutes from './order.routes';
+import logisticsRoutes from './logistics.routes';
 
 const router = Router();
 
@@ -14,11 +15,6 @@ const router = Router();
 router.use('/identity', identityRoutes);
 router.use('/catalog', catalogRoutes);
 router.use('/orders', orderRoutes);
-
-
-// Future routes (Phase 4+)
-// router.use('/logistics', logisticsRoutes);
-// router.use('/trust', trustRoutes);
-// router.use('/governance', governanceRoutes);
+router.use('/logistics', logisticsRoutes);
 
 export default router;
