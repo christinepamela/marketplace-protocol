@@ -13,6 +13,7 @@ import { UnauthorizedError } from './errors';
 // JWT Payload structure
 export interface JwtPayload {
   sub: string;           // Subject (user DID or client ID)
+  did?: string;
   type: 'user' | 'client' | 'service';
   permissions?: string[];
   iat?: number;          // Issued at

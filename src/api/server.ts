@@ -4,11 +4,13 @@
  * Loads environment variables and starts the API server
  */
 
-import dotenv from 'dotenv';
-import { startServer } from './index';
 
-// Load environment variables
+// CRITICAL: Load dotenv FIRST, before ANY other imports
+import dotenv from 'dotenv';
 dotenv.config();
+
+// NOW import everything else (after .env is loaded)
+import { startServer } from './index';
 
 // Handle uncaught errors
 process.on('uncaughtException', (error: Error) => {

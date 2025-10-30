@@ -1,15 +1,14 @@
 /// <reference path="./types/express.d.ts" />
-
 /**
  * Main API Server
  * 
  * Express application setup with middleware and routes
  */
-
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import { createClient } from '@supabase/supabase-js';
 import { config } from './core/config';
 import { generateRequestId } from './core/utils';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
@@ -18,12 +17,26 @@ import { standardRateLimit } from './middleware/ratelimit.middleware';
 // Create Express app
 const app = express();
 
+// Create Supabase client
+const supabase = createClient(
+  config.supabaseUrl,
+  config.supabaseServiceKey
+);
+
 /**
  * Request ID middleware - attach unique ID to each request
  */
 app.use((req: Request, res: Response, next: NextFunction) => {
   req.requestId = generateRequestId();
   res.setHeader('X-Request-ID', req.requestId);
+  next();
+});
+
+/**
+ * Supabase middleware - attach Supabase client to each request
+ */
+app.use((req: Request, res: Response, next: NextFunction) => {
+  req.supabase = supabase;
   next();
 });
 
