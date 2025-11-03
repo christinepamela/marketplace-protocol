@@ -4,7 +4,8 @@
  * Provides helpers for retry logic, caching, and request handling
  */
 
-import { InternalError } from './errors';
+import { Request } from 'express';
+import { InternalError, UnauthorizedError } from './errors';
 
 /**
  * Sleep helper for async delays
@@ -304,4 +305,35 @@ export function deepFreeze<T>(obj: T): Readonly<T> {
   });
   
   return obj;
+}
+
+// ============================================================================
+// AUTH HELPERS (NEW - Phase 6)
+// ============================================================================
+
+/**
+ * Extract user DID from authenticated request
+ * Throws UnauthorizedError if DID not found
+ */
+export function getUserDid(req: Request): string {
+  if (!req.user?.did) {
+    throw new UnauthorizedError('User DID not found in authentication token');
+  }
+  return req.user.did;
+}
+
+/**
+ * Check if user has specific permission
+ */
+export function hasPermission(req: Request, permission: string): boolean {
+  return req.permissions?.includes(permission) || false;
+}
+
+/**
+ * Require specific permission (throws if missing)
+ */
+export function requirePermission(req: Request, permission: string): void {
+  if (!hasPermission(req, permission)) {
+    throw new UnauthorizedError(`Missing required permission: ${permission}`);
+  }
 }

@@ -1,5 +1,6 @@
 /**
  * Error Handling System
+ * Path: src/api/core/errors.ts
  * 
  * Defines standard error types and response formats
  * Provides consistent error codes across all API endpoints
@@ -27,12 +28,20 @@ export enum ErrorCode {
   CONFLICT = 'CONFLICT',
   ORDER_NOT_FOUND = 'ORDER_NOT_FOUND',
   
-  // Business Logic
+  // Business Logic - Orders
   INVALID_STATUS = 'INVALID_STATUS',
   INSUFFICIENT_BALANCE = 'INSUFFICIENT_BALANCE',
   ESCROW_ALREADY_RELEASED = 'ESCROW_ALREADY_RELEASED',
   ORDER_NOT_PAID = 'ORDER_NOT_PAID',
+  
+  // Business Logic - Disputes
   DISPUTE_ALREADY_EXISTS = 'DISPUTE_ALREADY_EXISTS',
+  DISPUTE_NOT_FOUND = 'DISPUTE_NOT_FOUND',
+  DISPUTE_WINDOW_EXPIRED = 'DISPUTE_WINDOW_EXPIRED',
+  
+  // Business Logic - Ratings
+  ALREADY_RATED = 'ALREADY_RATED',
+  RATING_NOT_ALLOWED = 'RATING_NOT_ALLOWED',
   
   // Rate Limiting
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
@@ -55,6 +64,7 @@ export const ERROR_STATUS_MAP: Record<ErrorCode, number> = {
   [ErrorCode.INVALID_TOKEN]: 401,
   [ErrorCode.TOKEN_EXPIRED]: 401,
   [ErrorCode.INVALID_API_KEY]: 401,
+  [ErrorCode.INSUFFICIENT_PERMISSIONS]: 403,
   
   // 403 Forbidden
   [ErrorCode.FORBIDDEN]: 403,
@@ -67,14 +77,19 @@ export const ERROR_STATUS_MAP: Record<ErrorCode, number> = {
   [ErrorCode.INSUFFICIENT_BALANCE]: 400,
   [ErrorCode.ESCROW_ALREADY_RELEASED]: 400,
   [ErrorCode.ORDER_NOT_PAID]: 400,
+  [ErrorCode.DISPUTE_WINDOW_EXPIRED]: 400,
+  [ErrorCode.RATING_NOT_ALLOWED]: 400,
   
   // 404 Not Found
+  [ErrorCode.NOT_FOUND]: 404,
   [ErrorCode.ORDER_NOT_FOUND]: 404,
+  [ErrorCode.DISPUTE_NOT_FOUND]: 404,
   
   // 409 Conflict
   [ErrorCode.ALREADY_EXISTS]: 409,
   [ErrorCode.CONFLICT]: 409,
   [ErrorCode.DISPUTE_ALREADY_EXISTS]: 409,
+  [ErrorCode.ALREADY_RATED]: 409,
   
   // 429 Too Many Requests
   [ErrorCode.RATE_LIMIT_EXCEEDED]: 429,
@@ -87,6 +102,7 @@ export const ERROR_STATUS_MAP: Record<ErrorCode, number> = {
   // 500 Internal Server Error
   [ErrorCode.INTERNAL_ERROR]: 500,
   [ErrorCode.DATABASE_ERROR]: 500,
+  [ErrorCode.INVALID_STATUS]: 500,
   
   // 503 Service Unavailable
   [ErrorCode.SERVICE_UNAVAILABLE]: 503,

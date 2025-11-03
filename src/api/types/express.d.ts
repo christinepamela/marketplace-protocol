@@ -14,7 +14,7 @@ declare global {
       user?: JwtPayload & { did?: string }; // Add did for convenience
       clientId?: string;
       permissions?: string[];
-      supabase?: SupabaseClient; // Add Supabase client
+      supabase: SupabaseClient; // Add Supabase client
     }
   }
 }
