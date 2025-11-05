@@ -24,6 +24,7 @@
     "test:order-routes": "tsx --env-file=.env scripts/test-order-routes.ts",
     "test:logistics-routes": "tsx --env-file=.env scripts/test-logistics-routes.ts",
     "test:trust-routes": "tsx --env-file=.env scripts/test-trust-routes.ts",
+    "test:governance-routes": "tsx --env-file=.env scripts/test-governance-routes.ts",
     "test:all": "npm run test:layer0 && npm run test:layer1 && npm run test:layer2 && npm run test:layer3 && npm run test:layer4 && npm run test:layer5 && npm run test:layer6"
   },
   "keywords": [

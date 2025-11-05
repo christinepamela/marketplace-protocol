@@ -10,6 +10,7 @@ import orderRoutes from './order.routes';
 import logisticsRoutes from './logistics.routes';
 import disputeRoutes from './dispute.routes';
 import ratingRoutes from './rating.routes';
+import governanceRoutes from './governance.routes';
 
 const router = Router();
 
@@ -17,23 +18,26 @@ const router = Router();
 // ROUTE REGISTRATION
 // ============================================================================
 
-// Layer 0: Identity & Reputation (unchanged)
+// Layer 0: Identity & Reputation
 router.use('/identity', identityRoutes);
 
-// Layer 1: Discovery & Catalog (unchanged)
+// Layer 1: Discovery & Catalog
 router.use('/catalog', catalogRoutes);
 
-// Layer 2: Transactions & Settlement (unchanged)
+// Layer 2: Transactions & Settlement
 router.use('/orders', orderRoutes);
 
-// Layer 3: Logistics Coordination (unchanged)
+// Layer 3: Logistics Coordination
 router.use('/logistics', logisticsRoutes);
 
-// Layer 4: Trust & Compliance (NEW - Phase 6)
+// Layer 4: Trust & Compliance
 router.use('/disputes', disputeRoutes);
 router.use('/ratings', ratingRoutes);
 
-// Health check endpoint (NEW - helpful for monitoring)
+// Layer 6: Governance & Multisig (NEW - Phase 7)
+router.use('/proposals', governanceRoutes);
+
+// Health check endpoint
 router.get('/health', (req, res) => {
   res.json({
     success: true,
