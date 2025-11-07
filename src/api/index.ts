@@ -8,14 +8,19 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import { createServer } from 'http';
 import { createClient } from '@supabase/supabase-js';
 import { config } from './core/config';
 import { generateRequestId } from './core/utils';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { standardRateLimit } from './middleware/ratelimit.middleware';
+import { initializeWebSocket } from './websocket/server';
 
 // Create Express app
 const app = express();
+
+// Create HTTP server (needed for WebSocket)
+const httpServer = createServer(app);
 
 // Create Supabase client
 const supabase = createClient(
@@ -134,10 +139,15 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 /**
+ * Initialize WebSocket server
+ */
+const wsManager = initializeWebSocket(httpServer);
+
+/**
  * Start server
  */
 export function startServer(): void {
-  app.listen(config.port, () => {
+  httpServer.listen(config.port, () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🚀 Rangkai Protocol API Server');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -149,9 +159,29 @@ export function startServer(): void {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`Health: http://localhost:${config.port}/health`);
     console.log(`API Base: http://localhost:${config.port}${config.apiPrefix}`);
+    console.log(`WebSocket: ws://localhost:${config.port}/ws`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   });
 }
 
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('\n🛑 SIGTERM received, shutting down gracefully...');
+  wsManager.shutdown();
+  httpServer.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('\n🛑 SIGINT received, shutting down gracefully...');
+  wsManager.shutdown();
+  httpServer.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
 // Export app for testing
-export { app };
+export { app, httpServer, wsManager };

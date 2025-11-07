@@ -10,6 +10,7 @@ import { EscrowService } from '../../core/layer2-transaction/escrow.service';
 import { authenticate } from '../middleware/auth.middleware';
 import { validateBody } from '../middleware/validation.middleware';
 import { ApiError, ErrorCode } from '../core/errors';
+import { emitOrderEvent } from '../websocket/events';
 import type {
   CreateOrderRequest,
   OrderStatus,
@@ -111,6 +112,16 @@ router.post(
       };
 
       const response = await orderService.createOrder(createRequest);
+
+      emitOrderEvent('order.created', {
+        id: response.orderId,
+        orderNumber: response.orderNumber,
+        buyerDid: buyerDid,
+        vendorDid: req.body.vendorDid,
+        status: response.status,
+        total: response.total,
+      } as any);
+      console.log('[DEBUG] Emitted order.created event for order:', response.orderId);
 
       res.status(201).json({
         success: true,
@@ -297,6 +308,17 @@ router.post(
       // Mark as paid
       await orderService.markAsPaid(id, 'payment_' + Date.now());
 
+      const updatedOrder = await orderService.getOrderById(id);
+      emitOrderEvent('order.paid', 
+      {
+        id: updatedOrder.id,
+        orderNumber: updatedOrder.orderNumber,
+        buyerDid: updatedOrder.buyerDid,
+        vendorDid: updatedOrder.vendorDid,
+        status: updatedOrder.status,
+        total: updatedOrder.total,
+      } as any);
+
       // Create escrow
       const escrow = await escrowService.createEscrow(
         id,
@@ -390,6 +412,17 @@ router.post(
       }
 
       await orderService.markAsShipped(id, trackingNumber, logisticsProviderId);
+      const updatedOrder = await orderService.getOrderById(id);
+      emitOrderEvent('order.shipped', 
+        {
+        id: updatedOrder.id,
+        orderNumber: updatedOrder.orderNumber,
+        buyerDid: updatedOrder.buyerDid,
+        vendorDid: updatedOrder.vendorDid,
+        status: updatedOrder.status,
+        total: updatedOrder.total,
+      } as any);
+      
 
       res.json({
         success: true,
@@ -438,6 +471,16 @@ router.post(
       }
 
       await orderService.markAsDelivered(id);
+      const updatedOrder = await orderService.getOrderById(id);
+      emitOrderEvent('order.delivered', 
+        {
+        id: updatedOrder.id,
+        orderNumber: updatedOrder.orderNumber,
+        buyerDid: updatedOrder.buyerDid,
+        vendorDid: updatedOrder.vendorDid,
+        status: updatedOrder.status,
+        total: updatedOrder.total,
+      } as any);
 
       res.json({
         success: true,
@@ -480,6 +523,16 @@ router.post(
 
       // Complete order
       await orderService.completeOrder(id);
+      const updatedOrder = await orderService.getOrderById(id);
+      emitOrderEvent('order.completed', 
+        {
+        id: updatedOrder.id,
+        orderNumber: updatedOrder.orderNumber,
+        buyerDid: updatedOrder.buyerDid,
+        vendorDid: updatedOrder.vendorDid,
+        status: updatedOrder.status,
+        total: updatedOrder.total,
+      } as any);
 
       // Release escrow
       const escrow = await escrowService.getEscrowByOrderId(id);
@@ -533,6 +586,15 @@ router.post(
 
       // Cancel order
       await orderService.cancelOrder(id, userDid, reason);
+      const updatedOrder = await orderService.getOrderById(id);
+      emitOrderEvent('order.cancelled', {
+        id: updatedOrder.id,
+        orderNumber: updatedOrder.orderNumber,
+        buyerDid: updatedOrder.buyerDid,
+        vendorDid: updatedOrder.vendorDid,
+        status: updatedOrder.status,
+        total: updatedOrder.total,
+      } as any);
 
       // Refund escrow if exists
       const escrow = await escrowService.getEscrowByOrderId(id);
