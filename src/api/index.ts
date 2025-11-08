@@ -118,6 +118,13 @@ app.get(`${config.apiPrefix}/version`, (req: Request, res: Response) => {
 });
 
 /**
+ * API Documentation (Swagger UI)
+ * Available at /docs
+ */
+import swaggerRoute from './docs/swagger.route';
+app.use('/docs', swaggerRoute);
+
+/**
  * Apply rate limiting to all API routes
  */
 app.use(`${config.apiPrefix}/*`, standardRateLimit);
@@ -160,6 +167,7 @@ export function startServer(): void {
     console.log(`Health: http://localhost:${config.port}/health`);
     console.log(`API Base: http://localhost:${config.port}${config.apiPrefix}`);
     console.log(`WebSocket: ws://localhost:${config.port}/ws`);
+    console.log(`📚 API Docs: http://localhost:${config.port}/docs`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   });
 }
