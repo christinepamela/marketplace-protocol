@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&display=swap');
+
+@layer base {
+  /* Base styles - Studio McGee inspired */
+  html {
+    @apply antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-warm-white text-soft-black;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  /* Typography hierarchy */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif text-soft-black;
+    letter-spacing: -0.01em;
+  }
+
+  h1 {
+    @apply text-5xl md:text-6xl font-medium;
+  }
+
+  h2 {
+    @apply text-4xl md:text-5xl font-medium;
+  }
+
+  h3 {
+    @apply text-3xl md:text-4xl font-medium;
+  }
+
+  h4 {
+    @apply text-2xl md:text-3xl font-medium;
+  }
+
+  p {
+    @apply text-base md:text-lg leading-relaxed text-warm-gray;
+  }
+
+  a {
+    @apply transition-colors duration-200;
+  }
+}
+
+@layer components {
+  /* Button Styles - Clean & Minimal */
+  .btn {
+    @apply px-6 py-3 font-medium transition-all duration-200 border;
+    letter-spacing: 0.025em;
+  }
+
+  .btn-primary {
+    @apply bg-soft-black text-white border-soft-black;
+    @apply hover:bg-warm-taupe hover:border-warm-taupe;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-soft-black border-barely-beige;
+    @apply hover:border-soft-black;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-soft-black border-transparent;
+    @apply hover:bg-light-cream;
+  }
+
+  /* Card Styles - Subtle Elevation */
+  .card {
+    @apply bg-white border border-barely-beige p-6;
+    @apply hover:shadow-soft transition-shadow duration-200;
+  }
+
+  /* Input Styles - Clean & Minimal */
+  .input {
+    @apply w-full px-4 py-3 bg-white border border-barely-beige;
+    @apply focus:outline-none focus:border-soft-black;
+    @apply placeholder:text-warm-gray transition-colors duration-200;
+  }
+
+  /* Container - Maximum Width */
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}
+
+@layer utilities {
+  /* Custom spacing utilities */
+  .section-padding {
+    @apply py-12 md:py-20 lg:py-24;
+  }
+
+  /* Text utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Focus styles */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-warm-taupe focus:ring-offset-2;
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+/* Image loading states */
+.image-loading {
+  @apply bg-light-cream animate-pulse;
+}
+
+/* Grid layout for products */
+.product-grid {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-light-cream;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-barely-beige;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-warm-gray;
+}
+
+/* Selection color */
+::selection {
+  @apply bg-warm-taupe bg-opacity-20;
+}
