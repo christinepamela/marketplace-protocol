@@ -10,6 +10,11 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'images.unsplash.com',
       },
+      // ADDED: Allow example.com for test product images
+      {
+        protocol: 'https',
+        hostname: 'example.com',
+      },
     ],
     formats: ['image/webp', 'image/avif'],
   },
