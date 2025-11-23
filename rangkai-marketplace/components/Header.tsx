@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { ShoppingCart, User, Search, Menu, X } from 'lucide-react'
+import { ShoppingCart, Search, Menu, X } from 'lucide-react'
 import { useState } from 'react'
+import CartButton from './cart/CartButton'
+import AccountMenu from './auth/AccountMenu'
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -50,27 +52,11 @@ export default function Header() {
               <Search className="w-5 h-5" />
             </button>
 
-            {/* Account */}
-            <Link 
-              href="/auth/login"
-              className="text-soft-black hover:text-warm-taupe transition-colors"
-              aria-label="Account"
-            >
-              <User className="w-5 h-5" />
-            </Link>
+            {/* Account - UPDATED: Using AccountMenu */}
+            <AccountMenu />
 
             {/* Cart */}
-            <Link 
-              href="/cart"
-              className="relative text-soft-black hover:text-warm-taupe transition-colors"
-              aria-label="Shopping cart"
-            >
-              <ShoppingCart className="w-5 h-5" />
-              {/* Cart count badge - will be dynamic later */}
-              <span className="absolute -top-2 -right-2 bg-soft-black text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                0
-              </span>
-            </Link>
+            <CartButton />
           </div>
 
           {/* Mobile Menu Button */}
@@ -114,11 +100,10 @@ export default function Header() {
               </Link>
               <div className="flex items-center space-x-4 pt-4 border-t border-barely-beige">
                 <Link 
-                  href="/auth/login"
+                  href="/auth/register"
                   className="flex items-center space-x-2 text-soft-black hover:text-warm-taupe transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <User className="w-5 h-5" />
                   <span>Account</span>
                 </Link>
                 <Link 

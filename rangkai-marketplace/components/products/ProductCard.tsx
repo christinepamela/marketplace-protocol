@@ -1,10 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
+import { ShoppingCart, Check } from 'lucide-react'
 import type { Product } from '@rangkai/sdk'
 import ProductImage from './ProductImage'
 import VendorBadge from './VendorBadge'
 import { formatPrice } from '@/lib/utils/formatters'
+import { addToCart } from '@/lib/stores/cart'
+import { notifyCartUpdate } from '@/components/cart/CartButton'
 
 interface ProductCardProps {
   product: Product
@@ -26,6 +30,7 @@ interface ProductCardProps {
  */
 export default function ProductCard({ product, vendor }: ProductCardProps) {
   const { id, basic, pricing, logistics } = product
+  const [addedToCart, setAddedToCart] = useState(false)
 
   // Get primary image or fallback
   const imageUrl = basic.images.primary || basic.images.thumbnail || 
@@ -33,6 +38,18 @@ export default function ProductCard({ product, vendor }: ProductCardProps) {
 
   // Check if sample available
   const sampleAvailable = pricing.sample?.available
+
+  // Handle add to cart
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    addToCart(product, pricing.moq)
+    notifyCartUpdate()
+    
+    setAddedToCart(true)
+    setTimeout(() => setAddedToCart(false), 2000)
+  }
 
   return (
     <Link 
@@ -56,7 +73,6 @@ export default function ProductCard({ product, vendor }: ProductCardProps) {
               Sample Available
             </div>
           )}
-
           {/* Condition badge */}
           {basic.condition !== 'new' && (
             <div className="absolute top-3 left-3 bg-warm-taupe text-white px-2 py-1 text-xs">
@@ -115,6 +131,32 @@ export default function ProductCard({ product, vendor }: ProductCardProps) {
               </>
             )}
           </div>
+
+          {/* Add to Cart Button - NEW */}
+          <button
+            onClick={handleAddToCart}
+            className={`
+              w-full mt-4 py-2 px-4 flex items-center justify-center gap-2
+              transition-colors
+              ${addedToCart 
+                ? 'bg-green-100 text-green-700 border border-green-200' 
+                : 'bg-soft-black text-white hover:bg-warm-taupe'
+              }
+            `}
+            disabled={addedToCart}
+          >
+            {addedToCart ? (
+              <>
+                <Check size={18} />
+                <span>Added to Cart</span>
+              </>
+            ) : (
+              <>
+                <ShoppingCart size={18} />
+                <span>Add to Cart</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </Link>

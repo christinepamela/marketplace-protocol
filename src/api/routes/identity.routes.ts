@@ -100,13 +100,29 @@ router.post(
     // Register identity
     const identity = await identityService.registerIdentity(requestData);
     
+    // Generate JWT token for immediate authentication
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign(
+      { 
+        sub: identity.did,  // Subject (user DID)
+        type: identity.type,
+        clientId: requestData.clientId
+      },
+      config.jwtSecret,
+      { 
+        expiresIn: config.jwtExpiry || '24h'
+      }
+    );
+    
     res.status(201).json({
       success: true,
       data: {
         did: identity.did,
+        token: token,  // ✅ NOW RETURNS TOKEN
         status: identity.status,
         initialTrustScore: identity.initialTrustScore,
         createdAt: identity.createdAt,
+        identity: identity  // Include full identity for client
       },
     });
   })

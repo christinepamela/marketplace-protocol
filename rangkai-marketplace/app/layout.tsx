@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { AuthProvider } from '@/lib/contexts/AuthContext'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 
@@ -26,16 +27,19 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen flex flex-col">
-        {/* Header - sticky navigation */}
-        <Header />
-        
-        {/* Main content area */}
-        <main className="flex-grow">
-          {children}
-        </main>
-        
-        {/* Footer - site info and links */}
-        <Footer />
+        {/* Auth Provider wraps everything */}
+        <AuthProvider>
+          {/* Header - sticky navigation */}
+          <Header />
+          
+          {/* Main content area */}
+          <main className="flex-grow">
+            {children}
+          </main>
+          
+          {/* Footer - site info and links */}
+          <Footer />
+        </AuthProvider>
       </body>
     </html>
   )
