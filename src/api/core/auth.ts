@@ -15,6 +15,7 @@ export interface JwtPayload {
   sub: string;           // Subject (user DID or client ID)
   did?: string;
   type: 'user' | 'client' | 'service';
+  tokenType?: 'access' | 'refresh';
   permissions?: string[];
   iat?: number;          // Issued at
   exp?: number;          // Expiry

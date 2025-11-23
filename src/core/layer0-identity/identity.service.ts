@@ -64,6 +64,7 @@ export class IdentityService {
     
     return {
       did,
+      type: request.type,
       status: initialStatus,
       initialTrustScore,
       createdAt: identity.createdAt

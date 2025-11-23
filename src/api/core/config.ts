@@ -17,9 +17,16 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string(),
   SUPABASE_SERVICE_KEY: z.string(),
   
-  // JWT
+  // JWT - Access Tokens (short-lived)
   JWT_SECRET: z.string().min(32),
-  JWT_EXPIRY: z.string().default('24h'),
+  JWT_EXPIRY: z.string().default('1h'), // ✅ CHANGED: 1 hour instead of 24h
+  
+  // JWT - Refresh Tokens (long-lived) - ✅ NEW
+  JWT_REFRESH_SECRET: z.string().min(32).optional(), // Falls back to JWT_SECRET if not set
+  JWT_REFRESH_EXPIRY: z.string().default('30d'), // 30 days for persistent login
+  
+  // JWT - Anonymous Users (no refresh) - ✅ NEW
+  JWT_ANONYMOUS_EXPIRY: z.string().default('24h'), // Anonymous users: 24h, no refresh
   
   // API Keys
   API_KEY_SALT: z.string().min(32),
@@ -68,9 +75,19 @@ class Config {
   get supabaseAnonKey() { return this.config.SUPABASE_ANON_KEY; }
   get supabaseServiceKey() { return this.config.SUPABASE_SERVICE_KEY; }
   
-  // JWT
+  // JWT - Access Tokens
   get jwtSecret() { return this.config.JWT_SECRET; }
   get jwtExpiry() { return this.config.JWT_EXPIRY; }
+  
+  // JWT - Refresh Tokens ✅ NEW
+  get jwtRefreshSecret() { 
+    // Use separate secret if provided, otherwise use same as access token
+    return this.config.JWT_REFRESH_SECRET || this.config.JWT_SECRET; 
+  }
+  get jwtRefreshExpiry() { return this.config.JWT_REFRESH_EXPIRY; }
+  
+  // JWT - Anonymous Users ✅ NEW
+  get jwtAnonymousExpiry() { return this.config.JWT_ANONYMOUS_EXPIRY; }
   
   // API Keys
   get apiKeySalt() { return this.config.API_KEY_SALT; }

@@ -361,6 +361,7 @@ export interface RegisterIdentityRequest {
  */
 export interface RegisterIdentityResponse {
   did: string;
+  type: IdentityType;  // ✅ ADDED: Identity type needed for token generation
   status: VerificationStatus;
   initialTrustScore: number;
   createdAt: Date;

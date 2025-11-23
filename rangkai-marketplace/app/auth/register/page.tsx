@@ -66,8 +66,15 @@ export default function RegisterPage() {
         bio: formData.bio
       })
 
-      // Login user
-      await login(response.token, response.did)
+      // ✅ ONLY CHANGE: Pass refresh token to login
+      console.log('✅ Registration successful:', {
+        did: response.did,
+        hasToken: !!response.token,
+        hasRefreshToken: !!response.refreshToken,
+        identityType: formData.type
+      })
+      
+      await login(response.token, response.refreshToken, response.did)
 
       // Show success
       setSuccess(true)

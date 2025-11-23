@@ -86,6 +86,11 @@ const generateProofSchema = z.object({
   validityDays: z.number().optional(),
 });
 
+// Refresh token schema ✅ NEW
+const refreshTokenSchema = z.object({
+  refreshToken: z.string(),
+});
+
 /**
  * POST /api/v1/identity/register
  * Register a new identity
@@ -100,31 +105,123 @@ router.post(
     // Register identity
     const identity = await identityService.registerIdentity(requestData);
     
-    // Generate JWT token for immediate authentication
+    // Generate JWT tokens
     const jwt = require('jsonwebtoken');
-    const token = jwt.sign(
+    
+    // ✅ CHANGED: Determine token expiry based on identity type
+    const isAnonymous = identity.type === 'anonymous';
+    const accessTokenExpiry = isAnonymous ? config.jwtAnonymousExpiry : config.jwtExpiry;
+    
+    // Generate access token (short-lived)
+    const accessToken = jwt.sign(
       { 
         sub: identity.did,  // Subject (user DID)
         type: identity.type,
-        clientId: requestData.clientId
+        clientId: requestData.clientId,
+        tokenType: 'access' // ✅ NEW: Identify token type
       },
       config.jwtSecret,
       { 
-        expiresIn: config.jwtExpiry || '24h'
+        expiresIn: accessTokenExpiry
       }
     );
+    
+    // ✅ NEW: Generate refresh token (only for non-anonymous users)
+    let refreshToken = null;
+    if (!isAnonymous) {
+      refreshToken = jwt.sign(
+        { 
+          sub: identity.did,
+          type: identity.type,
+          clientId: requestData.clientId,
+          tokenType: 'refresh' // ✅ NEW: Identify as refresh token
+        },
+        config.jwtRefreshSecret,
+        { 
+          expiresIn: config.jwtRefreshExpiry
+        }
+      );
+    }
     
     res.status(201).json({
       success: true,
       data: {
         did: identity.did,
-        token: token,  // ✅ NOW RETURNS TOKEN
+        token: accessToken,  // ✅ RENAMED: Now explicitly "accessToken"
+        refreshToken: refreshToken, // ✅ NEW: Only present for KYC/Nostr users
+        expiresIn: accessTokenExpiry, // ✅ NEW: Let client know when to refresh
         status: identity.status,
         initialTrustScore: identity.initialTrustScore,
         createdAt: identity.createdAt,
-        identity: identity  // Include full identity for client
+        identity: identity
       },
     });
+  })
+);
+
+/**
+ * POST /api/v1/identity/refresh
+ * Refresh access token using refresh token
+ * Public endpoint (requires valid refresh token)
+ * ✅ NEW ENDPOINT
+ */
+router.post(
+  '/refresh',
+  validateBody(refreshTokenSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { refreshToken } = req.body;
+    const jwt = require('jsonwebtoken');
+    
+    try {
+      // Verify refresh token
+      const payload = jwt.verify(refreshToken, config.jwtRefreshSecret) as any;
+      
+      // Ensure it's actually a refresh token
+      if (payload.tokenType !== 'refresh') {
+        throw new ValidationError('Invalid token type');
+      }
+      
+      // Ensure user still exists
+      const identity = await identityService.getIdentityByDID(payload.sub);
+      if (!identity) {
+        throw new NotFoundError('Identity', payload.sub);
+      }
+      
+      // Don't allow refresh for anonymous users
+      if (identity.type === 'anonymous') {
+        throw new ValidationError('Anonymous users cannot refresh tokens');
+      }
+      
+      // Generate new access token
+      const newAccessToken = jwt.sign(
+        { 
+          sub: payload.sub,
+          type: payload.type,
+          clientId: payload.clientId,
+          tokenType: 'access'
+        },
+        config.jwtSecret,
+        { 
+          expiresIn: config.jwtExpiry
+        }
+      );
+      
+      res.json({
+        success: true,
+        data: {
+          token: newAccessToken,
+          expiresIn: config.jwtExpiry
+        },
+      });
+    } catch (error: any) {
+      if (error.name === 'TokenExpiredError') {
+        throw new ValidationError('Refresh token has expired. Please log in again.');
+      }
+      if (error.name === 'JsonWebTokenError') {
+        throw new ValidationError('Invalid refresh token');
+      }
+      throw error;
+    }
   })
 );
 

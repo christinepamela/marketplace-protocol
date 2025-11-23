@@ -23,6 +23,7 @@ export interface RegisterRequest {
 export interface RegisterResponse {
   did: string
   token: string
+  refreshToken: string | null  // ✅ NEW: null for anonymous users
   identity: any
 }
 
@@ -34,7 +35,7 @@ export interface RegisterResponse {
  * Register new user identity
  * 
  * @param data - Registration data
- * @returns DID, JWT token, and identity object
+ * @returns DID, JWT tokens, and identity object
  */
 export async function register(data: RegisterRequest): Promise<RegisterResponse> {
   try {
@@ -46,7 +47,7 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
       verified: false,
       bio: data.bio
     }
-
+    
     // Call SDK to register
     const response = await sdk.identity.register({
       type: data.type,
@@ -57,10 +58,11 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
       },
       metadata: getMetadataForType(data.type, data)
     })
-
+    
     return {
       did: response.did,
       token: response.token,
+      refreshToken: response.refreshToken, // ✅ NEW: Pass through refresh token
       identity: response.identity
     }
   } catch (error) {
@@ -118,29 +120,29 @@ function getMetadataForType(type: IdentityType, data: RegisterRequest): any {
  */
 export function validateRegistrationData(data: Partial<RegisterRequest>): string[] {
   const errors: string[] = []
-
+  
   if (!data.displayName?.trim()) {
     errors.push('Display name is required')
   }
-
+  
   if (!data.email?.trim()) {
     errors.push('Email is required')
   } else if (!isValidEmail(data.email)) {
     errors.push('Invalid email format')
   }
-
+  
   if (!data.password || data.password.length < 8) {
     errors.push('Password must be at least 8 characters')
   }
-
+  
   if (!data.type) {
     errors.push('Identity type is required')
   }
-
+  
   if (!data.businessType) {
     errors.push('Business type is required')
   }
-
+  
   return errors
 }
 

@@ -41,6 +41,11 @@ export function authenticateJWT(
     // Verify and decode token
     const payload = TokenManager.verifyToken(token);
     
+    // ✅ NEW: Ensure it's an access token, not a refresh token
+    if (payload.tokenType && payload.tokenType !== 'access') {
+      throw new UnauthorizedError('Invalid token type. Use access token for API requests.');
+    }
+    
     // Attach to request
     req.user = payload;
     req.permissions = payload.permissions || [];
@@ -127,6 +132,12 @@ export function authenticate() {
       const jwtToken = TokenManager.extractFromHeader(authHeader);
       if (jwtToken) {
         const payload = TokenManager.verifyToken(jwtToken);
+        
+        // ✅ NEW: Ensure it's an access token, not a refresh token
+        if (payload.tokenType && payload.tokenType !== 'access') {
+          throw new UnauthorizedError('Invalid token type. Use access token for API requests.');
+        }
+        
         req.user = payload;
         req.permissions = payload.permissions || [];
         return next();

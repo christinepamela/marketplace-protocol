@@ -30,9 +30,22 @@ export interface RegisterIdentityRequest {
 
 export interface RegisterIdentityResponse {
   did: string;
+  token: string;              // ✅ RENAMED: Access token
+  refreshToken: string | null; // ✅ NEW: Refresh token (null for anonymous)
+  expiresIn: string;           // ✅ NEW: Token expiry duration (e.g., "1h", "24h")
   status: string;
   initialTrustScore: number;
   createdAt: string;
+  identity: Identity;          // ✅ NEW: Full identity object
+}
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
+export interface RefreshTokenResponse {
+  token: string;      // New access token
+  expiresIn: string;  // Expiry duration
 }
 
 export interface GenerateProofRequest {
@@ -52,10 +65,10 @@ export class IdentityModule {
    * Public endpoint - no authentication required
    * 
    * @param request - Identity registration details
-   * @returns Registered identity with DID
+   * @returns Registered identity with DID and tokens
    * 
    * @example
-   * const identity = await sdk.identity.register({
+   * const result = await sdk.identity.register({
    *   type: 'kyc',
    *   clientId: 'my-marketplace',
    *   publicProfile: {
@@ -65,9 +78,36 @@ export class IdentityModule {
    *   },
    *   kycData: { ... }
    * });
+   * 
+   * // Store both tokens
+   * localStorage.setItem('token', result.token);
+   * if (result.refreshToken) {
+   *   localStorage.setItem('refreshToken', result.refreshToken);
+   * }
    */
   async register(request: RegisterIdentityRequest): Promise<RegisterIdentityResponse> {
     return this.http.post('/identity/register', request);
+  }
+
+  /**
+   * Refresh access token using refresh token
+   * Public endpoint - requires valid refresh token
+   * ✅ NEW METHOD
+   * 
+   * @param refreshToken - Valid refresh token
+   * @returns New access token
+   * 
+   * @example
+   * const { token } = await sdk.identity.refresh({
+   *   refreshToken: localStorage.getItem('refreshToken')
+   * });
+   * 
+   * // Update stored token
+   * localStorage.setItem('token', token);
+   * sdk.setToken(token);
+   */
+  async refresh(request: RefreshTokenRequest): Promise<RefreshTokenResponse> {
+    return this.http.post('/identity/refresh', request);
   }
 
   /**
