@@ -182,7 +182,7 @@ router.get(
   async (req, res, next) => {
     try {
       const { did } = req.params;
-      const userDid = req.user!.did;
+      const userDid = getUserDid(req);
 
       // Users can only view their own orders
       if (did !== userDid) {
@@ -230,7 +230,7 @@ router.get(
   async (req, res, next) => {
     try {
       const { did } = req.params;
-      const userDid = req.user!.did;
+      const userDid = getUserDid(req);
 
       // Users can only view their own orders
       if (did !== userDid) {
@@ -279,7 +279,7 @@ router.post(
   async (req, res, next) => {
     try {
       const { id } = req.params;
-      const userDid = req.user!.did;
+      const userDid = getUserDid(req);
       const orderService = new OrderService(req.supabase);
       const escrowService = new EscrowService(req.supabase);
 
@@ -351,7 +351,7 @@ router.post(
   async (req, res, next) => {
     try {
       const { id } = req.params;
-      const userDid = req.user!.did;
+      const userDid = getUserDid(req);
       const orderService = new OrderService(req.supabase);
 
       const order = await orderService.getOrderById(id);
@@ -392,7 +392,7 @@ router.post(
   async (req, res, next) => {
     try {
       const { id } = req.params;
-      const userDid = req.user!.did;
+      const userDid = getUserDid(req);
       const { trackingNumber, logisticsProviderId } = req.body;
       
       const orderService = new OrderService(req.supabase);
@@ -449,7 +449,7 @@ router.post(
   async (req, res, next) => {
     try {
       const { id } = req.params;
-      const userDid = req.user!.did;
+      const userDid = getUserDid(req);
       const orderService = new OrderService(req.supabase);
 
       const order = await orderService.getOrderById(id);
@@ -503,7 +503,7 @@ router.post(
   async (req, res, next) => {
     try {
       const { id } = req.params;
-      const userDid = req.user!.did;
+      const userDid = getUserDid(req);
       const orderService = new OrderService(req.supabase);
       const escrowService = new EscrowService(req.supabase);
 
@@ -562,7 +562,7 @@ router.post(
   async (req, res, next) => {
     try {
       const { id } = req.params;
-      const userDid = req.user!.did;
+      const userDid = getUserDid(req);
       const { reason } = req.body;
       
       const orderService = new OrderService(req.supabase);
@@ -627,7 +627,7 @@ router.get(
   async (req, res, next) => {
     try {
       const { id } = req.params;
-      const userDid = req.user!.did;
+      const userDid = getUserDid(req);
       const orderService = new OrderService(req.supabase);
 
       const order = await orderService.getOrderById(id);
