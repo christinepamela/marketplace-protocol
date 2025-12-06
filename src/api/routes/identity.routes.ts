@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../core/config';
 import { getProofKeys } from '../core/proof-keys';
+import { PERMISSIONS } from '../core/auth';
 import { 
   IdentityService,
   ReputationService,
@@ -28,7 +29,6 @@ import {
   requirePermissions,
 } from '../middleware/auth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
-import { PERMISSIONS } from '../core/auth';
 import { NotFoundError, ValidationError } from '../core/errors';
 
 const router = Router();
@@ -112,36 +112,46 @@ router.post(
     const isAnonymous = identity.type === 'anonymous';
     const accessTokenExpiry = isAnonymous ? config.jwtAnonymousExpiry : config.jwtExpiry;
     
-    // Generate access token (short-lived)
-    const accessToken = jwt.sign(
-      { 
-        sub: identity.did,  // Subject (user DID)
-        type: identity.type,
-        clientId: requestData.clientId,
-        tokenType: 'access' // ✅ NEW: Identify token type
-      },
-      config.jwtSecret,
-      { 
-        expiresIn: accessTokenExpiry
-      }
-    );
+    // ✅ Define default permissions for all users
+const permissions = [
+  PERMISSIONS.CATALOG_READ,
+  PERMISSIONS.CATALOG_WRITE,
+  PERMISSIONS.ORDERS_READ,
+  PERMISSIONS.ORDERS_WRITE,
+];
+
+// Generate access token (short-lived)
+const accessToken = jwt.sign(
+  { 
+    sub: identity.did,
+    type: identity.type,
+    clientId: requestData.clientId,
+    tokenType: 'access',
+    permissions: permissions  // ✅ ADDED
+  },
+  config.jwtSecret,
+  { 
+    expiresIn: accessTokenExpiry
+  }
+);
     
     // ✅ NEW: Generate refresh token (only for non-anonymous users)
     let refreshToken = null;
     if (!isAnonymous) {
       refreshToken = jwt.sign(
-        { 
-          sub: identity.did,
-          type: identity.type,
-          clientId: requestData.clientId,
-          tokenType: 'refresh' // ✅ NEW: Identify as refresh token
-        },
-        config.jwtRefreshSecret,
-        { 
-          expiresIn: config.jwtRefreshExpiry
-        }
-      );
+    { 
+      sub: identity.did,
+      type: identity.type,
+      clientId: requestData.clientId,
+      tokenType: 'refresh',
+      permissions: permissions  // ✅ ADDED
+    },
+    config.jwtRefreshSecret,
+    { 
+      expiresIn: config.jwtRefreshExpiry
     }
+  );
+}
     
     res.status(201).json({
       success: true,
@@ -193,18 +203,25 @@ router.post(
       }
       
       // Generate new access token
+      // Generate new access token
       const newAccessToken = jwt.sign(
-        { 
-          sub: payload.sub,
-          type: payload.type,
-          clientId: payload.clientId,
-          tokenType: 'access'
-        },
-        config.jwtSecret,
-        { 
-          expiresIn: config.jwtExpiry
-        }
-      );
+      { 
+        sub: payload.sub,
+        type: payload.type,
+        clientId: payload.clientId,
+        tokenType: 'access',
+        permissions: payload.permissions || [  // ✅ ADDED: Preserve permissions from refresh token
+          PERMISSIONS.CATALOG_READ,
+          PERMISSIONS.CATALOG_WRITE,
+          PERMISSIONS.ORDERS_READ,
+          PERMISSIONS.ORDERS_WRITE,
+        ]
+      },
+      config.jwtSecret,
+      { 
+        expiresIn: config.jwtExpiry
+      }
+    );
       
       res.json({
         success: true,

@@ -5,9 +5,11 @@ import { ShoppingCart, Search, Menu, X } from 'lucide-react'
 import { useState } from 'react'
 import CartButton from './cart/CartButton'
 import AccountMenu from './auth/AccountMenu'
+import { useAuth } from '@/lib/contexts/AuthContext'
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { user } = useAuth()
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-barely-beige">
@@ -28,6 +30,25 @@ export default function Header() {
             >
               Shop
             </Link>
+            
+            {/* ✅ ADD THIS: Vendor Links (show if user is authenticated) */}
+            {user && (
+              <>
+                <Link 
+                  href="/vendor/dashboard" 
+                  className="text-soft-black hover:text-warm-taupe transition-colors font-medium"
+                >
+                  Dashboard
+                </Link>
+                <Link 
+                  href="/vendor/products" 
+                  className="text-soft-black hover:text-warm-taupe transition-colors font-medium"
+                >
+                  My Products
+                </Link>
+              </>
+            )}
+            
             <Link 
               href="/vendors" 
               className="text-soft-black hover:text-warm-taupe transition-colors font-medium"

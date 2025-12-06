@@ -76,7 +76,6 @@ export class CatalogModule {
    * });
    */
   async create(request: CreateProductRequest): Promise<CreateProductResponse> {
-    // FIXED: Added /catalog prefix to match protocol routes
     return this.http.post('/catalog/products', request);
   }
 
@@ -91,7 +90,6 @@ export class CatalogModule {
    * const product = await sdk.catalog.getById('uuid-here');
    */
   async getById(productId: string): Promise<Product> {
-    // FIXED: Added /catalog prefix to match protocol routes
     return this.http.get(`/catalog/products/${productId}`);
   }
 
@@ -100,79 +98,92 @@ export class CatalogModule {
    * Public endpoint
    * 
    * @param vendorDid - Vendor's DID
-   * @param options - Query options
+   * @param options - Query options (status, limit, offset)
    * @returns List of products
    * 
    * @example
    * const products = await sdk.catalog.getByVendor('did:rangkai:...', {
+   *   status: 'active',
    *   limit: 20,
    *   offset: 0
    * });
    */
   async getByVendor(
     vendorDid: string,
-    options?: { limit?: number; offset?: number }
+    options?: { 
+      status?: 'active' | 'draft' | 'inactive' | 'out_of_stock' | 'discontinued';
+      limit?: number; 
+      offset?: number;
+    }
   ): Promise<Product[]> {
-    // FIXED: Added /catalog prefix to match protocol routes
-    return this.http.get(`/catalog/products/vendor/${vendorDid}`, options);
+    // ✅ FIXED: Use query parameters to match protocol route
+    // Protocol expects: GET /catalog/products?vendorDid=xxx&status=xxx&limit=xx&offset=xx
+    const params: Record<string, any> = {
+      vendorDid, // Pass vendorDid as query parameter
+    };
+    
+    // Add optional parameters if provided
+    if (options?.status) params.status = options.status;
+    if (options?.limit) params.limit = options.limit;
+    if (options?.offset) params.offset = options.offset;
+    
+    return this.http.get('/catalog/products', params);
   }
 
   /**
- * Search products
- * Public endpoint - federated search across all marketplaces
- * 
- * @param query - Search query with filters
- * @returns Search results with relevance scores
- * 
- * @example
- * const results = await sdk.catalog.search({
- *   query: 'leather shoes',
- *   filters: {
- *     category: 'footwear',
- *     minPrice: 50,
- *     maxPrice: 200,
- *     originCountry: 'US',
- *     verifiedVendorsOnly: true
- *   },
- *   sortBy: 'price_asc',
- *   limit: 20
- * });
- */
-async search(query: SearchQuery): Promise<SearchResults> {
-  // Convert SearchQuery object to URL query parameters
-  // to match protocol's GET /catalog/search endpoint
-  const params: Record<string, any> = {};
-  
-  // Main query text
-  if (query.query) {
-    params.q = query.query;
-  }
-  
-  // Sorting and pagination
-  if (query.sortBy) params.sortBy = query.sortBy;
-  if (query.limit) params.limit = query.limit;
-  if (query.offset) {
-    // Protocol uses 'page' param, calculate from offset
-    params.page = Math.floor(query.offset / (query.limit || 20)) + 1;
-  }
-  
-  // Flatten filters object to individual query params
-  if (query.filters) {
-    if (query.filters.category) params.category = query.filters.category;
-    if (query.filters.subcategory) params.subcategory = query.filters.subcategory;
-    if (query.filters.minPrice !== undefined) params.minPrice = query.filters.minPrice.toString();
-    if (query.filters.maxPrice !== undefined) params.maxPrice = query.filters.maxPrice.toString();
-    if (query.filters.currency) params.currency = query.filters.currency;
-    if (query.filters.originCountry) params.originCountry = query.filters.originCountry;
-    if (query.filters.verifiedVendorsOnly !== undefined) {
-      params.verifiedOnly = query.filters.verifiedVendorsOnly.toString();
+   * Search products
+   * Public endpoint - federated search across all marketplaces
+   * 
+   * @param query - Search query with filters
+   * @returns Search results with relevance scores
+   * 
+   * @example
+   * const results = await sdk.catalog.search({
+   *   query: 'leather shoes',
+   *   filters: {
+   *     category: 'footwear',
+   *     minPrice: 50,
+   *     maxPrice: 200,
+   *     originCountry: 'US',
+   *     verifiedVendorsOnly: true
+   *   },
+   *   sortBy: 'price_asc',
+   *   limit: 20
+   * });
+   */
+  async search(query: SearchQuery): Promise<SearchResults> {
+    // Convert SearchQuery object to URL query parameters
+    // to match protocol's GET /catalog/search endpoint
+    const params: Record<string, any> = {};
+    
+    // Main query text
+    if (query.query) {
+      params.q = query.query;
     }
+    
+    // Sorting and pagination
+    if (query.sortBy) params.sortBy = query.sortBy;
+    if (query.limit) params.limit = query.limit;
+    if (query.offset) {
+      // Protocol uses 'page' param, calculate from offset
+      params.page = Math.floor(query.offset / (query.limit || 20)) + 1;
+    }
+    
+    // Flatten filters object to individual query params
+    if (query.filters) {
+      if (query.filters.category) params.category = query.filters.category;
+      if (query.filters.subcategory) params.subcategory = query.filters.subcategory;
+      if (query.filters.minPrice !== undefined) params.minPrice = query.filters.minPrice.toString();
+      if (query.filters.maxPrice !== undefined) params.maxPrice = query.filters.maxPrice.toString();
+      if (query.filters.currency) params.currency = query.filters.currency;
+      if (query.filters.originCountry) params.originCountry = query.filters.originCountry;
+      if (query.filters.verifiedVendorsOnly !== undefined) {
+        params.verifiedOnly = query.filters.verifiedVendorsOnly.toString();
+      }
+    }
+    
+    return this.http.get('/catalog/search', params);
   }
-  
-  // FIXED: Added /catalog prefix to match protocol routes
-  // Call GET /catalog/search (protocol expects this full path)
-  return this.http.get('/catalog/search', params);
-}
 
   /**
    * Update product
@@ -189,7 +200,6 @@ async search(query: SearchQuery): Promise<SearchResults> {
    * });
    */
   async update(productId: string, updates: Partial<Product>): Promise<Product> {
-    // FIXED: Added /catalog prefix to match protocol routes
     return this.http.put(`/catalog/products/${productId}`, updates);
   }
 
@@ -204,7 +214,6 @@ async search(query: SearchQuery): Promise<SearchResults> {
    * await sdk.catalog.delete('uuid-here');
    */
   async delete(productId: string): Promise<{ message: string }> {
-    // FIXED: Added /catalog prefix to match protocol routes
     return this.http.delete(`/catalog/products/${productId}`);
   }
 
@@ -224,7 +233,6 @@ async search(query: SearchQuery): Promise<SearchResults> {
     inquiries: number;
     orders: number;
   }> {
-    // FIXED: Added /catalog prefix to match protocol routes
     return this.http.get(`/catalog/products/${productId}/stats`);
   }
 }
