@@ -1,11 +1,13 @@
 /**
  * Order Actions Component
  * Action buttons for order management
+ * ✅ FIXED: Added "Mark as Paid" button for buyers
  */
 
 import { useState } from 'react'
 import type { Order } from '@rangkai/sdk'
 import { 
+  markAsPaid,
   confirmOrder, 
   shipOrder, 
   confirmDelivery, 
@@ -13,7 +15,7 @@ import {
   cancelOrder,
   getAvailableActions 
 } from '@/lib/api/orders'
-import { CheckCircle, Truck, PackageCheck, XCircle, Loader2 } from 'lucide-react'
+import { CheckCircle, Truck, PackageCheck, XCircle, Loader2, CreditCard } from 'lucide-react'
 
 interface OrderActionsProps {
   order: Order
@@ -47,6 +49,22 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
         No actions available for this order
       </div>
     )
+  }
+
+  // ✅ NEW: Handle mark as paid
+  const handleMarkAsPaid = async () => {
+    if (!confirm('Mark this order as paid? This simulates payment completion.')) return
+    
+    setLoading(true)
+    try {
+      await markAsPaid(order.id)
+      alert('✅ Payment confirmed! Order marked as paid.')
+      onActionComplete()
+    } catch (error: any) {
+      alert(`❌ Failed to mark as paid: ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Handle confirm order
@@ -136,6 +154,61 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
 
   return (
     <div className="space-y-4">
+      {/* Buyer Actions */}
+      {isBuyer && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-warm-gray uppercase">Buyer Actions</h3>
+          
+          {/* ✅ NEW: Mark as Paid */}
+          {actions.canPay && (
+            <button
+              onClick={handleMarkAsPaid}
+              disabled={loading}
+              className="btn btn-primary w-full disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 size={18} className="mr-2 animate-spin" />
+              ) : (
+                <CreditCard size={18} className="mr-2" />
+              )}
+              Mark as Paid
+            </button>
+          )}
+          
+          {/* Confirm Delivery */}
+          {actions.canConfirmDelivery && (
+            <button
+              onClick={handleConfirmDelivery}
+              disabled={loading}
+              className="btn btn-primary w-full disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 size={18} className="mr-2 animate-spin" />
+              ) : (
+                <PackageCheck size={18} className="mr-2" />
+              )}
+              Confirm Delivery
+            </button>
+          )}
+
+          {/* Complete Order */}
+          {actions.canComplete && (
+            <button
+              onClick={handleComplete}
+              disabled={loading}
+              className="btn btn-primary w-full disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 size={18} className="mr-2 animate-spin" />
+              ) : (
+                <CheckCircle size={18} className="mr-2" />
+              )}
+              Complete Order (Release Escrow)
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Vendor Actions */}
       {isVendor && (
         <div className="space-y-3">
@@ -202,45 +275,6 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
                 </div>
               )}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Buyer Actions */}
-      {isBuyer && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium text-warm-gray uppercase">Buyer Actions</h3>
-          
-          {/* Confirm Delivery */}
-          {actions.canConfirmDelivery && (
-            <button
-              onClick={handleConfirmDelivery}
-              disabled={loading}
-              className="btn btn-primary w-full disabled:opacity-50"
-            >
-              {loading ? (
-                <Loader2 size={18} className="mr-2 animate-spin" />
-              ) : (
-                <PackageCheck size={18} className="mr-2" />
-              )}
-              Confirm Delivery
-            </button>
-          )}
-
-          {/* Complete Order */}
-          {actions.canComplete && (
-            <button
-              onClick={handleComplete}
-              disabled={loading}
-              className="btn btn-primary w-full disabled:opacity-50"
-            >
-              {loading ? (
-                <Loader2 size={18} className="mr-2 animate-spin" />
-              ) : (
-                <CheckCircle size={18} className="mr-2" />
-              )}
-              Complete Order (Release Escrow)
-            </button>
           )}
         </div>
       )}

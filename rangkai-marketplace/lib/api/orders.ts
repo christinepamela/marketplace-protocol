@@ -4,7 +4,7 @@
  */
 
 import { sdk } from '@/lib/sdk'
-import type { Order, OrderStatus, OrderStatusChange } from '@rangkai/sdk'
+import type { Order, OrderStatus, OrderStatusChange, PaymentProof } from '@rangkai/sdk'
 
 // ============================================================================
 // FETCH ORDERS
@@ -77,6 +77,40 @@ export async function getOrderHistory(orderId: string): Promise<OrderStatusChang
 // ============================================================================
 
 /**
+ * Mark order as paid (buyer action)
+ * ✅ NEW: Added payment action
+ */
+export async function markAsPaid(
+  orderId: string,
+  paymentProof?: PaymentProof
+): Promise<void> {
+  try {
+    // For testing: use mock payment proof
+    const proof: PaymentProof = paymentProof || {
+      timestamp: new Date().toISOString(),
+      stripePaymentIntentId: `pi_test_${Date.now()}` // Mock Stripe payment
+    }
+    
+    await sdk.orders.markAsPaid(orderId, proof)
+  } catch (error) {
+    console.error('Failed to mark order as paid:', error)
+    throw error
+  }
+}
+
+/**
+ * Confirm order (vendor action)
+ */
+export async function confirmOrder(orderId: string): Promise<void> {
+  try {
+    await sdk.orders.confirm(orderId)
+  } catch (error) {
+    console.error('Failed to confirm order:', error)
+    throw error
+  }
+}
+
+/**
  * Mark order as shipped (vendor action)
  */
 export async function shipOrder(
@@ -128,18 +162,6 @@ export async function cancelOrder(orderId: string, reason: string): Promise<void
   }
 }
 
-/**
- * Confirm order (vendor action)
- */
-export async function confirmOrder(orderId: string): Promise<void> {
-  try {
-    await sdk.orders.confirm(orderId)
-  } catch (error) {
-    console.error('Failed to confirm order:', error)
-    throw error
-  }
-}
-
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -160,8 +182,10 @@ export function canPerformVendorActions(order: Order, userDid: string): boolean 
 
 /**
  * Get available actions for order based on status and user role
+ * ✅ FIXED: Added canPay action
  */
 export function getAvailableActions(order: Order, userDid: string): {
+  canPay: boolean           // ✅ ADDED
   canConfirm: boolean
   canShip: boolean
   canConfirmDelivery: boolean
@@ -172,6 +196,10 @@ export function getAvailableActions(order: Order, userDid: string): {
   const isVendor = order.vendorDid === userDid
 
   return {
+    // ✅ NEW: Buyer: Mark as paid when payment is pending
+    canPay: isBuyer && 
+            (order.status === 'payment_pending' || order.status === 'draft'),
+    
     // Vendor: Confirm order after payment
     canConfirm: isVendor && order.status === 'paid',
     
@@ -186,6 +214,6 @@ export function getAvailableActions(order: Order, userDid: string): {
     
     // Both: Cancel before shipping
     canCancel: (isBuyer || isVendor) && 
-               ['paid', 'confirmed'].includes(order.status)
+               ['payment_pending', 'paid', 'confirmed'].includes(order.status)
   }
 }
