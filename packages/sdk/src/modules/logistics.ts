@@ -177,6 +177,47 @@ export class LogisticsModule {
     return this.http.post(`/logistics/quotes/${quoteId}/accept`);
   }
 
+  /**
+   * ✅ NEW: Get all quotes for a provider
+   * Requires authentication (provider only)
+   * 
+   * @param providerId - Provider UUID
+   * @param status - Optional filter by status
+   * @returns List of provider's quotes
+   * 
+   * @example
+   * const quotes = await sdk.logistics.getProviderQuotes('provider-uuid', 'pending');
+   */
+  async getProviderQuotes(
+    providerId: string,
+    status?: 'pending' | 'accepted' | 'rejected' | 'expired'
+  ): Promise<ShippingQuote[]> {
+    const params = status ? { status } : {};
+    return this.http.get(`/logistics/providers/${providerId}/quotes`, params);
+  }
+
+  /**
+   * ✅ NEW: Get opportunities (orders needing quotes)
+   * Requires authentication (provider only)
+   * 
+   * @param filters - Search criteria
+   * @returns Orders ready for quotes
+   * 
+   * @example
+   * const opportunities = await sdk.logistics.getOpportunities({
+   *   service_region: 'SG',
+   *   min_weight_kg: 1,
+   *   max_weight_kg: 5
+   * });
+   */
+  async getOpportunities(filters?: {
+    service_region?: string;
+    min_weight_kg?: number;
+    max_weight_kg?: number;
+  }): Promise<any[]> {
+    return this.http.get('/logistics/opportunities', filters);
+  }
+
   // =========================================================================
   // SHIPMENTS
   // =========================================================================
@@ -262,5 +303,55 @@ export class LogisticsModule {
    */
   async getTrackingHistory(shipmentId: string): Promise<TrackingEvent[]> {
     return this.http.get(`/logistics/shipments/${shipmentId}/tracking`);
+  }
+
+  /**
+   * ✅ NEW: Get provider's shipments
+   * Requires authentication (provider only)
+   * 
+   * @param providerId - Provider UUID
+   * @param status - Optional filter by status
+   * @returns List of provider's shipments
+   * 
+   * @example
+   * const shipments = await sdk.logistics.getProviderShipments('provider-uuid', 'in_transit');
+   */
+  async getProviderShipments(
+    providerId: string,
+    status?: ShipmentStatus
+  ): Promise<Shipment[]> {
+    const params = status ? { status } : {};
+    return this.http.get(`/logistics/providers/${providerId}/shipments`, params);
+  }
+
+  // =========================================================================
+  // FAVORITES
+  // =========================================================================
+
+  /**
+   * ✅ NEW: Favorite a provider
+   * Requires authentication
+   * 
+   * @param providerId - Provider UUID
+   * @returns Success confirmation
+   * 
+   * @example
+   * await sdk.logistics.favoriteProvider('provider-uuid');
+   */
+  async favoriteProvider(providerId: string): Promise<{ message: string }> {
+    return this.http.post(`/logistics/providers/${providerId}/favorite`);
+  }
+
+  /**
+   * ✅ NEW: Get user's favorite providers
+   * Requires authentication
+   * 
+   * @returns List of favorited providers
+   * 
+   * @example
+   * const favorites = await sdk.logistics.getFavoriteProviders();
+   */
+  async getFavoriteProviders(): Promise<LogisticsProvider[]> {
+    return this.http.get('/logistics/favorites');
   }
 }

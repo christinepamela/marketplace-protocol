@@ -160,6 +160,99 @@ router.get(
 );
 
 /**
+ * ✅ NEW: GET /api/v1/logistics/providers/:id/quotes
+ * @desc    Get all quotes for a provider
+ * @access  Private (provider only)
+ */
+router.get(
+  '/providers/:id/quotes',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.query;
+      const userDid = getUserDid(req);
+      const providerService = new ProviderService(req.supabase);
+      const quoteService = new QuoteService(req.supabase);
+
+      // Verify ownership
+      const provider = await providerService.getProvider(id);
+      if (provider.identity_did !== userDid) {
+        throw new ApiError(
+          ErrorCode.FORBIDDEN,
+          'You can only view your own quotes'
+        );
+      }
+
+      // Get quotes filtered by status if provided
+      let query = req.supabase
+        .from('shipping_quotes')
+        .select('*, order:orders(*)')
+        .eq('provider_id', id);
+      
+      if (status) {
+        query = query.eq('status', status);
+      }
+      
+      const { data: quotes } = await query.order('created_at', { ascending: false });
+
+      res.json({
+        success: true,
+        data: quotes || []
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * ✅ NEW: GET /api/v1/logistics/providers/:id/shipments
+ * @desc    Get all shipments for a provider
+ * @access  Private (provider only)
+ */
+router.get(
+  '/providers/:id/shipments',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.query;
+      const userDid = getUserDid(req);
+      const providerService = new ProviderService(req.supabase);
+
+      // Verify ownership
+      const provider = await providerService.getProvider(id);
+      if (provider.identity_did !== userDid) {
+        throw new ApiError(
+          ErrorCode.FORBIDDEN,
+          'You can only view your own shipments'
+        );
+      }
+
+      // Get shipments filtered by status if provided
+      let query = req.supabase
+        .from('shipments')
+        .select('*, order:orders(*)')
+        .eq('provider_id', id);
+      
+      if (status) {
+        query = query.eq('status', status);
+      }
+      
+      const { data: shipments } = await query.order('created_at', { ascending: false });
+
+      res.json({
+        success: true,
+        data: shipments || []
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * @route   PUT /api/v1/logistics/providers/:id
  * @desc    Update provider capabilities
  * @access  Private (provider only)
@@ -298,6 +391,198 @@ router.post(
       res.json({
         success: true,
         message: 'Quote rejected'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ============================================================================
+// ✅ NEW: OPPORTUNITIES ROUTE
+// ============================================================================
+
+/**
+ * ✅ NEW: GET /api/v1/logistics/opportunities
+ * @desc    Get orders needing quotes (opportunities for providers)
+ * @access  Private (provider only)
+ */
+router.get(
+  '/opportunities',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const { service_region, min_weight_kg, max_weight_kg } = req.query;
+
+      // Get orders that have accepted quotes (to exclude them)
+      const { data: ordersWithAcceptedQuotes, error: quotesError } = await req.supabase
+        .from('shipping_quotes')
+        .select('order_id')
+        .eq('status', 'accepted');
+
+      if (quotesError) {
+        console.error('Error fetching accepted quotes:', quotesError);
+        throw quotesError;
+      }
+
+      const acceptedOrderIds = (ordersWithAcceptedQuotes || []).map(q => q.order_id);
+
+      // Find confirmed orders
+      let query = req.supabase
+        .from('orders')
+        .select('*')
+        .eq('status', 'confirmed');
+
+      // Exclude orders with accepted quotes using NOT IN
+      if (acceptedOrderIds.length > 0) {
+        // Supabase syntax for NOT IN
+        acceptedOrderIds.forEach(orderId => {
+          query = query.neq('id', orderId);
+        });
+      }
+
+      const { data: orders, error: ordersError } = await query
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (ordersError) {
+        console.error('Error fetching orders:', ordersError);
+        throw ordersError;
+      }
+
+      // Apply filters
+      let filtered = orders || [];
+      
+      if (service_region && filtered.length > 0) {
+        // Get shipping addresses for these orders
+        const orderIds = filtered.map(o => o.id);
+        const { data: addresses } = await req.supabase
+          .from('orders')
+          .select('id, shipping_address')
+          .in('id', orderIds);
+        
+        // Filter by region
+        const addressMap = new Map(addresses?.map(a => [a.id, a.shipping_address]) || []);
+        filtered = filtered.filter(order => {
+          const addr = addressMap.get(order.id);
+          return addr?.country === service_region;
+        });
+      }
+
+      res.json({
+        success: true,
+        data: filtered
+      });
+    } catch (error) {
+      console.error('Opportunities endpoint error:', error);
+      next(error);
+    }
+  }
+);
+
+// ============================================================================
+// ✅ NEW: FAVORITES ROUTES
+// ============================================================================
+
+/**
+ * ✅ NEW: POST /api/v1/logistics/providers/:id/favorite
+ * @desc    Favorite a provider
+ * @access  Private (authenticated users)
+ */
+router.post(
+  '/providers/:id/favorite',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const userDid = getUserDid(req);
+
+      // Verify provider exists
+      const providerService = new ProviderService(req.supabase);
+      await providerService.getProvider(id);
+
+      // Insert or update favorite
+      const { error } = await req.supabase
+        .from('provider_favorites')
+        .upsert({
+          user_did: userDid,
+          provider_id: id
+        }, {
+          onConflict: 'user_did,provider_id'
+        });
+
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        message: 'Provider favorited successfully'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * ✅ NEW: DELETE /api/v1/logistics/providers/:id/favorite
+ * @desc    Unfavorite a provider
+ * @access  Private (authenticated users)
+ */
+router.delete(
+  '/providers/:id/favorite',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const userDid = getUserDid(req);
+
+      const { error } = await req.supabase
+        .from('provider_favorites')
+        .delete()
+        .eq('user_did', userDid)
+        .eq('provider_id', id);
+
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        message: 'Provider unfavorited successfully'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * ✅ NEW: GET /api/v1/logistics/favorites
+ * @desc    Get user's favorite providers
+ * @access  Private (authenticated users)
+ */
+router.get(
+  '/favorites',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const userDid = getUserDid(req);
+
+      const { data, error } = await req.supabase
+        .from('provider_favorites')
+        .select(`
+          *,
+          provider:logistics_providers(*)
+        `)
+        .eq('user_did', userDid)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Extract just the provider objects
+      const providers = (data || []).map(fav => fav.provider).filter(Boolean);
+
+      res.json({
+        success: true,
+        data: providers
       });
     } catch (error) {
       next(error);
