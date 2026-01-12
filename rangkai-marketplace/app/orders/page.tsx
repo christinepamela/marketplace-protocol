@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/contexts/AuthContext'
 import { getBuyerOrders, getVendorOrders } from '@/lib/api/orders'
-import { searchProducts } from '@/lib/api/products'
+import { sdk } from '@/lib/sdk'
 import type { Order, OrderStatus } from '@rangkai/sdk'
 import OrderCard from '@/components/orders/OrderCard'
 import { Package, ShoppingBag, Loader2 } from 'lucide-react'
@@ -20,38 +20,43 @@ export default function OrdersPage() {
   const [userRole, setUserRole] = useState<'buyer' | 'vendor' | 'both' | 'new'>('new')
 
   // Detect user role on mount
-useEffect(() => {
-  async function detectRole() {
-    if (!user?.did) return // ✅ CHANGED: Check user.did explicitly
+  useEffect(() => {
+    async function detectRole() {
+      if (!user?.did) return
 
-    try {
-      // Check for orders (buyer)
-      const buyerOrders = await getBuyerOrders(user.did, { limit: 1 })
-      const hasOrders = buyerOrders.length > 0
+      try {
+        // Check for orders (buyer)
+        const buyerOrders = await getBuyerOrders(user.did, { limit: 1 })
+        const hasBuyerOrders = buyerOrders.length > 0
 
-      // Check for products (vendor) - note: this needs vendor DID filtering
-      // For now, we'll skip vendor check to test buyer flow
-      const hasProducts = false // ✅ TEMPORARY: Disable vendor check
+        // Check for products (vendor)
+        let hasProducts = false
+        try {
+          const products = await sdk.catalog.getByVendor(user.did, { limit: 1 })
+          hasProducts = products.length > 0
+        } catch (error) {
+          console.error('Failed to check vendor products:', error)
+        }
 
-      if (hasProducts && hasOrders) {
-        setUserRole('both')
-        setViewMode('buyer')
-      } else if (hasProducts) {
-        setUserRole('vendor')
-        setViewMode('vendor')
-      } else if (hasOrders) {
-        setUserRole('buyer')
-        setViewMode('buyer')
-      } else {
-        setUserRole('new')
+        if (hasProducts && hasBuyerOrders) {
+          setUserRole('both')
+          setViewMode('buyer')
+        } else if (hasProducts) {
+          setUserRole('vendor')
+          setViewMode('vendor')
+        } else if (hasBuyerOrders) {
+          setUserRole('buyer')
+          setViewMode('buyer')
+        } else {
+          setUserRole('new')
+        }
+      } catch (error) {
+        console.error('Failed to detect user role:', error)
       }
-    } catch (error) {
-      console.error('Failed to detect user role:', error)
     }
-  }  // ✅ THIS WAS MISSING!
 
-  detectRole()
-}, [user])
+    detectRole()
+  }, [user])
 
   // Fetch orders based on view mode
   const fetchOrders = useCallback(async () => {
@@ -101,7 +106,7 @@ useEffect(() => {
             <a href="/products" className="btn btn-primary">
               Start Shopping
             </a>
-            <a href="/products/new" className="btn btn-secondary">
+            <a href="/vendor/products/new" className="btn btn-secondary">
               Start Selling
             </a>
           </div>
@@ -168,6 +173,7 @@ useEffect(() => {
           className="input w-auto text-sm"
         >
           <option value="all">All Statuses</option>
+          <option value="payment_pending">Payment Pending</option>
           <option value="paid">Paid</option>
           <option value="confirmed">Confirmed</option>
           <option value="shipped">Shipped</option>

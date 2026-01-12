@@ -97,8 +97,11 @@ export default function RegisterPage() {
       // Step 3: Store token
       localStorage.setItem('rangkai_token', identityData.data.token)
 
+      // Give a moment for state to settle, then redirect
+      setTimeout(() => {
+        window.location.href = '/dashboard'  // Force navigation
+    }, 100)
       alert('✅ Provider registered successfully!')
-      router.push('/dashboard')
     } catch (error: any) {
       console.error('Registration error:', error)
       alert(`❌ Registration failed: ${error.message || 'Unknown error'}`)

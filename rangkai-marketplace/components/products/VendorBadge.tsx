@@ -59,7 +59,9 @@ export default function VendorBadge({
       </div>
 
       {/* Rating display */}
-      {showRating && reputation && reputation.metrics.totalRatings > 0 && (
+      {showRating && reputation?.metrics && reputation.metrics.totalRatings > 0 && (
+//                        ^^
+//                   Added optional chaining
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
             <span className="text-warm-taupe text-xs">★</span>
@@ -74,7 +76,9 @@ export default function VendorBadge({
       )}
 
       {/* New vendor indicator */}
-      {showRating && (!reputation || reputation.metrics.totalRatings === 0) && (
+      {showRating && (!reputation || !reputation.metrics || reputation.metrics.totalRatings === 0) && (
+//                              ^^^^^^^^^^^^^^^^^^^
+//                         Added null check for metrics
         <span className="text-xs text-warm-gray">
           {label}
         </span>

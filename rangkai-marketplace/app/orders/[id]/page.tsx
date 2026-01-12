@@ -5,10 +5,14 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/contexts/AuthContext'
 import { getOrder, getOrderHistory } from '@/lib/api/orders'
-import type { Order, OrderStatusChange } from '@rangkai/sdk'
+import { sdk } from '@/lib/sdk'
+import type { Order, OrderStatusChange, Shipment, TrackingEvent } from '@rangkai/sdk'
 import OrderStatus from '@/components/orders/OrderStatus'
 import OrderTimeline from '@/components/orders/OrderTimeline'
 import OrderActions from '@/components/orders/OrderActions'
+import LogisticsProviderSelector from '@/components/logistics/LogisticsProviderSelector'
+import TrackingTimeline from '@/components/logistics/TrackingTimeline'
+import DeliveryProof from '@/components/logistics/DeliveryProof'
 import { ArrowLeft, Package, MapPin, CreditCard, Truck, User, Loader2 } from 'lucide-react'
 
 export default function OrderDetailPage() {
@@ -19,7 +23,10 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<Order | null>(null)
   const [history, setHistory] = useState<OrderStatusChange[]>([])
+  const [shipment, setShipment] = useState<Shipment | null>(null)
+  const [trackingEvents, setTrackingEvents] = useState<TrackingEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [logisticsLoading, setLogisticsLoading] = useState(false)
 
   const loadOrder = async () => {
     setLoading(true)
@@ -30,10 +37,35 @@ export default function OrderDetailPage() {
       ])
       setOrder(orderData)
       setHistory(historyData)
+
+      // Load logistics data if order is shipped
+      if (orderData.status === 'shipped' || orderData.status === 'delivered') {
+        loadLogisticsData()
+      }
     } catch (error) {
       console.error('Failed to load order:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadLogisticsData = async () => {
+    setLogisticsLoading(true)
+    try {
+      // Get shipment data
+      const shipmentData = await sdk.logistics.getShipmentByOrder(orderId)
+      setShipment(shipmentData)
+
+      // Get tracking events
+      if (shipmentData) {
+        const events = await sdk.logistics.getTrackingHistory(shipmentData.id)
+        setTrackingEvents(events)
+      }
+    } catch (error) {
+      console.error('Failed to load logistics data:', error)
+      // Don't show error to user - tracking might not be available yet
+    } finally {
+      setLogisticsLoading(false)
     }
   }
 
@@ -77,6 +109,11 @@ export default function OrderDetailPage() {
       minute: '2-digit'
     })
   }
+
+  // Determine which logistics section to show
+  const showProviderSelector = isVendor && order.status === 'confirmed' && !order.logisticsProviderId
+  const showTracking = (order.status === 'shipped' || order.status === 'delivered')
+  const showDeliveryProof = order.status === 'delivered' && isBuyer
 
   return (
     <div className="container-custom section-padding">
@@ -160,6 +197,47 @@ export default function OrderDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* LOGISTICS SECTIONS - NEW */}
+          
+          {/* Provider Selection (Vendor only, after confirmation) */}
+          {showProviderSelector && (
+            <div className="bg-white border border-barely-beige p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Truck size={20} className="text-warm-taupe" />
+                <h2 className="text-lg font-medium">Select Logistics Provider</h2>
+              </div>
+              <LogisticsProviderSelector
+                orderId={orderId}
+                onProviderSelected={loadOrder}
+              />
+            </div>
+          )}
+
+          {/* Tracking Timeline (Shipped/Delivered) */}
+          {showTracking && (
+            <div className="bg-white border border-barely-beige p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Truck size={20} className="text-warm-taupe" />
+                <h2 className="text-lg font-medium">Shipment Tracking</h2>
+              </div>
+              <TrackingTimeline
+                shipment={shipment}
+                events={trackingEvents}
+                loading={logisticsLoading}
+              />
+            </div>
+          )}
+
+          {/* Delivery Proof (Buyer only, after delivery) */}
+          {showDeliveryProof && (
+            <div>
+              <DeliveryProof
+                orderId={orderId}
+                onProofUploaded={loadOrder}
+              />
+            </div>
+          )}
 
           {/* Shipping Address */}
           <div className="bg-white border border-barely-beige p-6">

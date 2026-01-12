@@ -1,7 +1,8 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
   "/vendor/dashboard/page": "app/vendor/dashboard/page.js",
+  "/vendor/products/page": "app/vendor/products/page.js",
+  "/orders/page": "app/orders/page.js",
   "/auth/register/page": "app/auth/register/page.js",
-  "/vendor/products/[id]/edit/page": "app/vendor/products/[id]/edit/page.js",
-  "/vendor/products/page": "app/vendor/products/page.js"
+  "/orders/[id]/page": "app/orders/[id]/page.js",
+  "/vendor/products/[id]/edit/page": "app/vendor/products/[id]/edit/page.js"
 }

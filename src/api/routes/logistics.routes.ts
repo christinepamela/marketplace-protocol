@@ -403,9 +403,14 @@ router.post(
 // ============================================================================
 
 /**
- * ✅ NEW: GET /api/v1/logistics/opportunities
- * @desc    Get orders needing quotes (opportunities for providers)
- * @access  Private (provider only)
+ * GET /api/v1/logistics/opportunities
+ * Get orders needing quotes (opportunities for providers)
+ * 
+ * FIXED: Matches actual product logistics structure:
+ * {
+ *   weight: { value: 2, unit: "kg" },
+ *   dimensions: { length: 30, width: 30, height: 15, unit: "cm" }
+ * }
  */
 router.get(
   '/opportunities',
@@ -414,59 +419,150 @@ router.get(
     try {
       const { service_region, min_weight_kg, max_weight_kg } = req.query;
 
-      // Get orders that have accepted quotes (to exclude them)
-      const { data: ordersWithAcceptedQuotes, error: quotesError } = await req.supabase
+      // Step 1: Get orders with accepted quotes to exclude them
+      const { data: ordersWithAcceptedQuotes } = await req.supabase
         .from('shipping_quotes')
         .select('order_id')
         .eq('status', 'accepted');
 
-      if (quotesError) {
-        console.error('Error fetching accepted quotes:', quotesError);
-        throw quotesError;
-      }
-
       const acceptedOrderIds = (ordersWithAcceptedQuotes || []).map(q => q.order_id);
 
-      // Find confirmed orders
-      let query = req.supabase
+      // Step 2: Find confirmed orders
+      let ordersQuery = req.supabase
         .from('orders')
         .select('*')
         .eq('status', 'confirmed');
 
-      // Exclude orders with accepted quotes using NOT IN
+      // Exclude orders with accepted quotes
       if (acceptedOrderIds.length > 0) {
-        // Supabase syntax for NOT IN
-        acceptedOrderIds.forEach(orderId => {
-          query = query.neq('id', orderId);
-        });
+        ordersQuery = ordersQuery.not('id', 'in', `(${acceptedOrderIds.join(',')})`);
       }
 
-      const { data: orders, error: ordersError } = await query
+      const { data: orders, error: ordersError } = await ordersQuery
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (ordersError) {
-        console.error('Error fetching orders:', ordersError);
+        console.error('Orders query error:', ordersError);
         throw ordersError;
       }
 
-      // Apply filters
-      let filtered = orders || [];
-      
-      if (service_region && filtered.length > 0) {
-        // Get shipping addresses for these orders
-        const orderIds = filtered.map(o => o.id);
-        const { data: addresses } = await req.supabase
-          .from('orders')
-          .select('id, shipping_address')
-          .in('id', orderIds);
+      if (!orders || orders.length === 0) {
+        return res.json({ success: true, data: [] });
+      }
+
+      // Step 3: Get all unique product IDs from all orders
+      const productIds = new Set<string>();
+      orders.forEach(order => {
+        const items = order.items as any[];
+        if (Array.isArray(items)) {
+          items.forEach(item => {
+            if (item.productId) {
+              productIds.add(item.productId);
+            }
+          });
+        }
+      });
+
+      // Step 4: Fetch all products at once
+      const { data: products } = await req.supabase
+        .from('products')
+        .select('id, logistics')
+        .in('id', Array.from(productIds));
+
+      // Create a map for quick product lookup
+      const productsMap = new Map();
+      (products || []).forEach(product => {
+        productsMap.set(product.id, product);
+      });
+
+      // Step 5: Transform orders into opportunities
+      const opportunities = orders.map(order => {
+        const items = order.items as any[];
         
-        // Filter by region
-        const addressMap = new Map(addresses?.map(a => [a.id, a.shipping_address]) || []);
-        filtered = filtered.filter(order => {
-          const addr = addressMap.get(order.id);
-          return addr?.country === service_region;
-        });
+        // Calculate total weight from items
+        let totalWeight = 0;
+        let dimensions = {
+          length_cm: 0,
+          width_cm: 0,
+          height_cm: 0
+        };
+
+        if (Array.isArray(items)) {
+          items.forEach(item => {
+            const product = productsMap.get(item.productId);
+            if (product && product.logistics) {
+              const logistics = product.logistics;
+              
+              // Extract weight (structure: { weight: { value: 2, unit: "kg" } })
+              if (logistics.weight) {
+                let weight = logistics.weight.value || 0;
+                // Convert to kg if needed
+                if (logistics.weight.unit === 'g') {
+                  weight = weight / 1000;
+                } else if (logistics.weight.unit === 'lb') {
+                  weight = weight * 0.453592;
+                }
+                totalWeight += weight * (item.quantity || 1);
+              }
+
+              // Use dimensions from first product (structure: { dimensions: { length: 30, width: 30, height: 15, unit: "cm" } })
+              if (dimensions.length_cm === 0 && logistics.dimensions) {
+                const dims = logistics.dimensions;
+                dimensions = {
+                  length_cm: dims.length || 0,
+                  width_cm: dims.width || 0,
+                  height_cm: dims.height || 0
+                };
+              }
+            }
+          });
+        }
+
+        // Get destination country
+        const shippingAddress = order.shipping_address as any;
+        const destinationCountry = shippingAddress?.country || 
+                                  shippingAddress?.countryCode || 
+                                  'Unknown';
+
+        // Get declared value
+        const total = order.total as any;
+        const declaredValue = total?.amount || 0;
+        const currency = total?.currency || 'USD';
+
+        return {
+          id: order.id,
+          order_id: order.id,
+          destination_country: destinationCountry,
+          weight_kg: totalWeight,
+          dimensions: dimensions,
+          declared_value: declaredValue,
+          currency: currency,
+          insurance_required: shippingAddress?.insurance_required || false,
+          vendor_rating: null, // Would need vendor lookup
+          vendor_sales: null,
+          quotes_count: 0, // Could count pending quotes if needed
+          created_at: order.created_at
+        };
+      });
+
+      // Step 6: Apply filters
+      let filtered = opportunities;
+
+      if (service_region) {
+        filtered = filtered.filter(o => 
+          o.destination_country.toUpperCase() === service_region.toUpperCase()
+        );
+      }
+
+      if (min_weight_kg) {
+        const minWeight = parseFloat(min_weight_kg as string);
+        filtered = filtered.filter(o => o.weight_kg >= minWeight);
+      }
+
+      if (max_weight_kg) {
+        const maxWeight = parseFloat(max_weight_kg as string);
+        filtered = filtered.filter(o => o.weight_kg <= maxWeight);
       }
 
       res.json({
