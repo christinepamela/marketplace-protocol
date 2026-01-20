@@ -550,8 +550,9 @@ router.get(
       let filtered = opportunities;
 
       if (service_region) {
+        const region = String(service_region); // Type assertion
         filtered = filtered.filter(o => 
-          o.destination_country.toUpperCase() === service_region.toUpperCase()
+          o.destination_country.toUpperCase() === region.toUpperCase()
         );
       }
 

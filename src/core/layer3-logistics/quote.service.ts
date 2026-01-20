@@ -66,8 +66,8 @@ export class QuoteService {
       throw new Error('Order not found');
     }
 
-    if (order.status !== 'paid') {
-      throw new Error('Can only quote for paid orders');
+    if (order.status !== 'confirmed') {
+      throw new Error('Can only quote for confirmed orders');
     }
 
     // Verify provider exists
