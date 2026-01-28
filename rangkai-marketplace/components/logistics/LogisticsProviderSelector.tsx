@@ -1,113 +1,177 @@
-import React, { useState, useEffect } from 'react'
-import { Loader2, AlertCircle, Package } from 'lucide-react'
-import ProviderCard from './ProviderCard'
-import ShippingQuote from './ShippingQuote'
+'use client'
+
+import { useState, useEffect } from 'react'
 import { sdk } from '@/lib/sdk'
-import type { LogisticsProvider, ShippingQuote as ShippingQuoteType } from '@rangkai/sdk'
+import { Truck, DollarSign, Clock, Shield, CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react'
+
+interface ShippingQuote {
+  id: string
+  order_id: string
+  provider_id: string
+  method: 'standard' | 'express' | 'freight'
+  price_fiat: number
+  currency: string
+  estimated_days: number
+  insurance_included: boolean
+  status: 'pending' | 'accepted' | 'rejected' | 'expired'
+  valid_until: string
+  created_at: string
+  provider?: {
+    id: string
+    business_name: string
+    average_rating?: number
+    total_deliveries: number
+  }
+}
 
 interface LogisticsProviderSelectorProps {
   orderId: string
-  onProviderSelected?: (providerId: string, quoteId: string) => void
+  onProviderSelected: () => void
 }
 
-export default function LogisticsProviderSelector({ 
-  orderId, 
-  onProviderSelected 
+export default function LogisticsProviderSelector({
+  orderId,
+  onProviderSelected
 }: LogisticsProviderSelectorProps) {
-  const [providers, setProviders] = useState<LogisticsProvider[]>([])
-  const [quotes, setQuotes] = useState<ShippingQuoteType[]>([])
+  const [quotes, setQuotes] = useState<ShippingQuote[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
-  const [accepting, setAccepting] = useState(false)
+  const [accepting, setAccepting] = useState<string | null>(null)
+  const [rejecting, setRejecting] = useState<string | null>(null)
 
   useEffect(() => {
     loadQuotesAndProviders()
   }, [orderId])
 
   const loadQuotesAndProviders = async () => {
-    setLoading(true)
-    setError(null)
-    
     try {
-      // Get quotes for this order
+      setLoading(true)
+      setError(null)
+
+      // Get all quotes for this order
       const quotesData = await sdk.logistics.getQuotesForOrder(orderId)
-      setQuotes(quotesData)
 
-      // Get provider details for each quote
-      const providerIds = [...new Set(quotesData.map(q => q.provider_id))]
-      const providersData = await Promise.all(
-        providerIds.map(id => sdk.logistics.getProvider(id))
+      // Filter to only show pending quotes
+      const pendingQuotes = quotesData.filter(q => q.status === 'pending')
+
+      // Load provider details for each quote
+      const quotesWithProviders = await Promise.all(
+        pendingQuotes.map(async (quote) => {
+          try {
+            const provider = await sdk.logistics.getProvider(quote.provider_id)
+            return {
+              ...quote,
+              provider: {
+                id: provider.id,
+                business_name: provider.business_name,
+                average_rating: provider.average_rating,
+                total_deliveries: provider.total_deliveries
+              }
+            }
+          } catch (err) {
+            console.error(`Failed to load provider ${quote.provider_id}:`, err)
+            return quote
+          }
+        })
       )
-      setProviders(providersData)
 
+      setQuotes(quotesWithProviders)
     } catch (err: any) {
       console.error('Failed to load logistics providers:', err)
-      setError(err.message || 'Failed to load providers')
+      setError(err.message || 'Failed to load shipping quotes')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleAcceptQuote = async () => {
-    if (!selectedQuoteId) return
-
-    setAccepting(true)
+  const handleAcceptQuote = async (quoteId: string) => {
     try {
-      await sdk.logistics.acceptQuote(selectedQuoteId)
-      
-      // Find the selected quote to get provider ID
-      const selectedQuote = quotes.find(q => q.id === selectedQuoteId)
-      if (selectedQuote && onProviderSelected) {
-        onProviderSelected(selectedQuote.provider_id, selectedQuoteId)
-      }
+      setAccepting(quoteId)
+      setError(null)
 
-      alert('Logistics provider selected successfully!')
-      
-      // Reload to show updated status
-      await loadQuotesAndProviders()
-      
+      await sdk.logistics.acceptQuote(quoteId)
+
+      // Refresh parent component
+      onProviderSelected()
     } catch (err: any) {
       console.error('Failed to accept quote:', err)
-      alert(err.message || 'Failed to select provider')
-    } finally {
-      setAccepting(false)
+      setError(err.message || 'Failed to accept quote')
+      setAccepting(null)
     }
   }
 
-  // Get provider name for a quote
-  const getProviderName = (providerId: string) => {
-    const provider = providers.find(p => p.id === providerId)
-    return provider?.business_name || 'Unknown Provider'
+  const handleRejectQuote = async (quoteId: string) => {
+    try {
+      setRejecting(quoteId)
+      setError(null)
+
+      // Note: Backend has rejectQuote endpoint but SDK might not expose it
+      // We'll use a simple POST request
+      await fetch(`/api/v1/logistics/quotes/${quoteId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      })
+
+      // Reload quotes after rejection
+      await loadQuotesAndProviders()
+    } catch (err: any) {
+      console.error('Failed to reject quote:', err)
+      setError(err.message || 'Failed to reject quote')
+    } finally {
+      setRejecting(null)
+    }
   }
 
-  // Check if any quote is already accepted
-  const acceptedQuote = quotes.find(q => q.status === 'accepted')
+  const getMethodLabel = (method: string) => {
+    const labels: Record<string, string> = {
+      standard: 'Standard',
+      express: 'Express',
+      freight: 'Freight'
+    }
+    return labels[method] || method
+  }
+
+  const getTimeRemaining = (validUntil: string): string => {
+    const now = new Date()
+    const expiry = new Date(validUntil)
+    const diff = expiry.getTime() - now.getTime()
+
+    if (diff <= 0) return 'Expired'
+
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m remaining`
+    }
+    return `${minutes}m remaining`
+  }
+
+  const isExpired = (validUntil: string): boolean => {
+    return new Date(validUntil) <= new Date()
+  }
 
   if (loading) {
     return (
-      <div className="bg-white border border-barely-beige rounded-lg p-8">
-        <div className="flex flex-col items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-warm-taupe mb-4" />
-          <p className="text-warm-gray">Loading logistics providers...</p>
-        </div>
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-warm-taupe" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
         <div className="flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <h4 className="text-sm font-medium text-red-900 mb-1">
-              Error Loading Providers
-            </h4>
-            <p className="text-sm text-red-700">{error}</p>
+            <h3 className="font-medium text-red-900 mb-1">Error Loading Providers</h3>
+            <p className="text-sm text-red-800">{error}</p>
             <button
               onClick={loadQuotesAndProviders}
-              className="text-sm text-red-800 underline mt-2"
+              className="mt-3 text-sm text-red-700 underline hover:text-red-900"
             >
               Try again
             </button>
@@ -119,115 +183,193 @@ export default function LogisticsProviderSelector({
 
   if (quotes.length === 0) {
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+      <div className="bg-warm-white border border-barely-beige rounded-lg p-8 text-center">
+        <Truck className="w-16 h-16 text-warm-gray mx-auto mb-4 opacity-50" />
+        <h3 className="text-lg font-medium text-soft-black mb-2">
+          No Quotes Available
+        </h3>
+        <p className="text-warm-gray text-sm">
+          Logistics providers have not submitted quotes yet. This typically happens within 24 hours of order confirmation.
+        </p>
+      </div>
+    )
+  }
+
+  // Sort quotes by price (lowest first)
+  const sortedQuotes = [...quotes].sort((a, b) => a.price_fiat - b.price_fiat)
+
+  return (
+    <div className="space-y-4">
+      {/* Info banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-start gap-3">
-          <Package className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
           <div>
-            <h4 className="text-sm font-medium text-amber-900 mb-1">
-              No Quotes Available
-            </h4>
-            <p className="text-sm text-amber-700">
-              Logistics providers have not submitted quotes yet. 
-              This typically happens within 24 hours of order confirmation.
+            <h3 className="font-medium text-blue-900 mb-1">Select Shipping Provider</h3>
+            <p className="text-sm text-blue-800">
+              Review quotes and select the best shipping option for your order. Once selected, the provider will create a shipment and provide tracking information.
             </p>
           </div>
         </div>
       </div>
-    )
-  }
 
-  // If a quote is already accepted, show it prominently
-  if (acceptedQuote) {
-    return (
+      {/* Quote cards */}
       <div className="space-y-4">
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-green-900 mb-1">
-            ✓ Logistics Provider Selected
-          </h4>
-          <p className="text-sm text-green-700">
-            {getProviderName(acceptedQuote.provider_id)} will handle the shipping for this order.
-          </p>
-        </div>
+        {sortedQuotes.map((quote, index) => {
+          const expired = isExpired(quote.valid_until)
+          const isAccepting = accepting === quote.id
+          const isRejecting = rejecting === quote.id
+          const isProcessing = isAccepting || isRejecting
 
-        <ShippingQuote
-          quote={acceptedQuote}
-          providerName={getProviderName(acceptedQuote.provider_id)}
-        />
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h3 className="text-lg font-medium text-soft-black mb-2">
-          Select Logistics Provider
-        </h3>
-        <p className="text-sm text-warm-gray">
-          Choose a shipping provider and quote for this order. 
-          You can compare rates, delivery times, and provider ratings.
-        </p>
-      </div>
-
-      {/* Quotes grouped by provider */}
-      <div className="space-y-4">
-        {providers.map(provider => {
-          const providerQuotes = quotes.filter(q => q.provider_id === provider.id)
-          
           return (
-            <div key={provider.id} className="space-y-3">
-              {/* Provider info */}
-              <ProviderCard provider={provider} />
+            <div
+              key={quote.id}
+              className={`bg-white border-2 rounded-lg p-6 transition-all ${
+                index === 0 && !expired
+                  ? 'border-warm-taupe'
+                  : 'border-barely-beige'
+              } ${expired ? 'opacity-60' : ''}`}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="text-lg font-medium text-soft-black">
+                      {quote.provider?.business_name || 'Logistics Provider'}
+                    </h3>
+                    {index === 0 && !expired && (
+                      <span className="px-2 py-1 bg-warm-taupe text-white text-xs rounded-full">
+                        Best Price
+                      </span>
+                    )}
+                  </div>
+                  
+                  {quote.provider && (
+                    <div className="flex items-center gap-4 text-sm text-warm-gray">
+                      {quote.provider.average_rating !== undefined && (
+                        <span className="flex items-center gap-1">
+                          ⭐ {quote.provider.average_rating.toFixed(1)}
+                        </span>
+                      )}
+                      <span>
+                        {quote.provider.total_deliveries} deliveries
+                      </span>
+                    </div>
+                  )}
+                </div>
 
-              {/* Provider's quotes */}
-              <div className="ml-4 space-y-3">
-                {providerQuotes.map(quote => (
-                  <ShippingQuote
-                    key={quote.id}
-                    quote={quote}
-                    selected={selectedQuoteId === quote.id}
-                    onSelect={() => setSelectedQuoteId(quote.id)}
-                  />
-                ))}
+                {!expired && (
+                  <div className="text-right">
+                    <div className="text-2xl font-medium text-soft-black mb-1">
+                      {quote.currency} {quote.price_fiat.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-warm-gray">
+                      {getTimeRemaining(quote.valid_until)}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Details grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 pb-4 border-b border-barely-beige">
+                <div>
+                  <p className="text-xs text-warm-gray mb-1">Method</p>
+                  <div className="flex items-center gap-1">
+                    <Truck className="w-4 h-4 text-warm-taupe" />
+                    <p className="font-medium text-soft-black text-sm">
+                      {getMethodLabel(quote.method)}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-warm-gray mb-1">Delivery Time</p>
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-4 h-4 text-warm-taupe" />
+                    <p className="font-medium text-soft-black text-sm">
+                      {quote.estimated_days} {quote.estimated_days === 1 ? 'day' : 'days'}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-warm-gray mb-1">Insurance</p>
+                  <div className="flex items-center gap-1">
+                    <Shield className="w-4 h-4 text-warm-taupe" />
+                    <p className="font-medium text-soft-black text-sm">
+                      {quote.insurance_included ? 'Included' : 'Not included'}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-warm-gray mb-1">Quote Valid</p>
+                  <p className={`font-medium text-sm ${
+                    expired ? 'text-red-600' : 'text-soft-black'
+                  }`}>
+                    {expired ? 'Expired' : getTimeRemaining(quote.valid_until)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-warm-gray">
+                  Quote submitted {new Date(quote.created_at).toLocaleDateString()}
+                </p>
+
+                {expired ? (
+                  <span className="text-sm text-red-600 font-medium">
+                    This quote has expired
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleRejectQuote(quote.id)}
+                      disabled={isProcessing}
+                      className="px-4 py-2 border border-barely-beige text-warm-gray rounded-lg hover:bg-light-cream transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isRejecting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Rejecting...
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4" />
+                          Reject
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => handleAcceptQuote(quote.id)}
+                      disabled={isProcessing}
+                      className="px-6 py-2 bg-warm-taupe text-white rounded-lg hover:bg-soft-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isAccepting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Accepting...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          Accept Quote
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* Action buttons */}
-      {selectedQuoteId && (
-        <div className="flex items-center justify-between p-4 bg-light-cream border border-barely-beige rounded-lg">
-          <div>
-            <p className="text-sm font-medium text-soft-black">
-              Ready to proceed?
-            </p>
-            <p className="text-xs text-warm-gray mt-1">
-              Once accepted, the provider will prepare your shipment
-            </p>
-          </div>
-          
-          <button
-            onClick={handleAcceptQuote}
-            disabled={accepting}
-            className="btn btn-primary"
-          >
-            {accepting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                Accepting...
-              </>
-            ) : (
-              'Accept Quote'
-            )}
-          </button>
-        </div>
-      )}
-
-      {/* Helper text */}
-      <div className="text-xs text-warm-gray text-center">
-        Quotes are valid for a limited time. Select one to proceed with shipping.
+      {/* Help text */}
+      <div className="text-xs text-warm-gray text-center pt-2">
+        After accepting a quote, the logistics provider will create a shipment and provide tracking information.
       </div>
     </div>
   )

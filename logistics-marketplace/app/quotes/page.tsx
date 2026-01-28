@@ -348,11 +348,20 @@ export default function MyQuotesPage() {
                       </div>
                     )}
                     {quote.status === 'accepted' && (
-                      <div className="flex items-center gap-2 text-green-600">
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          Quote accepted by vendor
-                        </span>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 text-green-600">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span className="text-sm font-medium">
+                            Quote accepted by vendor
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => router.push(`/shipments/new?quote=${quote.id}`)}
+                          className="px-4 py-2 bg-warm-taupe text-white rounded-lg hover:bg-soft-black transition-colors flex items-center gap-2"
+                        >
+                          Create Shipment
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
                       </div>
                     )}
                     {quote.status === 'rejected' && (
