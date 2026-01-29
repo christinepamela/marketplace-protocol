@@ -285,7 +285,7 @@ export class LogisticsModule {
     shipmentId: string,
     update: UpdateTrackingRequest
   ): Promise<{ message: string }> {
-    return this.http.post(`/logistics/shipments/${shipmentId}/tracking`, update);
+    return this.http.put(`/logistics/shipments/${shipmentId}/status`, update);
   }
 
   /**
@@ -302,8 +302,8 @@ export class LogisticsModule {
    * });
    */
   async getTrackingHistory(shipmentId: string): Promise<TrackingEvent[]> {
-    return this.http.get(`/logistics/shipments/${shipmentId}/tracking`);
-  }
+     return this.http.get(`/logistics/shipments/${shipmentId}/history`);
+   }
 
   /**
    * ✅ NEW: Get provider's shipments
