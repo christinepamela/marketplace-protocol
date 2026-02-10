@@ -77,8 +77,8 @@ async function testSearchCache() {
   console.log('✅ Cache check:', cached2 ? 'HIT' : 'MISS', `(${time3}ms)`);
   if (cached2) {
     console.log('   📊 Results from cache:', cached2.total);
-    console.log('   ⚡ Speed improvement:', 
-      Math.round(((time1 - time3) / time1) * 100) + '% faster');
+    const improvement = Math.round(((time1 - time3) / time1) * 100);
+    console.log('   ⚡ Speed improvement:', improvement + '% faster');
   }
   console.log('');
   

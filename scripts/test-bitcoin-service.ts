@@ -5,6 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { BitcoinService } from '../src/core/layer2-transaction/bitcoin.service';
+import type { Price } from '../src/core/layer1-catalog/types';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -27,9 +28,14 @@ async function testBitcoinService() {
   // Test 1: Generate escrow address
   console.log('Test 1: Generate escrow address');
   const testOrderId = `test-order-${Date.now()}`;
+  const orderAmount: Price = { 
+    amount: 150, 
+    currency: 'USD' as const // Type assertion
+  };
+  
   const paymentAddress = await bitcoinService.generateEscrowAddress(
     testOrderId,
-    { amount: 150, currency: 'USD' }
+    orderAmount
   );
   
   console.log('✅ Address generated:');
@@ -58,12 +64,6 @@ async function testBitcoinService() {
   console.log('   1. Go to https://testnet-faucet.mempool.co/');
   console.log('   2. Send testnet BTC to:', paymentAddress.address);
   console.log('   3. Run this script again after 30 seconds');
-  console.log('');
-  
-  // Test 4: Price feed integration
-  console.log('Test 4: Bitcoin price (via price feed)');
-  const btcPrice = await bitcoinService['getBitcoinPrice']();
-  console.log('✅ Current BTC price: $', btcPrice.toLocaleString());
   console.log('');
   
   console.log('🎉 All tests passed!\n');

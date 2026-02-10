@@ -8,6 +8,7 @@ import { BitcoinService } from '../src/core/layer2-transaction/bitcoin.service';
 import { PriceFeedService } from '../src/core/layer2-transaction/price-feed.service';
 import { SearchService } from '../src/core/layer1-catalog/search.service';
 import { SearchCacheService } from '../src/core/layer1-catalog/search-cache.service';
+import type { Price } from '../src/core/layer1-catalog/types';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -43,7 +44,10 @@ async function testIntegration() {
   
   // Step 2: Buyer selects product (assume $150 USD)
   console.log('Step 2: Buyer adds $150 product to cart');
-  const productPrice = { amount: 150, currency: 'USD' };
+  const productPrice: Price = { 
+    amount: 150, 
+    currency: 'USD' as const // Type assertion
+  };
   console.log('✅ Product price:', productPrice.amount, productPrice.currency);
   console.log('');
   

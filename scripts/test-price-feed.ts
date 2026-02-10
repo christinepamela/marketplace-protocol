@@ -5,6 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { PriceFeedService } from '../src/core/layer2-transaction/price-feed.service';
+import type { Price } from '../src/core/layer1-catalog/types';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -33,7 +34,10 @@ async function testPriceFeed() {
   
   // Test 2: Convert fiat to satoshis
   console.log('Test 2: Convert fiat to satoshis');
-  const orderAmount = { amount: 150, currency: 'USD' };
+  const orderAmount: Price = { 
+    amount: 150, 
+    currency: 'USD' as const // Type assertion
+  };
   const satoshis = await priceFeed.fiatToSatoshis(orderAmount);
   console.log('✅ Conversion:');
   console.log('   - Input:', orderAmount.amount, orderAmount.currency);
@@ -73,8 +77,8 @@ async function testPriceFeed() {
   console.log('✅ Cache performance:');
   console.log('   - First call:', time1 + 'ms (API)');
   console.log('   - Second call:', time2 + 'ms (cached)');
-  console.log('   - Speed improvement:', 
-    Math.round(((time1 - time2) / time1) * 100) + '% faster');
+  const improvement = Math.round(((time1 - time2) / time1) * 100);
+  console.log('   - Speed improvement:', improvement + '% faster');
   console.log('');
   
   // Test 6: Cache stats
