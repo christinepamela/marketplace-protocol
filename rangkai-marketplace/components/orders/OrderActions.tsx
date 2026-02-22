@@ -1,21 +1,25 @@
 /**
- * Order Actions Component
- * Action buttons for order management
- * ✅ FIXED: Added "Mark as Paid" button for buyers
+ * Order Actions Component (Updated with Payment Modal)
+ * Action buttons for order management based on status and user role
+ * 
+ * NEW: Integrates OrderPaymentModal for Bitcoin and other payment methods
  */
 
+'use client'
+
 import { useState } from 'react'
+import { CreditCard, CheckCircle, Package, Truck, XCircle, Loader2 } from 'lucide-react'
 import type { Order } from '@rangkai/sdk'
-import { 
+import { getAvailableActions } from '@/lib/api/orders'
+import OrderPaymentModal from './OrderPaymentModal'
+import {
   markAsPaid,
-  confirmOrder, 
-  shipOrder, 
-  confirmDelivery, 
-  completeOrder, 
-  cancelOrder,
-  getAvailableActions 
+  confirmOrder,
+  shipOrder,
+  confirmDelivery,
+  completeOrder,
+  cancelOrder
 } from '@/lib/api/orders'
-import { CheckCircle, Truck, PackageCheck, XCircle, Loader2, CreditCard } from 'lucide-react'
 
 interface OrderActionsProps {
   order: Order
@@ -25,309 +29,288 @@ interface OrderActionsProps {
 
 export default function OrderActions({ order, userDid, onActionComplete }: OrderActionsProps) {
   const [loading, setLoading] = useState(false)
-  const [showTrackingInput, setShowTrackingInput] = useState(false)
-  const [trackingNumber, setTrackingNumber] = useState('')
-  const [showCancelInput, setShowCancelInput] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
 
   const actions = getAvailableActions(order, userDid)
   const isBuyer = order.buyerDid === userDid
   const isVendor = order.vendorDid === userDid
 
-  // No actions available
-  if (!isBuyer && !isVendor) {
-    return (
-      <div className="text-sm text-warm-gray italic">
-        You don't have permission to perform actions on this order
-      </div>
-    )
+  /**
+   * Handle payment action - Opens payment modal
+   */
+  const handlePay = () => {
+    setShowPaymentModal(true)
   }
 
-  if (!Object.values(actions).some(v => v)) {
-    return (
-      <div className="text-sm text-warm-gray italic">
-        No actions available for this order
-      </div>
-    )
+  /**
+   * Handle payment completion
+   */
+  const handlePaymentComplete = async () => {
+    setShowPaymentModal(false)
+    onActionComplete()
   }
 
-  // ✅ NEW: Handle mark as paid
-  const handleMarkAsPaid = async () => {
-    if (!confirm('Mark this order as paid? This simulates payment completion.')) return
-    
-    setLoading(true)
-    try {
-      await markAsPaid(order.id)
-      alert('✅ Payment confirmed! Order marked as paid.')
-      onActionComplete()
-    } catch (error: any) {
-      alert(`❌ Failed to mark as paid: ${error.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Handle confirm order
+  /**
+   * Handle confirm order (vendor)
+   */
   const handleConfirm = async () => {
-    if (!confirm('Confirm this order? This means you accept the order and will fulfill it.')) return
-    
+    if (!confirm('Confirm that you have received payment and will process this order?')) {
+      return
+    }
+
     setLoading(true)
     try {
       await confirmOrder(order.id)
-      alert('✅ Order confirmed successfully!')
       onActionComplete()
-    } catch (error: any) {
-      alert(`❌ Failed to confirm order: ${error.message}`)
+    } catch (error) {
+      console.error('Failed to confirm order:', error)
+      alert('Failed to confirm order. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // Handle ship order
+  /**
+   * Handle ship order (vendor)
+   */
   const handleShip = async () => {
+    const trackingNumber = prompt('Enter tracking number (optional):')
+    
     setLoading(true)
     try {
       await shipOrder(order.id, trackingNumber || undefined)
-      alert('✅ Order marked as shipped!')
-      setShowTrackingInput(false)
-      setTrackingNumber('')
       onActionComplete()
-    } catch (error: any) {
-      alert(`❌ Failed to ship order: ${error.message}`)
+    } catch (error) {
+      console.error('Failed to mark as shipped:', error)
+      alert('Failed to mark order as shipped. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // Handle confirm delivery
+  /**
+   * Handle confirm delivery (buyer)
+   */
   const handleConfirmDelivery = async () => {
-    if (!confirm('Confirm that you received this order?')) return
-    
+    if (!confirm('Confirm that you have received your order in good condition?')) {
+      return
+    }
+
     setLoading(true)
     try {
       await confirmDelivery(order.id)
-      alert('✅ Delivery confirmed!')
       onActionComplete()
-    } catch (error: any) {
-      alert(`❌ Failed to confirm delivery: ${error.message}`)
+    } catch (error) {
+      console.error('Failed to confirm delivery:', error)
+      alert('Failed to confirm delivery. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // Handle complete order
+  /**
+   * Handle complete order (buyer)
+   */
   const handleComplete = async () => {
-    if (!confirm('Complete this order? This will release the escrow to the vendor.')) return
-    
+    if (!confirm('Complete this order? This will release payment to the vendor.')) {
+      return
+    }
+
     setLoading(true)
     try {
       await completeOrder(order.id)
-      alert('✅ Order completed! Escrow released.')
       onActionComplete()
-    } catch (error: any) {
-      alert(`❌ Failed to complete order: ${error.message}`)
+    } catch (error) {
+      console.error('Failed to complete order:', error)
+      alert('Failed to complete order. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // Handle cancel
-  const handleCancel = async () => {
+  /**
+   * Handle cancel order
+   */
+  const handleCancelSubmit = async () => {
     if (!cancelReason.trim()) {
       alert('Please provide a reason for cancellation')
       return
     }
-    
+
     setLoading(true)
     try {
       await cancelOrder(order.id, cancelReason)
-      alert('✅ Order cancelled')
-      setShowCancelInput(false)
-      setCancelReason('')
+      setShowCancelDialog(false)
       onActionComplete()
-    } catch (error: any) {
-      alert(`❌ Failed to cancel order: ${error.message}`)
+    } catch (error) {
+      console.error('Failed to cancel order:', error)
+      alert('Failed to cancel order. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
+  // If no actions available, show info message
+  if (!actions.canPay && !actions.canConfirm && !actions.canShip && 
+      !actions.canConfirmDelivery && !actions.canComplete && !actions.canCancel) {
+    return (
+      <div className="text-center py-6 text-warm-gray text-sm">
+        {isBuyer && 'No actions available at this time'}
+        {isVendor && 'Waiting for buyer action'}
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-4">
-      {/* Buyer Actions */}
-      {isBuyer && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium text-warm-gray uppercase">Buyer Actions</h3>
-          
-          {/* ✅ NEW: Mark as Paid */}
-          {actions.canPay && (
-            <button
-              onClick={handleMarkAsPaid}
-              disabled={loading}
-              className="btn btn-primary w-full disabled:opacity-50"
-            >
-              {loading ? (
-                <Loader2 size={18} className="mr-2 animate-spin" />
-              ) : (
-                <CreditCard size={18} className="mr-2" />
-              )}
-              Mark as Paid
-            </button>
-          )}
-          
-          {/* Confirm Delivery */}
-          {actions.canConfirmDelivery && (
-            <button
-              onClick={handleConfirmDelivery}
-              disabled={loading}
-              className="btn btn-primary w-full disabled:opacity-50"
-            >
-              {loading ? (
-                <Loader2 size={18} className="mr-2 animate-spin" />
-              ) : (
-                <PackageCheck size={18} className="mr-2" />
-              )}
-              Confirm Delivery
-            </button>
-          )}
-
-          {/* Complete Order */}
-          {actions.canComplete && (
-            <button
-              onClick={handleComplete}
-              disabled={loading}
-              className="btn btn-primary w-full disabled:opacity-50"
-            >
-              {loading ? (
-                <Loader2 size={18} className="mr-2 animate-spin" />
-              ) : (
-                <CheckCircle size={18} className="mr-2" />
-              )}
-              Complete Order (Release Escrow)
-            </button>
-          )}
-        </div>
+    <div className="space-y-3">
+      {/* Pay Now (Buyer) - NEW */}
+      {actions.canPay && (
+        <button
+          onClick={handlePay}
+          disabled={loading}
+          className="btn btn-primary w-full flex items-center justify-center gap-2"
+        >
+          <CreditCard size={18} />
+          Pay Now
+        </button>
       )}
 
-      {/* Vendor Actions */}
-      {isVendor && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium text-warm-gray uppercase">Vendor Actions</h3>
-          
-          {/* Confirm Order */}
-          {actions.canConfirm && (
-            <button
-              onClick={handleConfirm}
-              disabled={loading}
-              className="btn btn-primary w-full disabled:opacity-50"
-            >
-              {loading ? (
-                <Loader2 size={18} className="mr-2 animate-spin" />
-              ) : (
-                <CheckCircle size={18} className="mr-2" />
-              )}
-              Confirm Order
-            </button>
+      {/* Confirm Order (Vendor) */}
+      {actions.canConfirm && (
+        <button
+          onClick={handleConfirm}
+          disabled={loading}
+          className="btn btn-primary w-full flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <Loader2 size={18} className="animate-spin" />
+          ) : (
+            <CheckCircle size={18} />
           )}
-
-          {/* Ship Order */}
-          {actions.canShip && (
-            <div>
-              {!showTrackingInput ? (
-                <button
-                  onClick={() => setShowTrackingInput(true)}
-                  disabled={loading}
-                  className="btn btn-primary w-full disabled:opacity-50"
-                >
-                  <Truck size={18} className="mr-2" />
-                  Mark as Shipped
-                </button>
-              ) : (
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={trackingNumber}
-                    onChange={(e) => setTrackingNumber(e.target.value)}
-                    placeholder="Tracking number (optional)"
-                    className="input w-full"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleShip}
-                      disabled={loading}
-                      className="btn btn-primary flex-1 disabled:opacity-50"
-                    >
-                      {loading ? (
-                        <Loader2 size={18} className="mr-2 animate-spin" />
-                      ) : (
-                        <CheckCircle size={18} className="mr-2" />
-                      )}
-                      Confirm Shipment
-                    </button>
-                    <button
-                      onClick={() => setShowTrackingInput(false)}
-                      disabled={loading}
-                      className="btn btn-secondary"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+          Confirm Order
+        </button>
       )}
 
-      {/* Cancel Action (Both) */}
+      {/* Mark as Shipped (Vendor) */}
+      {actions.canShip && (
+        <button
+          onClick={handleShip}
+          disabled={loading}
+          className="btn btn-primary w-full flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <Loader2 size={18} className="animate-spin" />
+          ) : (
+            <Truck size={18} />
+          )}
+          Mark as Shipped
+        </button>
+      )}
+
+      {/* Confirm Delivery (Buyer) */}
+      {actions.canConfirmDelivery && (
+        <button
+          onClick={handleConfirmDelivery}
+          disabled={loading}
+          className="btn btn-primary w-full flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <Loader2 size={18} className="animate-spin" />
+          ) : (
+            <Package size={18} />
+          )}
+          Confirm Delivery
+        </button>
+      )}
+
+      {/* Complete Order (Buyer) */}
+      {actions.canComplete && (
+        <button
+          onClick={handleComplete}
+          disabled={loading}
+          className="btn btn-primary w-full flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <Loader2 size={18} className="animate-spin" />
+          ) : (
+            <CheckCircle size={18} />
+          )}
+          Complete Order
+        </button>
+      )}
+
+      {/* Cancel Order */}
       {actions.canCancel && (
-        <div className="pt-3 border-t border-barely-beige">
-          {!showCancelInput ? (
+        <>
+          {!showCancelDialog ? (
             <button
-              onClick={() => setShowCancelInput(true)}
+              onClick={() => setShowCancelDialog(true)}
               disabled={loading}
-              className="btn btn-secondary w-full text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50"
+              className="btn btn-ghost w-full flex items-center justify-center gap-2 text-red-600 hover:bg-red-50"
             >
-              <XCircle size={18} className="mr-2" />
+              <XCircle size={18} />
               Cancel Order
             </button>
           ) : (
-            <div className="space-y-2">
+            <div className="border border-barely-beige p-4 bg-light-cream">
+              <p className="text-sm font-medium text-soft-black mb-3">
+                Cancel this order?
+              </p>
               <textarea
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Reason for cancellation..."
-                className="input w-full"
-                rows={3}
+                placeholder="Reason for cancellation (required)"
+                className="input w-full mb-3 min-h-[80px]"
+                disabled={loading}
               />
               <div className="flex gap-2">
                 <button
-                  onClick={handleCancel}
-                  disabled={loading}
-                  className="btn btn-secondary flex-1 text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50"
+                  onClick={handleCancelSubmit}
+                  disabled={loading || !cancelReason.trim()}
+                  className="btn btn-primary flex-1 bg-red-600 hover:bg-red-700 border-red-600"
                 >
                   {loading ? (
-                    <Loader2 size={18} className="mr-2 animate-spin" />
+                    <Loader2 size={18} className="animate-spin" />
                   ) : (
-                    <XCircle size={18} className="mr-2" />
+                    'Confirm Cancellation'
                   )}
-                  Confirm Cancellation
                 </button>
                 <button
                   onClick={() => {
-                    setShowCancelInput(false)
+                    setShowCancelDialog(false)
                     setCancelReason('')
                   }}
                   disabled={loading}
-                  className="btn btn-secondary"
+                  className="btn btn-secondary flex-1"
                 >
-                  Cancel
+                  Keep Order
                 </button>
               </div>
             </div>
           )}
-        </div>
+        </>
       )}
+
+      {/* Payment Modal - NEW */}
+      <OrderPaymentModal
+        order={order}
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onPaymentComplete={handlePaymentComplete}
+      />
+
+      {/* Help text */}
+      <div className="pt-3 border-t border-barely-beige">
+        <p className="text-xs text-warm-gray">
+          {isBuyer && actions.canPay && 'Click "Pay Now" to complete your payment and start order processing.'}
+          {isBuyer && actions.canConfirmDelivery && 'Confirm delivery once you receive your order.'}
+          {isBuyer && actions.canComplete && 'Complete the order to release payment to vendor.'}
+          {isVendor && actions.canConfirm && 'Confirm the order after verifying payment.'}
+          {isVendor && actions.canShip && 'Mark as shipped when you hand over to logistics.'}
+        </p>
+      </div>
     </div>
   )
 }

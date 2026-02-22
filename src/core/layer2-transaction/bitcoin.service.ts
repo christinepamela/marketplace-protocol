@@ -15,7 +15,8 @@
  */
 
 import * as bitcoin from 'bitcoinjs-lib';
-import * as bip32 from 'bip32';
+import BIP32Factory, { BIP32Interface } from 'bip32';
+import * as ecc from 'tiny-secp256k1';
 import * as bip39 from 'bip39';
 import axios from 'axios';
 import type { Price } from '../layer1-catalog/types';
@@ -66,7 +67,10 @@ export interface BitcoinVendorPayout {
 export class BitcoinService {
   private dbClient: any;
   private network: bitcoin.Network;
-  private masterNode?: bip32.BIP32Interface;
+  private masterNode?: BIP32Interface;
+  private cachedBtcPrice: number | null = null;
+  private cachedBtcPriceAt: number = 0;
+  private readonly PRICE_CACHE_TTL = 60000;
   
   // Blockstream API endpoints
   private readonly BLOCKSTREAM_API = 'https://blockstream.info/api';
@@ -105,6 +109,9 @@ export class BitcoinService {
     
     // Derive seed from mnemonic
     const seed = bip39.mnemonicToSeedSync(mnemonic);
+    
+    // Create BIP32 instance
+    const bip32 = BIP32Factory(ecc);
     
     // Create master node (BIP84 - Native SegWit)
     this.masterNode = bip32.fromSeed(seed, this.network);
@@ -450,6 +457,10 @@ export class BitcoinService {
    * Get current BTC/USD price from CoinGecko
    */
   private async getBitcoinPrice(): Promise<number> {
+    const now = Date.now();
+    if (this.cachedBtcPrice && (now - this.cachedBtcPriceAt) < this.PRICE_CACHE_TTL) {
+      return this.cachedBtcPrice;
+    }
     try {
       const response = await axios.get(
         'https://api.coingecko.com/api/v3/simple/price',
@@ -460,12 +471,12 @@ export class BitcoinService {
           }
         }
       );
-      
-      return response.data.bitcoin.usd;
+      this.cachedBtcPrice = response.data.bitcoin.usd;
+      this.cachedBtcPriceAt = now;
+      return this.cachedBtcPrice!;
     } catch (error) {
       console.error('Error fetching Bitcoin price:', error);
-      // Fallback price if API fails
-      return 50000; // Default $50k USD
+      return this.cachedBtcPrice || 50000;
     }
   }
 

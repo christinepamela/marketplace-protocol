@@ -16,6 +16,8 @@ import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { standardRateLimit } from './middleware/ratelimit.middleware';
 import { initializeWebSocket } from './websocket/server';
 
+
+
 // Create Express app
 const app = express();
 
@@ -135,6 +137,10 @@ app.use(`${config.apiPrefix}/*`, standardRateLimit);
 import apiRoutes from './routes';
 app.use(config.apiPrefix, apiRoutes);
 
+// ✅ ADD BITCOIN ROUTES HERE (BEFORE ERROR HANDLERS)
+import bitcoinRoutes from './routes/bitcoin.routes';
+app.use(`${config.apiPrefix}/bitcoin`, bitcoinRoutes);
+
 /**
  * 404 handler
  */
@@ -144,6 +150,8 @@ app.use(notFoundHandler);
  * Global error handler (must be last)
  */
 app.use(errorHandler);
+
+
 
 /**
  * Initialize WebSocket server
