@@ -1,8 +1,6 @@
 /**
- * Order Actions Component (Updated with Payment Modal)
+ * Order Actions Component (Updated with Payment Modal + Inline Ship Form)
  * Action buttons for order management based on status and user role
- * 
- * NEW: Integrates OrderPaymentModal for Bitcoin and other payment methods
  */
 
 'use client'
@@ -13,7 +11,6 @@ import type { Order } from '@rangkai/sdk'
 import { getAvailableActions } from '@/lib/api/orders'
 import OrderPaymentModal from './OrderPaymentModal'
 import {
-  markAsPaid,
   confirmOrder,
   shipOrder,
   confirmDelivery,
@@ -33,33 +30,27 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
   const [showCancelDialog, setShowCancelDialog] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
 
+  // Inline ship form state
+  const [showShipForm, setShowShipForm] = useState(false)
+  const [trackingNumber, setTrackingNumber] = useState('')
+
   const actions = getAvailableActions(order, userDid)
   const isBuyer = order.buyerDid === userDid
   const isVendor = order.vendorDid === userDid
 
-  /**
-   * Handle payment action - Opens payment modal
-   */
   const handlePay = () => {
     setShowPaymentModal(true)
   }
 
-  /**
-   * Handle payment completion
-   */
   const handlePaymentComplete = async () => {
     setShowPaymentModal(false)
     onActionComplete()
   }
 
-  /**
-   * Handle confirm order (vendor)
-   */
   const handleConfirm = async () => {
     if (!confirm('Confirm that you have received payment and will process this order?')) {
       return
     }
-
     setLoading(true)
     try {
       await confirmOrder(order.id)
@@ -72,15 +63,12 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
     }
   }
 
-  /**
-   * Handle ship order (vendor)
-   */
-  const handleShip = async () => {
-    const trackingNumber = prompt('Enter tracking number (optional):')
-    
+  const handleShipSubmit = async () => {
     setLoading(true)
     try {
       await shipOrder(order.id, trackingNumber || undefined)
+      setShowShipForm(false)
+      setTrackingNumber('')
       onActionComplete()
     } catch (error) {
       console.error('Failed to mark as shipped:', error)
@@ -90,14 +78,10 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
     }
   }
 
-  /**
-   * Handle confirm delivery (buyer)
-   */
   const handleConfirmDelivery = async () => {
     if (!confirm('Confirm that you have received your order in good condition?')) {
       return
     }
-
     setLoading(true)
     try {
       await confirmDelivery(order.id)
@@ -110,14 +94,10 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
     }
   }
 
-  /**
-   * Handle complete order (buyer)
-   */
   const handleComplete = async () => {
     if (!confirm('Complete this order? This will release payment to the vendor.')) {
       return
     }
-
     setLoading(true)
     try {
       await completeOrder(order.id)
@@ -130,15 +110,11 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
     }
   }
 
-  /**
-   * Handle cancel order
-   */
   const handleCancelSubmit = async () => {
     if (!cancelReason.trim()) {
       alert('Please provide a reason for cancellation')
       return
     }
-
     setLoading(true)
     try {
       await cancelOrder(order.id, cancelReason)
@@ -152,8 +128,7 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
     }
   }
 
-  // If no actions available, show info message
-  if (!actions.canPay && !actions.canConfirm && !actions.canShip && 
+  if (!actions.canPay && !actions.canConfirm && !actions.canShip &&
       !actions.canConfirmDelivery && !actions.canComplete && !actions.canCancel) {
     return (
       <div className="text-center py-6 text-warm-gray text-sm">
@@ -165,7 +140,7 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
 
   return (
     <div className="space-y-3">
-      {/* Pay Now (Buyer) - NEW */}
+      {/* Pay Now (Buyer) */}
       {actions.canPay && (
         <button
           onClick={handlePay}
@@ -184,29 +159,53 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
           disabled={loading}
           className="btn btn-primary w-full flex items-center justify-center gap-2"
         >
-          {loading ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <CheckCircle size={18} />
-          )}
+          {loading ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
           Confirm Order
         </button>
       )}
 
-      {/* Mark as Shipped (Vendor) */}
-      {actions.canShip && (
+      {/* Mark as Shipped (Vendor) — inline form replaces prompt() */}
+      {actions.canShip && !showShipForm && (
         <button
-          onClick={handleShip}
+          onClick={() => setShowShipForm(true)}
           disabled={loading}
           className="btn btn-primary w-full flex items-center justify-center gap-2"
         >
-          {loading ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <Truck size={18} />
-          )}
+          <Truck size={18} />
           Mark as Shipped
         </button>
+      )}
+
+      {actions.canShip && showShipForm && (
+        <div className="border border-barely-beige p-4 bg-light-cream space-y-3">
+          <p className="text-sm font-medium text-soft-black">Enter tracking number</p>
+          <input
+            type="text"
+            value={trackingNumber}
+            onChange={e => setTrackingNumber(e.target.value)}
+            placeholder="Tracking number (optional)"
+            className="input w-full text-sm"
+            disabled={loading}
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleShipSubmit}
+              disabled={loading}
+              className="btn btn-primary flex-1 flex items-center justify-center gap-2"
+            >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <Truck size={16} />}
+              Confirm Shipped
+            </button>
+            <button
+              onClick={() => { setShowShipForm(false); setTrackingNumber('') }}
+              disabled={loading}
+              className="btn btn-secondary flex-1"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Confirm Delivery (Buyer) */}
@@ -216,11 +215,7 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
           disabled={loading}
           className="btn btn-primary w-full flex items-center justify-center gap-2"
         >
-          {loading ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <Package size={18} />
-          )}
+          {loading ? <Loader2 size={18} className="animate-spin" /> : <Package size={18} />}
           Confirm Delivery
         </button>
       )}
@@ -232,11 +227,7 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
           disabled={loading}
           className="btn btn-primary w-full flex items-center justify-center gap-2"
         >
-          {loading ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <CheckCircle size={18} />
-          )}
+          {loading ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
           Complete Order
         </button>
       )}
@@ -260,7 +251,7 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
               </p>
               <textarea
                 value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
+                onChange={e => setCancelReason(e.target.value)}
                 placeholder="Reason for cancellation (required)"
                 className="input w-full mb-3 min-h-[80px]"
                 disabled={loading}
@@ -271,17 +262,10 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
                   disabled={loading || !cancelReason.trim()}
                   className="btn btn-primary flex-1 bg-red-600 hover:bg-red-700 border-red-600"
                 >
-                  {loading ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    'Confirm Cancellation'
-                  )}
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : 'Confirm Cancellation'}
                 </button>
                 <button
-                  onClick={() => {
-                    setShowCancelDialog(false)
-                    setCancelReason('')
-                  }}
+                  onClick={() => { setShowCancelDialog(false); setCancelReason('') }}
                   disabled={loading}
                   className="btn btn-secondary flex-1"
                 >
@@ -293,7 +277,7 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
         </>
       )}
 
-      {/* Payment Modal - NEW */}
+      {/* Payment Modal */}
       <OrderPaymentModal
         order={order}
         isOpen={showPaymentModal}
@@ -308,7 +292,7 @@ export default function OrderActions({ order, userDid, onActionComplete }: Order
           {isBuyer && actions.canConfirmDelivery && 'Confirm delivery once you receive your order.'}
           {isBuyer && actions.canComplete && 'Complete the order to release payment to vendor.'}
           {isVendor && actions.canConfirm && 'Confirm the order after verifying payment.'}
-          {isVendor && actions.canShip && 'Mark as shipped when you hand over to logistics.'}
+          {isVendor && actions.canShip && 'Enter a tracking number (optional) then confirm shipment.'}
         </p>
       </div>
     </div>

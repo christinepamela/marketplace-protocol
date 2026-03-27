@@ -193,7 +193,7 @@ export default function VendorDashboardPage() {
 
           <div className="mt-4 text-center">
             <Link
-              href="/orders?view=vendor"
+              href="/vendor/orders"
               className="text-sm text-warm-taupe hover:text-soft-black transition-colors"
             >
               View All Orders →
