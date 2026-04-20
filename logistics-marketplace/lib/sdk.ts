@@ -1,34 +1,22 @@
 /**
- * Rangkai SDK Instance
- * Shared SDK instance for all API calls
+ * Rangkai SDK Instance — Logistics Marketplace
+ * Path: logistics-marketplace/lib/sdk.ts
+ *
+ * FIXED:
+ *   1. API URL now reads from NEXT_PUBLIC_API_URL env var (no hardcoded localhost)
+ *   2. Sandbox flag reads from NEXT_PUBLIC_SANDBOX env var
+ *   3. localStorage monkey-patch removed — was causing full page reloads on every token write
+ *   4. Token is NOT read at module init (it was always stale). Call sdk.setToken() after login.
  */
-import { RangkaiSDK } from '@rangkai/sdk'
+import { RangkaiSDK } from '@rangkai/sdk';
 
-// Get token from localStorage
-function getToken(): string | undefined {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('rangkai_token') || undefined
-  }
-  return undefined
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const IS_SANDBOX = process.env.NEXT_PUBLIC_SANDBOX !== 'false'; // defaults true in dev
 
-// Create SDK instance with token
 export const sdk = new RangkaiSDK({
-  apiUrl: 'http://localhost:3000',
-  sandbox: true,
-  token: getToken() // ← Use 'token' property instead of 'getToken'
-})
+  apiUrl: API_URL,
+  sandbox: IS_SANDBOX,
+  // No token here — call sdk.setToken(token) explicitly after login
+});
 
-// Update token whenever it changes
-if (typeof window !== 'undefined') {
-  const originalSetItem = localStorage.setItem
-  localStorage.setItem = function(key, value) {
-    originalSetItem.apply(this, [key, value] as any)
-    if (key === 'rangkai_token') {
-      // Token changed, recreate SDK instance
-      location.reload()
-    }
-  }
-}
-
-export default sdk
+export default sdk;

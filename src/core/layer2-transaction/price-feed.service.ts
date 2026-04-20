@@ -207,7 +207,7 @@ export class PriceFeedService {
       from,
       to: {
         amount: from.amount * rate.rate,
-        currency: toCurrency
+        currency: toCurrency as any // Type assertion
       },
       rate: rate.rate,
       timestamp: rate.timestamp
@@ -344,7 +344,7 @@ export class PriceFeedService {
     
     return {
       amount: fiatAmount,
-      currency
+      currency: currency as any // Type assertion
     };
   }
 
