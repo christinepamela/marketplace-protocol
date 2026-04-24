@@ -266,7 +266,41 @@ export class StripeAdapter {
   async getPaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
     return this.stripe.paymentIntents.retrieve(paymentIntentId);
   }
-}
+
+  // ─── Checkout Session ─────────────────────────────────────────────────────
+
+  async createCheckoutSession(params: {
+    orderId: string;
+    amount: number;
+    currency: string;
+    successUrl: string;
+    cancelUrl: string;
+    customerEmail?: string;
+    metadata?: Record<string, string>;
+  }): Promise<{ url: string; sessionId: string }> {
+    const session = await this.stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: params.currency.toLowerCase(),
+          product_data: { name: `Order ${params.metadata?.order_number || params.orderId}` },
+          unit_amount: params.amount,
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      customer_email: params.customerEmail,
+      metadata: {
+        order_id: params.orderId,
+        platform: 'rangkai',
+        ...params.metadata,
+      },
+    });
+    return { url: session.url!, sessionId: session.id };
+  }
+}   // ← this closes the StripeAdapter class
 
 // ─── Singleton ────────────────────────────────────────────────────────────────
 

@@ -84,25 +84,38 @@ export default function OrderPaymentModal({
    * Initiate Stripe payment session
    */
   const initiateStripePayment = async () => {
-    try {
-      const response = await fetch(`/api/orders/${order.id}/stripe-payment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to initiate Stripe payment')
+  try {
+    const token = localStorage.getItem('rangkai_token')
+    
+    const response = await fetch(`/api/orders/${order.id}/stripe-payment`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`  // ← ADD THIS
       }
+    })
 
-      const { url } = await response.json()
-      setStripeUrl(url)
-      setCurrentStep('stripe_payment')
-
-    } catch (error) {
-      console.error('Stripe payment error:', error)
-      alert('Failed to initiate payment. Please try again.')
+    if (!response.ok) {
+      throw new Error('Failed to initiate Stripe payment')
     }
+
+    const data = await response.json()
+    
+    if (data.clientSecret) {
+      // We have a PaymentIntent — show Stripe Elements inline
+      setStripeUrl(data.clientSecret)
+      setCurrentStep('stripe_payment')
+    } else if (data.url) {
+      // Redirect-based checkout
+      setStripeUrl(data.url)
+      setCurrentStep('stripe_payment')
+    }
+
+  } catch (error) {
+    console.error('Stripe payment error:', error)
+    alert('Failed to initiate payment. Please try again.')
   }
+}
 
   /**
    * Initiate PayPal payment

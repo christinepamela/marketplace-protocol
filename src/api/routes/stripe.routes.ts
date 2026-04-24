@@ -89,6 +89,36 @@ router.post(
           break;
         }
 
+        case 'checkout.session.completed': {
+          const session = event.data.object as any;
+          const orderId = session.metadata?.order_id;
+
+          if (!orderId) {
+            console.warn('[StripeWebhook] checkout.session.completed — no order_id in metadata');
+            break;
+          }
+
+          const orderService = new OrderService(req.supabase);
+          const escrowService = new EscrowService(req.supabase);
+
+          const order = await orderService.getOrderById(orderId);
+          if (!order) {
+            console.warn(`[StripeWebhook] Order not found: ${orderId}`);
+            break;
+          }
+
+          if (order.status !== 'payment_pending') {
+            console.log(`[StripeWebhook] Order ${orderId} already ${order.status} — skipping`);
+            break;
+          }
+
+          await orderService.markAsPaid(orderId, session.payment_intent || session.id);
+          await escrowService.createEscrow(orderId, order.total);
+
+          console.log(`[StripeWebhook] Order ${orderId} marked as paid via Stripe Checkout (${session.id})`);
+          break;
+        }
+
         case 'payment_intent.payment_failed': {
           const intent = event.data.object as any;
           const orderId = intent.metadata?.order_id;

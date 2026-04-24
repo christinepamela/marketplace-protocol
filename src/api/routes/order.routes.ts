@@ -11,6 +11,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { validateBody } from '../middleware/validation.middleware';
 import { ApiError, ErrorCode } from '../core/errors';
 import { emitOrderEvent } from '../websocket/events';
+import { PaymentService } from '../../core/layer2-transaction/payment-router.service';
 import type {
   CreateOrderRequest,
   OrderStatus,
@@ -650,6 +651,152 @@ router.get(
         success: true,
         data: history
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+
+/**
+ * @route   POST /api/v1/orders/:id/initiate-payment
+ * @desc    Initiate payment for an order (creates Stripe PaymentIntent or Bitcoin address)
+ * @access  Private (buyer only)
+ */
+router.post(
+  '/:id/initiate-payment',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const userDid = getUserDid(req);
+      const orderService = new OrderService(req.supabase);
+
+      const order = await orderService.getOrderById(id);
+
+      if (!order) {
+        throw new ApiError(ErrorCode.ORDER_NOT_FOUND, 'Order not found');
+      }
+
+      // Only buyer can initiate payment
+      if (order.buyerDid !== userDid) {
+        throw new ApiError(
+          ErrorCode.FORBIDDEN,
+          'Only the buyer can initiate payment for this order'
+        );
+      }
+
+      // Must be in payment_pending status
+      if (order.status !== 'payment_pending') {
+        throw new ApiError(
+          ErrorCode.INVALID_ORDER_STATUS,
+          `Cannot initiate payment for order in status: ${order.status}`
+        );
+      }
+
+      // Route to correct payment provider
+      switch (order.paymentMethod) {
+
+        case 'stripe': {
+          // Dynamically import to avoid loading Stripe unless needed
+          const { getStripeAdapter } = await import('../../infrastructure/payment/stripe.adapter');
+          const stripe = getStripeAdapter();
+
+          // Convert to cents
+          const zeroCurrencies = ['jpy', 'krw', 'vnd', 'idr'];
+          const amountInSmallestUnit = zeroCurrencies.includes(order.total.currency.toLowerCase())
+            ? Math.round(order.total.amount)
+            : Math.round(order.total.amount * 100);
+
+          const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+
+          const result = await stripe.createCheckoutSession({
+            orderId: order.id,
+            amount: amountInSmallestUnit,
+            currency: order.total.currency,
+            successUrl: `${frontendUrl}/orders/${order.id}?payment=success`,
+            cancelUrl: `${frontendUrl}/orders/${order.id}?payment=cancelled`,
+            metadata: {
+              order_number: order.orderNumber,
+              buyer_did: order.buyerDid,
+              vendor_did: order.vendorDid,
+            }
+          });
+
+          await req.supabase
+            .from('orders')
+            .update({
+              internal_notes: `stripe_session:${result.sessionId}`,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', order.id);
+
+          return res.json({
+            success: true,
+            data: {
+              method: 'stripe',
+              url: result.url,
+              sessionId: result.sessionId,
+            }
+          });
+        }
+
+        case 'bitcoin_onchain': {
+          const { BitcoinService } = await import('../../core/layer2-transaction/bitcoin.service');
+          const bitcoinService = new BitcoinService(
+            req.supabase,
+            process.env.BITCOIN_MNEMONIC,
+            process.env.BITCOIN_NETWORK === 'testnet'
+          );
+
+          // Check if address already generated for this order
+          const { data: existing } = await req.supabase
+            .from('bitcoin_payment_addresses')
+            .select('*')
+            .eq('order_id', id)
+            .eq('confirmed', false)
+            .single();
+
+          if (existing) {
+            return res.json({
+              success: true,
+              data: {
+                method: 'bitcoin_onchain',
+                bitcoinAddress: existing.address,
+                expectedSatoshis: existing.expected_amount,
+                btcAmount: (existing.expected_amount / 100_000_000).toFixed(8),
+                expiresAt: existing.expires_at,
+              }
+            });
+          }
+
+          const address = await bitcoinService.generateEscrowAddress(order.id, order.total);
+
+          return res.json({
+            success: true,
+            data: {
+              method: 'bitcoin_onchain',
+              bitcoinAddress: address.address,
+              expectedSatoshis: address.expectedAmount,
+              btcAmount: (address.expectedAmount / 100_000_000).toFixed(8),
+              expiresAt: address.expiresAt.toISOString(),
+            }
+          });
+        }
+
+        case 'lightning':
+          throw new ApiError(
+            ErrorCode.VALIDATION_ERROR,
+            'Lightning Network payments are not yet available. Please choose Bitcoin (on-chain) or card payment.'
+          );
+
+        default:
+          throw new ApiError(
+            ErrorCode.VALIDATION_ERROR,
+            `Unsupported payment method: ${order.paymentMethod}`
+          );
+      }
+
     } catch (error) {
       next(error);
     }
