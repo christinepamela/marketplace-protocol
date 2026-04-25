@@ -3,6 +3,7 @@
 **Version:** 1.0  
 **Date:** December 11, 2025  
 **Status:** Ready for Implementation
+**Note:** see docs/LOGISTICS_ARCHITECTURE.md for the current canonical architecture
 
 ---
 
