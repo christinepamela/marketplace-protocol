@@ -126,6 +126,18 @@ Within each category, items are roughly priority-ordered.
 **Fix:** Scheduler job: 7 days before expiry, notify provider. Provider can submit refresh quote. Seller accepts. Product page updates.
 **Priority:** Low for v1, becomes important once standing quotes are real.
 
+### D13. BIP84 derivation path uses mainnet coin type on testnet
+**What:** `bitcoin.service.ts` line ~146 hardcodes `m/84'/0'/0'/0/N` regardless of network. The `0'` is BIP44 coin type for mainnet Bitcoin; testnet should use `1'`. Addresses still work because `network` is set correctly when generating the P2WPKH output, but the seed mnemonic won't be standards-compliant for hardware wallet recovery on testnet.
+**Where:** `src/core/layer2-transaction/bitcoin.service.ts` line 146
+**Fix:** `const coinType = this.network === bitcoin.networks.testnet ? "1'" : "0'"` then `m/84'/${coinType}/0'/0/${derivationIndex}`. Migrate existing addresses or accept that testnet history won't recover from seed.
+**Priority:** Low — doesn't break testing, but breaks long-term hardware wallet recovery on testnet.
+
+### D14. BitcoinService instantiation pattern is inconsistent
+**What:** Routes create `new BitcoinService(req.supabase, ...)` per request. Scheduler injects a single instance via `initializeScheduler`. Both work, but request-scoped instantiation creates redundant wallet derivation work and means the cached BTC price isn't shared between requests and the scheduler.
+**Where:** `src/api/routes/bitcoin.routes.ts` (3 places), `src/api/scheduler.ts`
+**Fix:** Singleton or DI pattern — instantiate once at server startup, share across routes and scheduler.
+**Priority:** Low — performance/cleanliness, not correctness.
+
 ---
 
 ## 🟢 Roadmap / not v1
@@ -188,25 +200,41 @@ Provider on marketplace A serving sellers on marketplace B. Cross-marketplace re
 
 **Priority:** Roadmap. Don't block on this. Get BTC on-chain solid first, then decide if Lightning is v1.5 or later.
 
-### R10. Stablecoin support
+### R10. BTCPay Server integration
+
+**What:** Replace browser-driven Blockstream polling with server-side BTCPay Server webhooks for Bitcoin payment confirmation. Code already exists (`btcpay.adapter.ts`, `btcpay.routes.ts`) but isn't wired in. Comment in adapter file says: "Until BTCPay is set up, the system falls back to Blockstream polling."
+
+**Why upgrade:** BTCPay handles invoice expiry, refunds, multi-currency display, and supports both on-chain and Lightning natively. Webhooks are more reliable than polling and don't depend on Blockstream's free API staying up. Self-hosted or hosted (Voltage, nodl.it).
+
+**Setup once we're ready:**
+- Run BTCPay Server (Docker or hosted)
+- Create Store, generate API key with `btcpay.store.cancreateinvoice` and `btcpay.store.canviewinvoices`
+- Add webhook: `https://yourdomain.com/webhooks/btcpay` for `InvoiceSettled`, `InvoiceExpired`, `InvoiceInvalid`
+- Add `BTCPAY_URL`, `BTCPAY_API_KEY`, `BTCPAY_STORE_ID`, `BTCPAY_WEBHOOK_SECRET` to `.env`
+- Mount `btcpay.routes.ts` in `routes/index.ts` (currently not mounted)
+
+**Priority:** Roadmap. Blockstream polling works for v1. BTCPay becomes valuable once we have real payment volume or want Lightning natively bundled with on-chain.
+
+
+### R11. Stablecoin support
 USDC, USDT as a third payment rail beyond Stripe and BTC. Architecturally similar to BTC routing, different settlement properties.
 
-### R11. Insurance marketplace
+### R12. Insurance marketplace
 Currently `insurance_included: boolean` on quotes. Real insurance has caps, deductibles, exclusions, claims processes. Eventually a separate marketplace within the marketplace.
 
-### R12. Customs broker integration
+### R13. Customs broker integration
 For non-DDP shipments where the buyer needs help with import clearance. Connect buyers to brokers in their country. Out of scope for v1.
 
-### R13. ESG / sustainability metadata
+### R14. ESG / sustainability metadata
 Carbon footprint per shipping mode, offset options, certifications. B2B buyers increasingly demand this. Niche but growing.
 
-### R14. EU IOSS support for VAT collection
+### R15. EU IOSS support for VAT collection
 For EU-bound B2C shipments under €150, sellers can collect VAT upfront via IOSS. Eliminates surprise duties at delivery. Big UX win for EU sales.
 
-### R15. US de minimis policy changes (2025)
+### R16. US de minimis policy changes (2025)
 US is moving to eliminate the $800 de minimis for some corridors. Need to track regulatory changes and surface "expect duties" warnings on US-bound shipments accordingly.
 
-### R16. Light-tier providers (rejected, see R7)
+### R17. Light-tier providers (rejected, see R7)
 Originally proposed in Session 28 as 0.5% / no-KYC tier. Rejected in favor of single KYC-mandatory tier with 0.5% fee for everyone. Documented here so we don't re-derive.
 
 ---
