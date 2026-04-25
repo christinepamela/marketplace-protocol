@@ -154,25 +154,59 @@ Considered and rejected for v1 (single KYC tier is simpler and more honest). May
 ### R8. Marketplace federation
 Provider on marketplace A serving sellers on marketplace B. Cross-marketplace reputation. Federated search across all marketplace clients (`docs/ARCHITECTURE.md` describes this as Layer 1 federated search). Building it well requires the protocol's identity layer to be very mature.
 
-### R9. Stablecoin support
+### R9. Lightning Network as a payment rail
+
+**What:** Lightning is in the architecture as a payment rail (`docs/ARCHITECTURE.md` section 3) but no implementation exists. BTC on-chain comes first; Lightning is the natural next rail because it solves on-chain's two main problems (slow confirmations, high fees for small transactions).
+
+**Why deferred:** Requires running a Lightning node, which means hardware and a fully-synced Bitcoin Core full node behind it. Not a code-only task. Also non-trivial channel management once live.
+
+**Hardware needed (minimum viable Lightning node):**
+- Raspberry Pi 4, 8GB RAM (4GB technically works but tight; 8GB recommended). Pi 5 is fine but overkill.
+- External SSD, 1TB minimum (BTC blockchain is ~640GB and growing). MicroSD will not survive the write load — SSD is required, not optional.
+- Official Pi power supply (3A USB-C) plus a powered USB hub for the SSD if not using a Pi 5. Undervolting kills these setups silently.
+- Ethernet cable (don't run a node on Wi-Fi if avoidable).
+- Total hardware cost: roughly USD 150-220 depending on SSD choice.
+
+**Software stack options (pick one):**
+- **Umbrel** — easiest, opinionated, app-store-style UX, Bitcoin Core + LND bundled. Recommended for first-time Lightning operators.
+- **Start9 (StartOS)** — similar to Umbrel, more privacy-focused, supports both LND and Core Lightning.
+- **RaspiBlitz** — older, more Bitcoin-purist, requires more terminal use. More flexible but steeper.
+- **Manual Bitcoin Core + LND** — for the brave. Full control, no abstraction layer.
+
+**Time investment:**
+- Hardware order + arrival: 2-7 days depending on shipping
+- Initial Bitcoin Core sync: 1-7 days, runs in background. Can start tinkering with config in parallel.
+- LND setup, wallet seed backup, channel funding: 1-3 hours once sync completes
+- For testing on signet (recommended for dev), separate sync of signet chain is needed but is much faster (~1 day)
+
+**Integration with the protocol:**
+- Protocol's job is to talk to LND's gRPC API (or Core Lightning's RPC) to create invoices, watch for payments, route balances to vendors
+- Existing BTCPay code (if used) may already abstract this away — worth checking which approach was chosen before buying hardware
+- For testing: signet Lightning is the right network. Mainnet Lightning requires real BTC and real channel funding.
+
+**Open question:** custodial vs self-custody. If we run the Lightning node, we're operating it on behalf of marketplaces — possible regulatory implications (money transmitter status in some jurisdictions). Cleaner if marketplaces run their own Lightning nodes and the protocol provides interop only. To be revisited.
+
+**Priority:** Roadmap. Don't block on this. Get BTC on-chain solid first, then decide if Lightning is v1.5 or later.
+
+### R10. Stablecoin support
 USDC, USDT as a third payment rail beyond Stripe and BTC. Architecturally similar to BTC routing, different settlement properties.
 
-### R10. Insurance marketplace
+### R11. Insurance marketplace
 Currently `insurance_included: boolean` on quotes. Real insurance has caps, deductibles, exclusions, claims processes. Eventually a separate marketplace within the marketplace.
 
-### R11. Customs broker integration
+### R12. Customs broker integration
 For non-DDP shipments where the buyer needs help with import clearance. Connect buyers to brokers in their country. Out of scope for v1.
 
-### R12. ESG / sustainability metadata
+### R13. ESG / sustainability metadata
 Carbon footprint per shipping mode, offset options, certifications. B2B buyers increasingly demand this. Niche but growing.
 
-### R13. EU IOSS support for VAT collection
+### R14. EU IOSS support for VAT collection
 For EU-bound B2C shipments under €150, sellers can collect VAT upfront via IOSS. Eliminates surprise duties at delivery. Big UX win for EU sales.
 
-### R14. US de minimis policy changes (2025)
+### R15. US de minimis policy changes (2025)
 US is moving to eliminate the $800 de minimis for some corridors. Need to track regulatory changes and surface "expect duties" warnings on US-bound shipments accordingly.
 
-### R15. Light-tier providers (rejected, see R7)
+### R16. Light-tier providers (rejected, see R7)
 Originally proposed in Session 28 as 0.5% / no-KYC tier. Rejected in favor of single KYC-mandatory tier with 0.5% fee for everyone. Documented here so we don't re-derive.
 
 ---
