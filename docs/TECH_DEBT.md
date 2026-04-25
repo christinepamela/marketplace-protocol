@@ -63,6 +63,12 @@ Within each category, items are roughly priority-ordered.
 **What:** Other authenticated pages had no nav. Fixed via `ConditionalHeader` in root layout.
 **Status:** ✅ Fixed S28.
 
+### B9. Four route files exist but aren't mounted in routes/index.ts
+**What:** `bitcoin.routes.ts`, `btcpay.routes.ts`, `stripe.routes.ts`, and `trust.routes.ts` exist as fully-implemented files but are not imported or `router.use()`'d in `src/api/routes/index.ts`. Bitcoin route added in S28 to unblock Stage 6 testing. Stripe and BTCPay still not mounted (Stripe Stages 1-4 may have been working through a different path — needs investigation). Trust routes never mounted.
+**Where:** `src/api/routes/index.ts`
+**Fix:** Mount the remaining three routes after verifying their internal paths and confirming there are no duplicate handlers elsewhere.
+**Priority:** High — Stripe is in active use, the absence of clear mounting is concerning. Trust and BTCPay are blocked features.
+
 ---
 
 ## 🟡 Deferred / partial
