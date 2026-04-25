@@ -10,9 +10,11 @@ import { useRouter } from 'next/navigation'
 import { sdk } from '@/lib/sdk'
 import type { ShippingMethod } from '@rangkai/sdk'
 import { Package, CheckCircle } from 'lucide-react'
+import { useProvider } from '@/lib/contexts/ProviderContext'
 
 export default function RegisterPage() {
   const router = useRouter()
+  const { login } = useProvider()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     business_name: '',
@@ -94,14 +96,16 @@ export default function RegisterPage() {
       const providerData = await providerResponse.json()
       console.log('✅ Provider registered:', providerData)
 
-      // Step 3: Store token
-      localStorage.setItem('rangkai_token', identityData.data.token)
+      // Step 3: Log in via context (stores token/refresh/did, sets SDK token, schedules refresh)
+      await login(
+        identityData.data.token,
+        identityData.data.refreshToken || null,
+        identityData.data.did
+      )
 
-      // Give a moment for state to settle, then redirect
-      setTimeout(() => {
-        window.location.href = '/dashboard'  // Force navigation
-    }, 100)
       alert('✅ Provider registered successfully!')
+      router.push('/dashboard')
+
     } catch (error: any) {
       console.error('Registration error:', error)
       alert(`❌ Registration failed: ${error.message || 'Unknown error'}`)

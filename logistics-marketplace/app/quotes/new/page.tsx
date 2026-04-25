@@ -58,7 +58,7 @@ export default function SubmitQuotePage() {
     if (providerLoading) return
     
     if (!provider) {
-      router.push('/register')
+      router.push('/auth/register')
       return
     }
 

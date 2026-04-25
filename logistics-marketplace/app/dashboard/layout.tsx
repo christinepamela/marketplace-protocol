@@ -1,5 +1,3 @@
-import ProviderHeader from '@/components/layout/ProviderHeader'
-
 export default function DashboardLayout({
   children,
 }: {
@@ -7,7 +5,6 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="min-h-screen bg-warm-white">
-      <ProviderHeader />
       {children}
     </div>
   )

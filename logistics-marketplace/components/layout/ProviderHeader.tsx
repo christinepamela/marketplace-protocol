@@ -23,7 +23,7 @@ export default function ProviderHeader() {
 
   const handleLogout = () => {
     logout()
-    router.push('/register')
+    router.push('/auth/register')
   }
 
   const navLinks = [

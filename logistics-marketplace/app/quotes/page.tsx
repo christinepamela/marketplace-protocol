@@ -56,7 +56,7 @@ export default function MyQuotesPage() {
     if (providerLoading) return
     
     if (!provider) {
-      router.push('/register')
+      router.push('/auth/register')
       return
     }
 
