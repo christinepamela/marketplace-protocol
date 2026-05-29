@@ -144,6 +144,49 @@ Within each category, items are roughly priority-ordered.
 **Fix:** Singleton or DI pattern — instantiate once at server startup, share across routes and scheduler.
 **Priority:** Low — performance/cleanliness, not correctness.
 
+### D15. Trust & compliance routes not exposed (HIGH PRIORITY)
+**What:** `src/core/layer4-trust/compliance.service.ts` is fully implemented (~300 lines) with sanctions screening, multi-factor confidence scoring, audit trail logging, and tax rate calculation. `trust.routes.ts` exists as a 0-byte file — the HTTP layer was never written, so no marketplace can call into the working compliance logic. Empty file caused API boot failure in S29; temporarily removed from `routes/index.ts` mounts to unblock Stage 6 testing.
+
+**Why this matters:** Trust is the highest-leverage feature for the platform. Small B2B exporters trading across borders have no in-person signals, often no shared language, no common legal system. Sanctions screening at KYC onboarding is the single biggest credibility lever the protocol can offer to marketplaces. Logistics-without-trust is just shipping; logistics-with-trust is what makes Rangkai different.
+
+**Where:**
+- `src/api/routes/trust.routes.ts` (empty, needs implementation)
+- `src/api/routes/index.ts` (re-mount once routes built)
+- `src/core/layer4-trust/compliance.service.ts` (already complete)
+- `docs/specs/LAYER4_TRUST_AND_COMPLIANCE.md` (spec is thorough)
+
+**Sub-items:**
+
+- **D15a. Build trust.routes.ts** (~2-3 hours)
+  Expose existing compliance service via REST. Required endpoints:
+  - `POST /trust/sanctions-check` (marketplace screens KYC users at onboarding)
+  - `GET /trust/sanctions-history/:did` (audit trail per identity)
+  - `POST /trust/sanctions-list` (governance-only: add sanctioned entity)
+  - `POST /trust/sanctions-list/bulk-update` (governance-only: ingest from feed)
+  - `GET /trust/stats` (compliance stats — transparency)
+  - `GET /trust/tax-rates` (get rates for country/category)
+  - `POST /trust/tax-rates` (governance-only: upsert rate)
+  - `POST /trust/tax-calculation` (calculate tax for hypothetical transaction)
+
+- **D15b. Populate sanctions list** (data work, not code)
+  The `sanctions_list` table is empty. Need an ingest path from OFAC SDN list, UN sanctions list, EU consolidated list. Either manual data load, scheduled cron job, or governance-proposal-driven update. Without data, `checkSanctions` returns "passed" for everyone — worse than not running the check at all because it gives false confidence.
+
+- **D15c. Integrate sanctions check into rangkai-marketplace registration**
+  The marketplace's identity registration flow needs to call `POST /trust/sanctions-check` for KYC users at signup. Currently, registration creates identities without screening. This is a marketplace-side change in `rangkai-marketplace/app/auth/register/page.tsx`.
+
+- **D15d. Marketplace operator dashboard for flagged identities**
+  When `checkSanctions` returns `flagged` (moderate-confidence match, 0.7-0.95), the marketplace operator needs a UI to review and decide. Block/clear/escalate. This is a marketplace-side feature, not protocol — but the protocol needs to expose the query endpoint (`GET /trust/sanctions-checks?action=flagged&marketplace=X`).
+
+- **D15e. Compliance events for real-time wiring**
+  Spec mentions `compliance.flagged` and similar events. Currently just DB writes. Real-time event emission to marketplaces would be a v1.5 improvement. Low priority within this group.
+
+- **D15f. Public sanctions-list transparency page**
+  `GET /trust/sanctions-lists` — what lists is the protocol checking against? Important for protocol credibility. Small endpoint, easy win.
+
+**Priority:** HIGH. Promote to next sprint after Stage 6 Bitcoin testing completes. Service already exists; the gap is HTTP exposure + data ingest + marketplace integration. Estimated effort: 1-2 focused sessions for D15a-c (the meaningful trust delivery), D15d-f can follow.
+
+**Decision log:** S28 mistakenly attempted to mount empty trust.routes.ts; caused boot failure. S29 traced root cause: file was scaffold-only since repo init (Oct 19 2025). Discussion confirmed compliance is intentionally NOT per-transaction in this architecture — it's a one-shot at KYC onboarding. That makes the route surface small and tractable. Service code is already correct.
+
 ---
 
 ## 🟢 Roadmap / not v1

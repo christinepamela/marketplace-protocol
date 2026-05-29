@@ -14,7 +14,7 @@ import governanceRoutes from './governance.routes';
 import bitcoinRoutes from './bitcoin.routes';
 import btcpayRoutes from './btcpay.routes';
 import stripeRoutes from './stripe.routes';
-import trustRoutes from './trust.routes';
+//import trustRoutes from './trust.routes'; // S29: deferred — see TECH_DEBT D15
 
 const router = Router();
 
@@ -40,7 +40,7 @@ router.use('/logistics', logisticsRoutes);
 // Layer 4: Trust & Compliance
 router.use('/disputes', disputeRoutes);
 router.use('/ratings', ratingRoutes);
-router.use('/trust', trustRoutes);
+//router.use('/trust', trustRoutes); //S29: deferred — see TECH_DEBT D15
 
 // Layer 6: Governance & Multisig (NEW - Phase 7)
 router.use('/proposals', governanceRoutes);
