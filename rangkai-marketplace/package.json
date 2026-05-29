@@ -2,12 +2,12 @@
   "name": "rangkai-marketplace",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
+"scripts": {
+  "dev": "next dev -p 3001",
+  "build": "next build",
+  "start": "next start -p 3001",
+  "lint": "next lint"
+},
   "dependencies": {
     "@rangkai/sdk": "file:../packages/sdk",
     "@stripe/react-stripe-js": "^6.2.0",
