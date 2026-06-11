@@ -69,6 +69,58 @@ Within each category, items are roughly priority-ordered.
 **Fix:** Mount the remaining three routes after verifying their internal paths and confirming there are no duplicate handlers elsewhere.
 **Priority:** High — Stripe is in active use, the absence of clear mounting is concerning. Trust and BTCPay are blocked features.
 
+### B10. Bitcoin auto-confirms on burned derivation indexes (PRODUCTION-BLOCKING)
+**What:** When a new order is created, `getNextDerivationIndex()` in `bitcoin.service.ts` returns the next BIP84 index from the database. If the database is empty or has been reset, it returns 0 — which is "burned" from prior testing (the address `tb1qnpzzqjzet8gd5gl8l6gzhuc4s9xv0djt99y09w` has 159,808 confirmations on testnet). The burned address gets assigned to a new order, but Blockstream sees the historic transaction and `monitorOrderPayment` marks the order paid with `amount_received=0`. **Vendor sees the order as paid; no Bitcoin was sent for this order.**
+
+**Where:** `src/core/layer2-transaction/bitcoin.service.ts` — `getNextDerivationIndex()` method.
+
+**Fix:** Before assigning an index, check Blockstream for any history on the derived address. If history exists, skip the index (write a placeholder row to claim it), try the next. Continue until a clean index is found. Sketch:
+
+```typescript
+private async getNextDerivationIndex(): Promise<number> {
+  const { data } = await this.dbClient
+    .from('bitcoin_payment_addresses')
+    .select('derivation_index')
+    .order('derivation_index', { ascending: false })
+    .limit(1)
+    .single();
+  
+  let candidateIndex = data ? data.derivation_index + 1 : 0;
+  
+  while (await this.isAddressBurned(candidateIndex)) {
+    console.log(`[Bitcoin] Skipping burned index ${candidateIndex}`);
+    await this.storeBurnedPlaceholder(candidateIndex);
+    candidateIndex++;
+  }
+  
+  return candidateIndex;
+}
+
+private async isAddressBurned(index: number): Promise<boolean> {
+  const address = this.deriveAddress(index);
+  const url = `${this.blockstreamBase}/address/${address}`;
+  const response = await fetch(url);
+  if (!response.ok) return false;
+  const data = await response.json();
+  return (data.chain_stats?.tx_count > 0) || (data.mempool_stats?.tx_count > 0);
+}
+```
+
+**Why critical:** Production failure mode — vendors would think they got paid when they didn't. Also makes Stage 6 testing impossible without manual cleanup. This bug was originally documented in Session 26 handover's troubleshooting section but never fixed. Re-discovered in Session 28 when it caused order ORD-2026-153612-4VX to flip to "paid" without any tBTC being sent.
+
+**Priority:** Highest within 🔴 Broken-but-shipped — production-blocking once real money is involved.
+
+### B11. Marketplace register page collected passwords but threw them away
+**What:** `rangkai-marketplace/app/auth/register/page.tsx` has email and password fields in the form, validates them, then sends only `displayName/country/businessType/avatarUrl/bio` to the protocol's register endpoint. Passwords were never stored anywhere — silently discarded before the API call. This means even if a login endpoint existed, users couldn't authenticate because no password hash was ever stored.
+
+**Where:** `rangkai-marketplace/app/auth/register/page.tsx` and `rangkai-marketplace/lib/api/auth.ts`.
+
+**Fix:** Update `register()` in `lib/api/auth.ts` to include `email` and `password` in the request body. Protocol-side, `identity.routes.ts` register endpoint already needs updating (see Session 29 build plan) to accept and bcrypt-hash the password before storing.
+
+**Status:** Will be ✅ Fixed S29 as part of B2 (build login flow). Tracking here because it's a separate failure mode worth documenting — not just "login is missing" but "registration was lying to users about what it collected."
+
+**Priority:** Bundled with B2 fix in Session 29.
+
 ---
 
 ## 🟡 Deferred / partial
@@ -187,6 +239,72 @@ Within each category, items are roughly priority-ordered.
 
 **Decision log:** S28 mistakenly attempted to mount empty trust.routes.ts; caused boot failure. S29 traced root cause: file was scaffold-only since repo init (Oct 19 2025). Discussion confirmed compliance is intentionally NOT per-transaction in this architecture — it's a one-shot at KYC onboarding. That makes the route surface small and tractable. Service code is already correct.
 
+### D16. v2 search federation needs architectural decision (HIGH PRIORITY)
+**What:** Pam's vision requires buyers on marketplace-Malaysia to find vendors on marketplace-Germany. This is THE feature that makes Rangkai different from any single-marketplace platform. Three architectural options on the table:
+
+1. **Shared protocol-level search index** — every marketplace pushes products to a central Rangkai search service. Pros: best UX, simplest queries. Cons: defeats decentralization, concentrates data, doesn't scale to many marketplaces.
+2. **Federated search queries (Mastodon-style)** — buyer's marketplace queries peer marketplaces in real-time, aggregates results. Pros: each marketplace stays sovereign. Cons: slow, complex caching, ranking is hard.
+3. **Nostr-publication + Rangkai-owned index** — vendors publish product events as a custom Nostr kind. Rangkai-specific aggregators index those events. Buyers' clients query the Rangkai index, not Nostr directly. Pros: inherits Nostr's federation properties, Rangkai owns search UX. Cons: depends on Nostr relay stability, indexing complexity.
+
+**Where:** Cross-cutting; involves catalog service, search service, possibly a new federation service, and infrastructure choices.
+
+**Decision context:**
+- Nostr's own search is bad (Pam's experience as 3-year user — can't find her own past posts)
+- We cannot make buyers depend on Nostr search to find vendors
+- Rangkai must own the search index quality regardless of underlying transport
+- Search excellence is THE product differentiator, not auth or Bitcoin
+
+**Fix:** Pam will lead a deeper conversation in Session 29+ before any v2 work begins. Need to evaluate Meilisearch, Typesense, Elasticsearch, or Postgres full-text for the index layer. Need to decide if Nostr-kind product events are the publication mechanism. Need to think about how search ranking handles cross-marketplace.
+
+**Priority:** v2 (before soft launch). Belongs at SAME priority as auth — both are foundational. Don't shortcut this conversation.
+
+
+### D17. v2 public Rangkai channels architecture (HIGH PRIORITY)
+**What:** Pam pushed back on dropping public community channels to v3. Wants curated Rangkai channels (not generic Nostr) for seller-to-seller advice, buyer reviews, regional/category groups. Quote: *"if users have to just general nostr than I think it's a downfall. it's too centralised. I have been a nostr user for 3 years and even I get annoyed."*
+
+**Where:** TBD — new messaging service, possibly leveraging Nostr relays as transport but with Rangkai-owned indexing, moderation, and UI. Likely involves new `channel.service.ts` or similar.
+
+**Decision context:**
+- Underlying transport could be Nostr (relay infrastructure exists) OR custom (more control, more ops)
+- Moderation model: protocol-level (concentrates power), marketplace-level (per-marketplace channels), community-level (mods elected by users)
+- Cross-marketplace channels (one "Malaysian craft exporters" channel visible to all marketplaces) vs per-marketplace (each marketplace has its own community)
+- Spam handling: rate-limiting, reputation-gating, slow-mode for new accounts
+- Discovery: how do users find relevant channels?
+
+**Fix:** Pam will lead deeper conversation in Session 29+ before any work begins.
+
+**Priority:** v2 (before soft launch). After search federation is designed (D16 has dependencies on this).
+
+
+### D18. v2 Frostr 2-of-3 multisig auth
+**What:** Build the "three keys, any two can sign in" model. Browser key + marketplace key + recovery service key. Bitkey-style framing for non-technical users. Pomegranate-style email recovery integration.
+
+**Where:** New `multisig.service.ts` or similar. Updates to `identity.service.ts` to support `signing_strategy = 'frostr_2of3'`. Marketplace UI for ceremony.
+
+**Decision context:**
+- Frostr ecosystem is alpha (as of 2025-2026). Igloo desktop signer exists. Frost2x browser extension exists. Pomade (FROST + email recovery) is reference implementation, not production API.
+- v1 schema is forward-compatible: `signing_strategy` column already exists in v1 with default `'single_key'`. v2 migration is additive.
+- Bitkey framing should be stolen for the UX: "Three keys protect your account, any two can sign you in. Marketplace alone can never sign in as you. Lose your password? Marketplace + recovery service issue a new browser key."
+
+**Fix:** Wait until Frostr leaves alpha. Wait for Pomegranate (or equivalent recovery service) to be production-ready. Then build.
+
+**Priority:** v2 (before soft launch), but DEPENDENT on upstream Frostr stability. May slip to v2.5 if Frostr doesn't mature in time.
+
+
+### D19. Nostr data load management
+**What:** Nostr clients sync large amounts of historical data by default. Pam noted: *"nostr has large data all the time. even when i run primal my laptop is noisy."* This is real and would be a worse problem for Rangkai users (small business operators, not Nostr power users) running marketplace clients alongside their daily work.
+
+**Where:** All Nostr-using parts of the system. Currently primarily future-facing (v2 messaging, v2 search federation), but design decisions made now affect this.
+
+**Fix:** Establish architectural rules:
+
+1. **Subscribe scopes only:** Rangkai clients NEVER subscribe to the general Nostr firehose. Only specific kinds (order-chat kinds, future product-event kinds) and specific authors (order participants, federated marketplaces).
+2. **Filtered relays:** Consider running Rangkai-specific relays that carry only Rangkai-relevant kinds. Smaller working set, less bandwidth, faster sync. Could be v2 or v3.
+3. **Server-side aggregation:** Marketplace caches Nostr data and serves to client. Client doesn't directly hit relays for most operations. Reduces per-client data volume dramatically.
+4. **Lightweight kind definitions:** If we use Nostr for product publication, define the kinds tightly — minimal payload, clear schema, pagination-friendly. Clients fetch only what they need.
+
+**Priority:** Cross-cutting design concern. Must inform D16 (search federation) and v2 messaging decisions. Document the architectural rules now even if implementation is later.
+
 ---
 
 ## 🟢 Roadmap / not v1
@@ -265,8 +383,26 @@ Provider on marketplace A serving sellers on marketplace B. Cross-marketplace re
 **Priority:** Roadmap. Blockstream polling works for v1. BTCPay becomes valuable once we have real payment volume or want Lightning natively bundled with on-chain.
 
 
-### R11. Stablecoin support
-USDC, USDT as a third payment rail beyond Stripe and BTC. Architecturally similar to BTC routing, different settlement properties.
+### R11 (UPDATED). Currency abstraction with Bitcoin settlement (replaces stablecoin entry)
+**What:** Originally R11 was "USDC/USDT stablecoin support." Pam's clarification in Session 28: not pursuing stablecoins. Instead, the v3 vision is a **currency abstraction layer** where Bitcoin moves under the hood but users see their local currency throughout the experience.
+
+Pattern: Strike, CashApp, Bitkey. User in Malaysia sends MYR → system converts to BTC → settlement happens on Bitcoin rails → recipient in Germany receives EUR. Both sides experience their native currency, Bitcoin is invisible plumbing.
+
+**Why this matters for Rangkai:** A Malaysian batik buyer sending MYR to an Indonesian seller shouldn't have to think about FX or BTC. They see a price in MYR, pay in MYR, and the seller receives IDR. Bitcoin is the rail that makes cross-border practical for small businesses without traditional banking infrastructure.
+
+**Where:** Cross-cutting. Payment routing (`payment-router.service.ts`), pricing display (catalog), settlement layer (new), receipt layer.
+
+**Reference implementations:**
+- Strike — does this for cross-border remittance at consumer scale
+- Square/CashApp — Bitcoin Dev Kit (BDK) is open source, very useful
+- Spiral (within Block) — Bitcoin protocol development including BDK and LDK
+- Bitkey — hardware+software for self-custody Bitcoin
+- Open-source: https://github.com/bitcoindevkit, https://github.com/lightningdevkit
+
+**Pam's framing (Session 28):** *"I likely won't use stablecoins but I will consider e-cash in the background where even if user pays in any currency it is converted to bitcoin in the background and transmitted and reconverted back to their currency. I believe this is how Square and CashApp does it. Also Square and CashApp and Bitkey and their other products have a lot of open source."*
+
+**Priority:** v3. Don't block v1/v2 on this. Major architectural undertaking but doesn't require renegotiating the Bitcoin payment rail.
+
 
 ### R12. Insurance marketplace
 Currently `insurance_included: boolean` on quotes. Real insurance has caps, deductibles, exclusions, claims processes. Eventually a separate marketplace within the marketplace.
@@ -285,6 +421,70 @@ US is moving to eliminate the $800 de minimis for some corridors. Need to track 
 
 ### R17. Light-tier providers (rejected, see R7)
 Originally proposed in Session 28 as 0.5% / no-KYC tier. Rejected in favor of single KYC-mandatory tier with 0.5% fee for everyone. Documented here so we don't re-derive.
+
+### R18. NEW — Naming/branding decision: rangkai.store
+**What:** Pam owns `rangkai.store` domain. Hasn't decided whether it's the protocol's canonical home OR the reference marketplace for Malaysia OR something else. Currently both the protocol AND the reference marketplace are called "Rangkai" which creates confusion.
+
+**Options on the table:**
+- **A.** Protocol stays "Rangkai Protocol" / reference marketplace stays "Rangkai" (rangkai.store = the marketplace). Different layers, same name. Future Rangkai-powered marketplaces have their own brands.
+- **B.** Reference marketplace gets a Malay name (Lapak, Pasar, Pelabuhan, etc.) / protocol stays Rangkai (rangkai.store = protocol docs). Cleaner separation.
+- **C.** Subdomains: rangkai.store for marketplace, protocol.rangkai.store for protocol docs.
+- **D.** Rename the protocol with a Bitcoin-themed Malay name (Aksara = "script/letters", Lintas = "cross-border"). Rangkai becomes marketplace brand only.
+
+**Where:** Brand strategy decision. Affects public-facing materials, GitHub repo names, docs site, marketing.
+
+**Fix:** Pam's call. Defer to Pam. Not blocking technical work, but should be resolved before any external launch or public-facing announcement.
+
+**Priority:** Pre-launch only. Internal work isn't blocked.
+
+
+
+### R19. NEW — UX channel decision per user type (web / native app / PWA / mix)
+**What:** Rangkai has four user types with very different contexts:
+
+1. **Marketplace entrepreneurs** — managing operations, probably desktop-heavy
+2. **Buyers** — could be B2B procurement (desktop) or individual buyers (mobile)
+3. **Sellers (vendors)** — often non-technical, often mobile-first in emerging markets
+4. **Logistics vendors** — on the move, almost certainly mobile
+
+No single UX channel serves all four well. Decisions to make:
+- Web-only (works everywhere, no app store gatekeeping, but slower mobile UX)
+- Native apps (best mobile UX, expensive to build/maintain, app store policies threaten censorship-resistance for Bitcoin marketplaces)
+- PWA (Progressive Web App — good middle ground, installable but web-based)
+- Hybrid (web for some user types, app for others)
+
+**Where:** Frontend architecture decision. Affects rangkai-marketplace, logistics-marketplace, future marketplace entrepreneur tools.
+
+**Pam's framing (Session 28):** *"we have 3 types of users... where are they seeing all this — web based? app based? we don't have to answer this now. but something to think about"*
+
+**Fix:** Open question. Defer formal decision. Start collecting requirements per user type. Possible answer:
+- Marketplace entrepreneurs → web admin dashboard
+- Buyers → web + PWA
+- Sellers → PWA (installable, works offline)
+- Logistics → native mobile (driver/courier UX needs mobile-first)
+
+**Priority:** v2/v3 design consideration. Not blocking v1. But worth scoping in v2 planning.
+
+
+### R20. NEW — Clarification: marketplace federation is the goal, not a roadmap item
+**What:** R8 in the existing TECH_DEBT.md describes "Marketplace federation" as a roadmap item. This is a misstatement. **Marketplace-to-marketplace federation is the entire purpose of Rangkai Protocol.** Not a feature; the goal.
+
+Pam (Session 28): *"Marketplace-marketplace federation is the goal of this whole thing. so we need to build for that."*
+
+**Implication:** Every design decision must preserve the federation path. v1 is "one marketplace done well, designed to federate." Not "one marketplace, federation later."
+
+**Specifically, the following v1 decisions must remain federation-compatible:**
+- Identity layer is DID-based (works across marketplaces) ✓
+- Logistics pool is shared across marketplaces ✓
+- Trust/sanctions screening is per-protocol (works across marketplaces) — when D15 is built
+- Payment rails are universal (Stripe per-marketplace, BTC universal) ✓
+- Search v1 is centralised within one marketplace, BUT schema and API design must extend to federation in v2 — this is D16
+
+**Where:** Architectural principle. Already documented in handover. Update R8 in existing TECH_DEBT.md to reflect this clarification.
+
+**Fix:** Treat federation as an architectural constraint, not a roadmap item. R8 should be split: the architectural principle (this entry, R20) and the specific cross-marketplace search/discovery/identity flows that need building (those become specific D-items as they're scoped).
+
+**Priority:** Architectural principle, always-on.
 
 ---
 
