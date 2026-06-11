@@ -1,0 +1,250 @@
+# Rangkai Protocol — Session 2 Handover Report
+
+> **Layer 5: Developer SDK** — Planning & Kickoff
+
+---
+
+## 🔗 Project Overview
+
+| Field | Details |
+|---|---|
+| **Repository** | [christinepamela/marketplace-protocol](https://github.com/christinepamela/marketplace-protocol) |
+| **Project** | Rangkai Protocol — Decentralized marketplace protocol for globalizing small businesses |
+| **Tech Stack** | TypeScript, Supabase, Express.js, Bitcoin-native, Non-custodial |
+
+---
+
+## 📊 Status Coming Into This Session
+
+**122 tests passing across 6 layers:**
+
+| Layer | Description | Tests |
+|---|---|---|
+| Layer 0 | Identity & Reputation | 22 |
+| Layer 1 | Catalog & Federated Search | 14 |
+| Layer 2 | Transaction & Settlement | 14 |
+| Layer 3 | Logistics Coordination | 18 |
+| Layer 4 | Trust & Compliance | 18 |
+| Layer 6 | Governance & Multisig | 18 |
+| **Total** | | **122** |
+
+**Key features already built:**
+- Non-custodial escrow (7-day hold, auto-release)
+- 85–95% automated dispute resolution
+- Federated search across client marketplaces
+- Logistics provider marketplace with quote bidding
+- 2-of-3 governance multisig
+- Sanctions screening (OFAC, UN, EU)
+- Mutual rating system with delayed visibility
+
+---
+
+## 🎯 Session Goal: Layer 5 — Developer SDK
+
+Build a TypeScript SDK that wraps all protocol layers into a clean, type-safe, event-driven developer interface — allowing marketplace builders to integrate without directly managing protocol complexity.
+
+---
+
+## 📂 File Structure to Build
+
+```
+src/api/                          # Layer 5 implementation
+│
+├── core/
+│   ├── client.ts                 # Base API client (REST + WebSocket)
+│   ├── config.ts                 # Environment, endpoints, API keys
+│   ├── auth.ts                   # JWT token management
+│   ├── errors.ts                 # Error handling
+│   └── utils.ts                  # Retry, cache, rate limiting
+│
+├── routes/
+│   ├── identity.routes.ts        # /api/v1/identity/*  → Layer 0
+│   ├── catalog.routes.ts         # /api/v1/catalog/*   → Layer 1
+│   ├── order.routes.ts           # /api/v1/orders/*    → Layer 2
+│   ├── logistics.routes.ts       # /api/v1/logistics/* → Layer 3
+│   ├── trust.routes.ts           # /api/v1/trust/*     → Layer 4
+│   ├── governance.routes.ts      # /api/v1/governance/ → Layer 6
+│   └── index.ts                  # Route aggregator
+│
+├── middleware/
+│   ├── auth.middleware.ts        # JWT/API key validation
+│   ├── ratelimit.middleware.ts   # 100 req/hour per client
+│   ├── validation.middleware.ts  # Zod schema validation
+│   └── error.middleware.ts       # Global error handler
+│
+├── websocket/
+│   ├── server.ts                 # WebSocket server setup
+│   ├── events.ts                 # Event definitions
+│   └── subscriptions.ts          # Event handlers per layer
+│
+└── index.ts                      # Express app setup
+```
+
+---
+
+## 🔑 Key Requirements
+
+### 1. REST API Endpoints
+
+| Prefix | Layer | Purpose |
+|---|---|---|
+| `/api/v1/identity/*` | Layer 0 | Register, verify, get reputation |
+| `/api/v1/catalog/*` | Layer 1 | CRUD products, federated search |
+| `/api/v1/orders/*` | Layer 2 | Create, pay, track, complete orders |
+| `/api/v1/logistics/*` | Layer 3 | Register providers, submit quotes, track shipments |
+| `/api/v1/trust/*` | Layer 4 | File disputes, submit evidence, rate transactions |
+| `/api/v1/governance/*` | Layer 6 | Submit proposals, vote, check parameters |
+
+### 2. Authentication & Security
+
+- JWT tokens for client authentication
+- API keys for server-to-server calls
+- Rate limiting: 100 requests/hour per client
+- Sandbox mode for testing (separate credentials)
+
+### 3. Real-Time Events (WebSocket)
+
+```typescript
+client.on('order:created', (payload) => { ... })
+client.on('shipment:updated', (payload) => { ... })
+client.on('dispute:opened', (payload) => { ... })
+client.on('proposal:submitted', (payload) => { ... })
+```
+
+**Event types:**
+
+| Event | Trigger |
+|---|---|
+| `identity:verified` | KYC verification complete |
+| `product:created` | New product listed |
+| `order:created` | Order placed |
+| `order:paid` | Payment confirmed |
+| `order:delivered` | Delivery confirmed |
+| `order:completed` | Order closed |
+| `shipment:updated` | Tracking status change |
+| `dispute:opened` | Dispute filed |
+| `dispute:resolved` | Dispute concluded |
+| `proposal:submitted` | Governance proposal created |
+| `vote:cast` | Vote recorded |
+
+### 4. Type Safety
+
+- All requests/responses strictly typed
+- Aligned with Supabase database schema
+- Zod for runtime validation
+
+### 5. Error Handling
+
+Standard HTTP status codes with consistent error response format:
+
+```typescript
+{
+  error: {
+    code: "INVALID_ORDER_STATUS",
+    message: "Cannot ship order in pending status",
+    details: { ... }
+  }
+}
+```
+
+---
+
+## 📦 SDK Module Methods Reference
+
+### Identity (Layer 0)
+```typescript
+registerIdentity(type, data)  → DID
+getReputation(did)            → ReputationScore
+generateProof(did)            → SignedProof
+```
+
+### Catalog (Layer 1)
+```typescript
+createProduct(data)           → ProductID
+searchProducts(query, filters)→ Products[]
+updateProduct(id, updates)    → Product
+```
+
+### Transaction (Layer 2)
+```typescript
+createOrder(items, buyer, vendor) → Order
+initializePayment(orderId, method)→ PaymentInstructions
+holdEscrow(orderId)               → EscrowRecord
+releaseEscrow(orderId)            → Transaction
+```
+
+### Logistics (Layer 3)
+```typescript
+registerProvider(details)         → ProviderID
+submitQuote(orderId, terms)       → Quote
+updateTracking(shipmentId, status)→ Shipment
+```
+
+### Trust (Layer 4)
+```typescript
+openDispute(orderId, evidence)    → Dispute
+submitRating(orderId, rating)     → Rating
+checkSanctions(identity)          → SanctionCheck
+```
+
+### Governance (Layer 6)
+```typescript
+createProposal(action, params)    → Proposal
+submitVote(proposalId, approve)   → Vote
+executeProposal(proposalId)       → ExecutionResult
+```
+
+---
+
+## 🗺️ Build Order (MVP Phases)
+
+| Phase | Scope | Status |
+|---|---|---|
+| **Phase 1** | Core infrastructure — Express, JWT, rate limiting, error handling, `/health` | 🔜 Next |
+| **Phase 2** | Layer 0–2 routes — Identity, Catalog, Orders | ⬜ |
+| **Phase 3** | Layer 3–4 routes — Logistics, Trust | ⬜ |
+| **Phase 4** | Layer 6 + WebSocket — Governance, real-time events | ⬜ |
+| **Phase 5** | Docs & testing — OpenAPI spec, integration tests, SDK examples | ⬜ |
+
+---
+
+## 🔧 Tech Stack
+
+| Tool | Purpose |
+|---|---|
+| Express.js (TypeScript) | Framework |
+| Zod | Validation |
+| `ws` or `socket.io` | WebSocket |
+| `jsonwebtoken` | Auth |
+| `express-rate-limit` | Rate limiting |
+| Supabase | Database (already connected) |
+| Jest + supertest | Testing |
+
+---
+
+## 📚 Reference Documents
+
+- [Architecture](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/ARCHITECTURE.md)
+- [Whitepaper](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/whitepaper/WHITEPAPER.md)
+- [Project Structure](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/PROJECT_STRUCTURE.md)
+
+---
+
+## ❓ Open Questions
+
+| Question | Options |
+|---|---|
+| Build strategy | All routes at once vs. layer-by-layer (0→1→2→3→4→6) |
+| WebSocket priority | Real-time events early vs. REST-first |
+| Authentication scope | JWT only vs. also API keys for server-to-server |
+| Documentation | Auto-generate OpenAPI spec vs. manual markdown |
+| Testing approach | Integration tests against actual Supabase vs. mock database |
+
+---
+
+## 📊 Token Budget
+
+| Metric | Value |
+|---|---|
+| Previous session usage | ~75% (143k / 190k tokens) |
+| Action | Alert at 80% usage to switch to new chat |
