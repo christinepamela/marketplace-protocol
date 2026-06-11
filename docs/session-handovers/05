@@ -1,0 +1,878 @@
+# Rangkai Protocol — Session 5 Handover Report
+
+> **Phase 6: Trust & Compliance Routes (Layer 4 API)** — Complete
+
+**Date**: November 2, 2025  
+**Protocol Version**: 1.0.0  
+**GitHub**: [christinepamela/marketplace-protocol](https://github.com/christinepamela/marketplace-protocol)
+
+---
+
+## Table of Contents
+
+1. [Protocol Overview](#1-protocol-overview)
+2. [Architecture & Layers](#2-architecture--layers)
+3. [Complete Phase List](#3-complete-phase-list)
+4. [Current Progress](#4-current-progress)
+5. [Phase 6 Summary](#5-phase-6-summary)
+6. [What Was Built This Session](#6-what-was-built-this-session)
+7. [Debugging Journey & Solutions](#7-debugging-journey--solutions)
+8. [Phase 7 Preparation Guide](#8-phase-7-preparation-guide)
+9. [Essential Files Reference](#9-essential-files-reference)
+10. [Testing Patterns](#10-testing-patterns)
+11. [Next Session Checklist](#11-next-session-checklist)
+
+---
+
+## 1. Protocol Overview
+
+**Rangkai Protocol** is a decentralized marketplace protocol designed to globalize small businesses by connecting manufacturers and artisans with buyers through a non-custodial, Bitcoin-native infrastructure.
+
+### Core Principles
+
+- **Non-Custodial**: No platform holds funds; 7-day escrow with auto-release
+- **Bitcoin-Native**: Lightning Network & on-chain settlement
+- **Decentralized**: Federated search across multiple marketplaces
+- **Privacy-First**: DID-based identity, optional KYC
+- **Fair Fees**: 3% protocol fee, 0–5% client marketplace fee
+
+### Key Documentation
+
+- [Main README](https://github.com/christinepamela/marketplace-protocol/blob/main/README.md)
+- [Architecture](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/ARCHITECTURE.md)
+- [Whitepaper](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/whitepaper/WHITEPAPER.md)
+
+---
+
+## 2. Architecture & Layers
+
+```
+Layer 6: Governance & Multisig         ✅ COMPLETE (18 core tests)
+Layer 5: Developer SDK (REST API)      🔄 IN PROGRESS (Phases 2–6 done)
+Layer 4: Trust & Compliance            ✅ COMPLETE (18 core tests)
+Layer 3: Logistics Coordination        ✅ COMPLETE (18 core tests)
+Layer 2: Transaction & Settlement      ✅ COMPLETE (14 core tests)
+Layer 1: Discovery & Catalog           ✅ COMPLETE (14 core tests)
+Layer 0: Identity & Reputation         ✅ COMPLETE (22 core tests)
+```
+
+### Layer 5 Progress (Developer SDK — REST API)
+
+Layer 5 exposes Layers 0–4 functionality to external developers via REST API. Each phase builds routes for one layer.
+
+| Phase | Scope | Tests | Status |
+|---|---|---|---|
+| Phase 2 | Identity Routes (Layer 0 API) | 10 | ✅ Complete |
+| Phase 3 | Catalog Routes (Layer 1 API) | 10 | ✅ Complete |
+| Phase 4 | Order Routes (Layer 2 API) | 12 | ✅ Complete |
+| Phase 5 | Logistics Routes (Layer 3 API) | 8 | ✅ Complete |
+| Phase 6 | Trust Routes (Layer 4 API) | 11 | ✅ Complete |
+| Phase 7 | Governance Routes (Layer 6 API) | — | ⏳ Next |
+| Phase 8 | WebSocket Events | — | ⏳ Planned |
+| Phase 9 | TypeScript SDK Package | — | ⏳ Planned |
+| Phase 10 | OpenAPI Documentation | — | ⏳ Planned |
+
+### Spec Documentation
+
+- [Layer 0](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/specs/LAYER0_IDENTITY_AND_REPUTATION.md)
+- [Layer 1](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/specs/LAYER1_DISCOVERY_AND_CATALOG.md)
+- [Layer 2](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/specs/LAYER2_TRANSACTION.md)
+- [Layer 3](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/specs/LAYER3_LOGISTICS.md)
+- [Layer 4](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/specs/LAYER4_TRUST_AND_COMPLIANCE.md)
+- [Layer 5](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/specs/LAYER5_DEVELOPER_SDK.md)
+- [Layer 6](https://github.com/christinepamela/marketplace-protocol/blob/main/docs/specs/LAYER6_GOVERNANCE.md)
+
+---
+
+## 3. Complete Phase List
+
+| Phase | Scope | Endpoints | Tests | Status | Date |
+|---|---|---|---|---|---|
+| Phase 1 | Core services — all 7 layers | — | 172 | ✅ Complete | Prior sessions |
+| Phase 2 | Identity Routes (Layer 0 API) | 10 | 10 | ✅ Complete | — |
+| Phase 3 | Catalog Routes (Layer 1 API) | 10 | 10 | ✅ Complete | — |
+| Phase 4 | Order Routes (Layer 2 API) | 12 | 12 | ✅ Complete | — |
+| Phase 5 | Logistics Routes (Layer 3 API) | 13 | 8 | ✅ Complete | — |
+| Phase 6 | Trust & Compliance Routes (Layer 4 API) | 9 | 11 | ✅ Complete | Nov 2, 2025 |
+| Phase 7 | Governance Routes (Layer 6 API) | ~4 | ~8 | ⏳ Next | — |
+| Phase 8 | WebSocket Events | — | ~6 | ⏳ Planned | — |
+| Phase 9 | TypeScript SDK Package | — | — | ⏳ Planned | — |
+| Phase 10 | OpenAPI Documentation | — | — | ⏳ Planned | — |
+
+---
+
+## 4. Current Progress
+
+### Test Summary
+
+```
+Core Services (Phase 1):
+  Layer 0: Identity & Reputation         22 tests ✅
+  Layer 1: Catalog & Discovery           14 tests ✅
+  Layer 2: Transactions & Settlement     14 tests ✅
+  Layer 3: Logistics Coordination        18 tests ✅
+  Layer 4: Trust & Compliance            18 tests ✅
+  Layer 6: Governance & Multisig         18 tests ✅
+  Subtotal:                             104 tests ✅
+
+API Routes (Phases 2–6):
+  Phase 2: Identity Routes               10 tests ✅
+  Phase 3: Catalog Routes                10 tests ✅
+  Phase 4: Order Routes                  12 tests ✅
+  Phase 5: Logistics Routes               8 tests ✅
+  Phase 6: Trust Routes                  11 tests ✅
+  Subtotal:                              51 tests ✅
+
+Reference Client:                         8 tests ✅
+─────────────────────────────────────────────────
+TOTAL:                                  163 tests ✅
+```
+
+### API Endpoints Built
+
+| Layer | Endpoints |
+|---|---|
+| Identity (Layer 0) | 10 |
+| Catalog (Layer 1) | 10 |
+| Orders (Layer 2) | 12 |
+| Logistics (Layer 3) | 13 |
+| Disputes (Layer 4) | 5 |
+| Ratings (Layer 4) | 4 |
+| **Total** | **54** |
+
+### Completion Status
+
+| Area | Progress |
+|---|---|
+| Core Business Logic (Layers 0–6) | 100% |
+| REST API (Layer 5, Phases 2–6 of 10) | 62% |
+| Overall Protocol | ~85% |
+
+---
+
+## 5. Phase 6 Summary
+
+**Objective**: Build REST API endpoints for Layer 4 (Trust & Compliance), enabling external developers to access dispute management and rating systems.
+
+### Delivered
+
+**Dispute Management System (5 endpoints)**
+- File disputes (buyer only, within 72h of delivery)
+- View dispute details and events
+- Vendor response submission
+- Dispute statistics and reporting
+- Order-specific dispute queries
+
+**Rating System (4 endpoints)**
+- Submit ratings (buyer/vendor after completion)
+- View order ratings (dual-blind mechanism)
+- Public user statistics
+- Rating history
+
+**Infrastructure Updates**
+- 4 new error codes for disputes/ratings
+- `getUserDid()` helper function
+- Permission validation patterns
+- Comprehensive test suite
+
+### Technical Achievements
+
+- ✅ Maintained 100% backward compatibility
+- ✅ All Phase 2–5 tests still passing
+- ✅ Zero breaking changes to existing APIs
+- ✅ Follows established patterns exactly
+- ✅ Production-ready code quality
+- ✅ Full integration with Supabase
+- ✅ JWT authentication working
+- ✅ Permission-based access control
+
+---
+
+## 6. What Was Built This Session
+
+### Files Created (4 new)
+
+**`src/api/routes/dispute.routes.ts`** (250 lines)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/v1/disputes` | File dispute (buyer only) |
+| `GET` | `/api/v1/disputes/stats` | Get statistics |
+| `GET` | `/api/v1/disputes/:id` | Get dispute details |
+| `POST` | `/api/v1/disputes/:id/vendor-response` | Vendor response |
+| `GET` | `/api/v1/disputes/order/:orderId` | Get disputes by order |
+
+Key features: permission checks (buyer vs vendor), time window validation (72h file / 48h respond), auto-resolution trigger integration, escrow pause on dispute filing, event logging.
+
+---
+
+**`src/api/routes/rating.routes.ts`** (200 lines)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/v1/ratings` | Submit rating |
+| `GET` | `/api/v1/ratings/order/:orderId` | Get order rating |
+| `GET` | `/api/v1/ratings/user/:did` | Get user stats (public) |
+| `GET` | `/api/v1/ratings/user/:did/list` | Get user ratings (public) |
+
+Key features: dual-blind rating mechanism, auto-reveal after 7 days or both submit, public stats endpoints (no auth needed), reputation system integration, category-based ratings (quality, delivery, communication).
+
+---
+
+**`scripts/test-trust-routes.ts`** (600+ lines)
+
+- 6 dispute tests (file, blocked vendor, view, respond, by order, stats)
+- 5 rating tests (buyer submit, vendor submit, view, stats, duplicates)
+- Complete setup/teardown, 30s timeout handling, enhanced error logging
+
+---
+
+**`docs/api/PHASE6_API_REFERENCE.md`** — Full documentation for all Phase 6 endpoints with examples.
+
+---
+
+### Files Modified (6 updates)
+
+| File | Change |
+|---|---|
+| `src/api/core/errors.ts` | Added `DISPUTE_NOT_FOUND`, `DISPUTE_WINDOW_EXPIRED`, `ALREADY_RATED`, `RATING_NOT_ALLOWED` |
+| `src/api/core/utils.ts` | Added `getUserDid(req)`, `hasPermission(req, permission)`, `requirePermission(req, permission)` |
+| `src/api/routes/index.ts` | Registered `/disputes` and `/ratings` routes, added health check |
+| `src/api/types/express.d.ts` | Changed `supabase` from optional to required |
+| `package.json` | Added `test:trust-routes` script |
+| `package-lock.json` | Dependencies updated |
+
+---
+
+## 7. Debugging Journey & Solutions
+
+> These issues repeat across phases — read carefully before starting Phase 7.
+
+### Issue 1 — Wrong Validation Middleware Name
+
+**Symptom**: `validate is not a function`  
+**Root Cause**: Used `validate()` instead of `validateBody()`  
+**Fix**: Change all instances to `validateBody()`  
+**Lesson**: Always check existing middleware exports before using them.
+
+---
+
+### Issue 2 — Missing `getUserDid` Helper
+
+**Symptom**: `Module has no exported member 'getUserDid'`  
+**Root Cause**: Function didn't exist in `utils.ts`  
+**Fix**: Added the helper manually:
+
+```typescript
+export function getUserDid(req: Request): string {
+  if (!req.user?.did) {
+    throw new UnauthorizedError('User DID not found in token');
+  }
+  return req.user.did;
+}
+```
+
+**Lesson**: Check if helpers exist before importing them.
+
+---
+
+### Issue 3 — Wrong Permission Constants
+
+**Symptom**: `Insufficient permissions`  
+**Root Cause**: Used `product:write` instead of `catalog:write`  
+**Fix**: Check `PERMISSIONS` object in `auth.ts` and use the correct names.
+
+Correct permission names:
+- `catalog:write` (not `product:write`)
+- `orders:write` (not `order:write`)
+- `trust:dispute`
+- `trust:rate`
+
+**Lesson**: Always reference existing permission constants — never guess.
+
+---
+
+### Issue 4 — Wrong Product Schema Structure
+
+**Symptom**: `Request body validation failed` with many missing fields  
+**Root Cause**: Assumed a simple product structure  
+**Fix**: Copy the exact schema from `scripts/test-catalog-routes.ts`
+
+```typescript
+{
+  vendorDid: string,
+  clientId: string,
+  category: {
+    primary: 'footwear' | ...,
+    subcategory: string,
+    tags: string[]
+  },
+  basic: {
+    name: string,              // NOT title
+    images: { primary: string },
+    condition: 'new' | 'used'
+  },
+  pricing: {
+    moq: number,
+    basePrice: { amount, currency }
+  },
+  logistics: {
+    weight: { value, unit },
+    dimensions: { length, width, height, unit },
+    originCountry: string,
+    leadTime: number
+  }
+}
+```
+
+**Lesson**: When in doubt, copy from working tests exactly.
+
+---
+
+### Issue 5 — Wrong Order Schema Structure
+
+**Symptom**: Multiple missing required fields  
+**Root Cause**: Assumed single-product order; API uses cart-style  
+**Fix**: Copy the exact structure from `scripts/test-order-routes.ts`
+
+```typescript
+{
+  vendorDid: string,
+  clientId: string,
+  type: 'wholesale' | 'sample' | 'custom',
+  items: [{
+    productId: string,
+    productName: string,
+    quantity: number,
+    pricePerUnit: { amount, currency },
+    totalPrice: { amount, currency }
+  }],
+  shippingAddress: {
+    name: string,           // NOT recipientName
+    addressLine1: string,   // NOT line1
+    phone: string,
+    city: string,
+    postalCode: string,
+    country: string
+  },
+  paymentMethod: 'stripe' | 'bitcoin_onchain' | ...
+}
+```
+
+**Lesson**: Always check the existing API structure before assuming.
+
+---
+
+### Issue 6 — Routes Hanging (30s Timeout) ⚠️ Critical
+
+**Symptom**: All dispute/rating requests timeout with no response  
+**Root Cause**: Missing parentheses when calling `authenticate` middleware
+
+```typescript
+// ❌ WRONG
+import { authenticate() } from '../middleware/auth.middleware';
+router.post('/', authenticate, ...)
+
+// ✅ CORRECT
+import { authenticate } from '../middleware/auth.middleware';
+router.post('/', authenticate(), ...)
+```
+
+Express received the function definition instead of calling it as middleware, causing an infinite wait.  
+**Lesson**: Import the function, call it with `()` when using as middleware.
+
+---
+
+### Issue 7 — Stats Route Conflict
+
+**Symptom**: `Invalid UUID: stats`  
+**Root Cause**: `/disputes/stats` matched `/disputes/:id` first  
+**Fix**: Move the stats route **before** the `:id` route
+
+```typescript
+router.get('/stats', ...)   // Specific routes first ✅
+router.get('/:id', ...)     // Parameterized routes last ✅
+```
+
+**Lesson**: Express matches routes in order — specific paths always before parameters.
+
+---
+
+### Issue 8 — TypeScript Strict Mode
+
+**Symptom**: `supabase might be undefined`  
+**Root Cause**: `express.d.ts` had `supabase?: SupabaseClient` (optional)  
+**Fix**: Changed to required — `supabase: SupabaseClient`  
+**Lesson**: If middleware guarantees a property on every request, mark it required in types.
+
+---
+
+## 8. Phase 7 Preparation Guide
+
+**Objective**: Build REST API endpoints for Layer 6 (Governance & Multisig) — proposal submission, voting, and execution.
+
+**Estimated scope**: 4 endpoints, 8 tests.
+
+### Critical Files to Request First
+
+**Core service files:**
+- `src/core/layer6-governance/types.ts`
+- `src/core/layer6-governance/proposal.service.ts`
+- `src/core/layer6-governance/voting.service.ts`
+
+**Reference files:**
+- `src/api/routes/order.routes.ts` (working example)
+- `src/api/core/auth.ts` (check permissions)
+- `scripts/test-order-routes.ts` (test patterns)
+
+**Current state files:**
+- `src/api/core/errors.ts` (avoid duplicate error codes)
+- `src/api/routes/index.ts` (route mounting pattern)
+
+### Proposed Endpoints
+
+| Method | Endpoint | Auth | Permission | Description |
+|---|---|---|---|---|
+| `POST` | `/api/v1/proposals` | Required | `governance:propose` | Submit proposal |
+| `GET` | `/api/v1/proposals/:id` | Optional | — | Get proposal details |
+| `POST` | `/api/v1/proposals/:id/vote` | Required | `governance:vote` | Vote on proposal |
+| `POST` | `/api/v1/proposals/:id/execute` | Required | `governance:execute` | Execute passed proposal |
+
+### Step-by-Step Process
+
+1. **Information gathering** — Request all 8 files, read governance spec, identify service methods, check permission constants
+2. **Create `governance.routes.ts`** — Copy structure from `order.routes.ts`, import services, add validation schemas, build one endpoint at a time
+3. **Test each endpoint** — Auth, validation, business logic; fix before moving to next
+4. **Create test suite** — Copy structure from `test-trust-routes.ts`
+5. **Verify backward compatibility** — Run Phase 2–6 tests, fix any regressions, commit when all green
+
+### Common Patterns to Follow
+
+**Route handler structure:**
+
+```typescript
+router.post(
+  '/',
+  authenticate(),              // Call with ()
+  validateBody(schema),
+  async (req, res, next) => {
+    try {
+      const userDid = getUserDid(req);
+      const service = new Service(req.supabase);
+      const result = await service.method();
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+```
+
+**Permission check:**
+
+```typescript
+if (proposal.submitter_did !== userDid && !hasAdminPermission) {
+  throw new ApiError(ErrorCode.FORBIDDEN, 'Not authorized');
+}
+```
+
+**Service initialization:**
+
+```typescript
+const service = new ProposalService(req.supabase);
+```
+
+### Pre-Start Checklist
+
+- [ ] All required files requested and reviewed
+- [ ] Existing permission constants checked in `auth.ts`
+- [ ] Test data structure copied from working tests
+- [ ] Import statements match existing patterns
+- [ ] `authenticate()` called with parentheses
+- [ ] Specific routes placed before parameterized routes
+- [ ] Types match `express.d.ts` definitions
+- [ ] No duplicate error codes
+
+---
+
+## 9. Essential Files Reference
+
+```
+marketplace-protocol/
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── whitepaper/WHITEPAPER.md
+│   ├── api/
+│   │   └── PHASE6_API_REFERENCE.md     ← New this session
+│   └── specs/
+│       ├── LAYER0_IDENTITY_AND_REPUTATION.md
+│       ├── LAYER1_DISCOVERY_AND_CATALOG.md
+│       ├── LAYER2_TRANSACTION.md
+│       ├── LAYER3_LOGISTICS.md
+│       ├── LAYER4_TRUST_AND_COMPLIANCE.md
+│       ├── LAYER5_DEVELOPER_SDK.md
+│       ├── LAYER6_GOVERNANCE.md        ← Phase 7 reference
+│       └── REF_CLIENT.md
+│
+├── src/
+│   ├── core/                           (Business Logic — 104 tests)
+│   │   ├── layer0-identity/
+│   │   ├── layer1-catalog/
+│   │   ├── layer2-transaction/
+│   │   ├── layer3-logistics/
+│   │   ├── layer4-trust/
+│   │   └── layer6-governance/
+│   │
+│   └── api/                            (REST API — Layer 5)
+│       ├── core/
+│       │   ├── config.ts
+│       │   ├── errors.ts               ← Updated this session
+│       │   ├── auth.ts
+│       │   └── utils.ts                ← Updated this session
+│       ├── middleware/
+│       │   ├── auth.middleware.ts
+│       │   ├── validation.middleware.ts
+│       │   ├── ratelimit.middleware.ts
+│       │   └── error.middleware.ts
+│       ├── routes/
+│       │   ├── identity.routes.ts      (Phase 2)
+│       │   ├── catalog.routes.ts       (Phase 3)
+│       │   ├── order.routes.ts         (Phase 4)
+│       │   ├── logistics.routes.ts     (Phase 5)
+│       │   ├── dispute.routes.ts       ← New (Phase 6)
+│       │   ├── rating.routes.ts        ← New (Phase 6)
+│       │   └── index.ts                ← Updated (Phase 6)
+│       ├── types/
+│       │   └── express.d.ts            ← Updated (Phase 6)
+│       ├── index.ts
+│       └── server.ts
+│
+└── scripts/
+    ├── test-layer0.ts ... test-layer6.ts
+    ├── test-identity-routes.ts         (Phase 2)
+    ├── test-catalog-routes.ts          (Phase 3)
+    ├── test-order-routes.ts            (Phase 4)
+    ├── test-logistics-routes.ts        (Phase 5)
+    └── test-trust-routes.ts            ← New (Phase 6)
+```
+
+---
+
+## 10. Testing Patterns
+
+### Test File Structure
+
+```typescript
+// 1. Imports
+import { v4 as uuidv4 } from 'uuid';
+
+// 2. Constants
+const API_BASE = 'http://localhost:3000/api/v1';
+
+// 3. Test state
+let testUserId: string;
+let authToken: string;
+
+// 4. Helper functions
+async function apiRequest(method, path, body?, token?) { ... }
+
+// 5. Setup
+async function setupTestData() { ... }
+
+// 6. Individual tests
+async function testCreateResource() { ... }
+
+// 7. Cleanup
+async function cleanup() { ... }
+
+// 8. Runner
+async function runTests() {
+  await setupTestData();
+  await testCreateResource();
+  await cleanup();
+}
+
+runTests().catch(console.error);
+```
+
+### Setup Pattern
+
+```typescript
+async function setupTestData() {
+  const buyerRes = await apiRequest('POST', '/identity/register', {
+    type: 'kyc',
+    clientId: 'test-marketplace',
+    publicProfile: {
+      displayName: 'Test Buyer',
+      country: 'US',
+      businessType: 'buyer'
+    }
+  });
+  buyerDid = buyerRes.data.did;
+
+  const { TokenManager } = await import('../src/api/core/auth');
+  buyerToken = TokenManager.generateToken({
+    sub: buyerDid,
+    did: buyerDid,
+    type: 'user',
+    permissions: ['orders:read', 'orders:write']
+  });
+}
+```
+
+### Test a Success Case
+
+```typescript
+async function testCreateOrder() {
+  try {
+    const response = await apiRequest('POST', '/orders', { /* full data */ }, buyerToken);
+    if (response.success && response.data.orderId) {
+      logTest('Create order', true, `Order ID: ${response.data.orderId}`);
+      testOrderId = response.data.orderId;
+    } else {
+      logTest('Create order', false, 'Invalid response');
+    }
+  } catch (error) {
+    logTest('Create order', false, error.message);
+  }
+}
+```
+
+### Test a Forbidden Case
+
+```typescript
+async function testVendorCannotFile() {
+  try {
+    await apiRequest('POST', '/disputes', { ... }, vendorToken);
+    logTest('Vendor blocked', false, 'Should have been forbidden');
+  } catch (error) {
+    if (error.message.includes('buyer') || error.message.includes('FORBIDDEN')) {
+      logTest('Vendor blocked', true);
+    } else {
+      logTest('Vendor blocked', false, error.message);
+    }
+  }
+}
+```
+
+### Cleanup Pattern
+
+```typescript
+async function cleanup() {
+  console.log('Cleaning up test data...');
+  // Delete in reverse order of dependencies
+  if (testOrderId) await supabase.from('orders').delete().eq('id', testOrderId);
+  if (testProductId) await supabase.from('products').delete().eq('id', testProductId);
+  console.log('✓ Cleanup complete');
+}
+```
+
+### Test Data Structures (Copy Exactly)
+
+**Identity registration:**
+
+```typescript
+{
+  type: 'kyc',
+  clientId: 'test-marketplace',
+  publicProfile: {
+    displayName: 'Test User',
+    country: 'US',
+    businessType: 'buyer' | 'vendor' | 'artisan' | 'manufacturer'
+  }
+}
+```
+
+**Product creation:**
+
+```typescript
+{
+  vendorDid: vendorDid,
+  clientId: 'test-marketplace',
+  category: { primary: 'craft', subcategory: 'handmade', tags: ['test'] },
+  basic: {
+    name: 'Test Product',
+    description: 'Description',
+    shortDescription: 'Short desc',
+    images: { primary: 'https://example.com/image.jpg' },
+    condition: 'new'
+  },
+  advanced: { attributes: { material: 'test' }, keywords: ['test'] },
+  pricing: {
+    basePrice: { amount: 100.00, currency: 'USD' },
+    moq: 1
+  },
+  logistics: {
+    weight: { value: 500, unit: 'g' },
+    dimensions: { length: 10, width: 10, height: 10, unit: 'cm' },
+    originCountry: 'US',
+    leadTime: 7
+  },
+  visibility: 'public'
+}
+```
+
+**Order creation:**
+
+```typescript
+{
+  vendorDid: vendorDid,
+  clientId: 'test-marketplace',
+  type: 'wholesale',
+  items: [{
+    productId: testProductId,
+    productName: 'Test Product',
+    quantity: 1,
+    pricePerUnit: { amount: 100.00, currency: 'USD' },
+    totalPrice: { amount: 100.00, currency: 'USD' }
+  }],
+  shippingAddress: {
+    name: 'Test Buyer',
+    addressLine1: '123 Test St',
+    city: 'Test City',
+    postalCode: '12345',
+    country: 'US',
+    phone: '+1234567890'
+  },
+  paymentMethod: 'stripe',
+  buyerNotes: 'Test order'
+}
+```
+
+**Token generation:**
+
+```typescript
+const { TokenManager } = await import('../src/api/core/auth');
+const token = TokenManager.generateToken({
+  sub: userDid,
+  did: userDid,
+  type: 'user',
+  permissions: ['catalog:read', 'catalog:write', 'orders:read', 'orders:write']
+});
+```
+
+---
+
+## 11. Next Session Checklist
+
+### Before Starting Phase 7
+
+**Information gathering:**
+- [ ] Read this entire handover document
+- [ ] Review Section 7 debugging issues
+- [ ] Request all 8 required files (listed in Section 8)
+- [ ] Read Layer 6 spec to understand the governance domain
+- [ ] Review `PERMISSIONS` in `auth.ts` for governance permission names
+
+**Preparation:**
+- [ ] Verify Phase 2–6 tests still passing
+- [ ] Confirm server starts without errors
+- [ ] Have `order.routes.ts` open for reference
+- [ ] Have `test-order-routes.ts` open for reference
+
+**During development:**
+- [ ] Import `authenticate` without `()`, call with `authenticate()`
+- [ ] Use `validateBody` not `validate`
+- [ ] Use `getUserDid(req)` to extract user DID
+- [ ] Confirm permission constant names against `auth.ts`
+- [ ] Place specific routes before `:id` routes
+- [ ] Test each endpoint before adding the next
+
+**Before committing:**
+- [ ] All Phase 7 tests passing
+- [ ] All Phase 2–6 tests still passing
+- [ ] No TypeScript errors (`npx tsc --noEmit`)
+- [ ] Server starts without warnings
+- [ ] Git commit with descriptive message
+
+---
+
+## Quick Reference
+
+### Commands
+
+```bash
+# Start server
+npm run dev:api
+
+# Run tests
+npm run test:identity-routes    # Phase 2
+npm run test:catalog-routes     # Phase 3
+npm run test:order-routes       # Phase 4
+npm run test:logistics-routes   # Phase 5
+npm run test:trust-routes       # Phase 6
+
+# Check TypeScript
+npx tsc --noEmit
+
+# Git
+git status
+git add <files>
+git commit -m "feat(phase7): Add governance routes"
+git push origin main
+
+# Test a single endpoint
+curl http://localhost:3000/api/v1/disputes/stats
+curl -H "Authorization: Bearer TOKEN" http://localhost:3000/api/v1/disputes
+```
+
+### Critical Reminders
+
+1. **Always ask for existing files** before creating anything
+2. **Always copy data structures** from working tests
+3. **Never guess permission names** — check `auth.ts`
+4. **Never assume field names** — check existing schemas
+5. Import `authenticate`, call as `authenticate()`
+6. Put `/stats` **before** `/:id` routes
+7. Test incrementally — one endpoint at a time
+8. When in doubt, copy from working code
+
+---
+
+## Session Statistics
+
+| Metric | Value |
+|---|---|
+| Session duration | ~4 hours |
+| Token usage | 118K / 190K (62%) |
+| Lines of code added | ~1,050 |
+| Files created | 4 |
+| Files modified | 6 |
+| Tests added | 11 |
+| Issues debugged | 8 |
+| All tests passing | ✅ |
+
+### Phase 6 Deliverables
+
+| Item | Count |
+|---|---|
+| Endpoints | 9 (5 disputes + 4 ratings) |
+| Integration tests | 11 |
+| New error codes | 4 |
+| New helper functions | 3 |
+| API reference docs | 1 |
+
+---
+
+## Phase 7 Success Criteria
+
+**Definition of done:**
+- [ ] 4 governance endpoints created
+- [ ] 8 tests passing
+- [ ] All Phase 2–6 tests still passing
+- [ ] Zero breaking changes
+- [ ] Code pushed to GitHub
+
+**Expected timeline**: ~2 hours (vs 4+ hours for Phase 6, now that patterns are documented)
+
+---
+
+**Last Updated**: November 2, 2025  
+**Protocol Version**: 1.0.0  
+**Total Tests**: 163 passing  
+**API Endpoints**: 54 live  
+**Overall Status**: ~85% complete 🚀
+
+---
+
+*For questions or issues: [GitHub Issues](https://github.com/christinepamela/marketplace-protocol/issues)*
