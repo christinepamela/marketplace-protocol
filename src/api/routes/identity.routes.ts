@@ -70,6 +70,8 @@ const registerIdentitySchema = z.object({
     avatarUrl: z.string().url().optional(),
     bio: z.string().optional(),
   }),
+  email: z.string().email().optional(),
+  password: z.string().min(8).optional(),
   kycData: z.any().optional(),
   nostrData: z.any().optional(),
   anonymousData: z.any().optional(),
@@ -164,6 +166,74 @@ const accessToken = jwt.sign(
         initialTrustScore: identity.initialTrustScore,
         createdAt: identity.createdAt,
         identity: identity
+      },
+    });
+  })
+);
+
+/**
+ * POST /api/v1/identity/login
+ * Login with email and password (KYC users only)
+ * Public endpoint (no auth required)
+ */
+router.post(
+  '/login',
+  validateBody(z.object({
+    email: z.string().email(),
+    password: z.string().min(1),
+  })),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { email, password } = req.body;
+    const jwt = require('jsonwebtoken');
+
+    const identity = await identityService.loginByEmail(email, password);
+
+    if (!identity) {
+      return res.status(401).json({
+        success: false,
+        error: { message: 'Invalid email or password' }
+      });
+    }
+
+    const permissions = [
+      PERMISSIONS.CATALOG_READ,
+      PERMISSIONS.CATALOG_WRITE,
+      PERMISSIONS.ORDERS_READ,
+      PERMISSIONS.ORDERS_WRITE,
+    ];
+
+    const accessToken = jwt.sign(
+      {
+        sub: identity.did,
+        type: identity.type,
+        clientId: identity.clientId,
+        tokenType: 'access',
+        permissions,
+      },
+      config.jwtSecret,
+      { expiresIn: config.jwtExpiry }
+    );
+
+    const refreshToken = jwt.sign(
+      {
+        sub: identity.did,
+        type: identity.type,
+        clientId: identity.clientId,
+        tokenType: 'refresh',
+        permissions,
+      },
+      config.jwtRefreshSecret,
+      { expiresIn: config.jwtRefreshExpiry }
+    );
+
+    res.json({
+      success: true,
+      data: {
+        did: identity.did,
+        token: accessToken,
+        refreshToken,
+        expiresIn: config.jwtExpiry,
+        identity,
       },
     });
   })

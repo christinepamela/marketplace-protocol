@@ -53,6 +53,8 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
       type: data.type,
       clientId: 'rangkai-marketplace',
       publicProfile,
+      email: data.type === 'kyc' ? data.email : undefined,
+      password: data.type === 'kyc' ? data.password : undefined,
       contactInfo: {
         email: data.email
       },
@@ -107,6 +109,51 @@ function getMetadataForType(type: IdentityType, data: RegisterRequest): any {
     
     default:
       return {}
+  }
+}
+
+// ============================================================================
+// LOGIN
+// ============================================================================
+
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface LoginResponse {
+  did: string
+  token: string
+  refreshToken: string
+  identity: any
+}
+
+/**
+ * Login with email and password (KYC users only)
+ */
+export async function login(data: LoginRequest): Promise<LoginResponse> {
+  try {
+    const response = await fetch('http://localhost:3000/api/v1/identity/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: data.email, password: data.password })
+    })
+
+    const json = await response.json()
+
+    if (!response.ok) {
+      throw new Error(json.error?.message || 'Invalid email or password')
+    }
+
+    return {
+      did: json.data.did,
+      token: json.data.token,
+      refreshToken: json.data.refreshToken,
+      identity: json.data.identity
+    }
+  } catch (error) {
+    console.error('Failed to login:', error)
+    throw error
   }
 }
 

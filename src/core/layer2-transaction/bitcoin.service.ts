@@ -521,7 +521,8 @@ export class BitcoinService {
   // ============================================================================
 
   /**
-   * Get next derivation index
+   * Get next derivation index, skipping any burned addresses
+   * A burned address is one that has prior blockchain history
    */
   private async getNextDerivationIndex(): Promise<number> {
     const { data } = await this.dbClient
@@ -530,8 +531,76 @@ export class BitcoinService {
       .order('derivation_index', { ascending: false })
       .limit(1)
       .single();
-    
-    return data ? data.derivation_index + 1 : 0;
+
+    // Start from whichever is higher: last DB index+1, or the env-configured start index
+    const envStartIndex = parseInt(process.env.BITCOIN_START_INDEX || '0', 10);
+    const dbNextIndex = data ? data.derivation_index + 1 : 0;
+    let candidateIndex = Math.max(envStartIndex, dbNextIndex);
+
+    while (await this.isAddressBurned(candidateIndex)) {
+      console.log(`[Bitcoin] Skipping burned index ${candidateIndex}`);
+      await this.storeBurnedPlaceholder(candidateIndex);
+      candidateIndex++;
+    }
+
+    return candidateIndex;
+  }
+
+  /**
+   * Check if a derived address has any prior blockchain history
+   */
+  private async isAddressBurned(index: number): Promise<boolean> {
+    if (!this.masterNode) return false;
+
+    const path = `m/84'/0'/0'/0/${index}`;
+    const child = this.masterNode.derivePath(path);
+    const { address } = bitcoin.payments.p2wpkh({
+      pubkey: child.publicKey,
+      network: this.network
+    });
+
+    if (!address) return false;
+
+    const apiUrl = this.network === bitcoin.networks.testnet
+      ? this.BLOCKSTREAM_TESTNET_API
+      : this.BLOCKSTREAM_API;
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      const response = await axios.get(`${apiUrl}/address/${address}`);
+      const data = response.data;
+      return (data.chain_stats?.tx_count > 0) || (data.mempool_stats?.tx_count > 0);
+    } catch {
+      // If Blockstream is unreachable, assume not burned rather than blocking
+      return false;
+    }
+  }
+
+  /**
+   * Write a placeholder row to claim a burned index so it is never reused
+   */
+  private async storeBurnedPlaceholder(index: number): Promise<void> {
+    if (!this.masterNode) return;
+
+    const path = `m/84'/0'/0'/0/${index}`;
+    const child = this.masterNode.derivePath(path);
+    const { address } = bitcoin.payments.p2wpkh({
+      pubkey: child.publicKey,
+      network: this.network
+    });
+
+    await this.dbClient
+      .from('bitcoin_payment_addresses')
+      .insert({
+        order_id: `burned-placeholder-${index}`,
+        address: address,
+        derivation_path: path,
+        derivation_index: index,
+        expected_amount: 0,
+        usd_amount: 0,
+        expires_at: new Date(),
+        created_at: new Date()
+      });
   }
 
   /**

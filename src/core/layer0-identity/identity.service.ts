@@ -4,6 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcrypt';
 import type {
   Identity,
   IdentityType,
@@ -30,7 +31,7 @@ export class IdentityService {
    * Register a new identity
    */
   async registerIdentity(
-    request: RegisterIdentityRequest
+    request: RegisterIdentityRequest & { email?: string; password?: string }
   ): Promise<RegisterIdentityResponse> {
     // Generate DID
     const did = this.generateDID();
@@ -41,6 +42,12 @@ export class IdentityService {
     // Get initial trust score based on identity type
     const initialTrustScore = DEFAULT_TRUST_SCORES[request.type];
     
+    // Hash password for KYC users
+    let passwordHash: string | null = null;
+    if (request.type === 'kyc' && request.password) {
+      passwordHash = await bcrypt.hash(request.password, 12);
+    }
+
     // Build identity object
     const identity: Identity = {
       did,
@@ -53,7 +60,9 @@ export class IdentityService {
         ...request.publicProfile,
         verified: false
       },
-      metadata: this.buildMetadata(request)
+      metadata: this.buildMetadata(request),
+      email: request.email || null,
+      passwordHash: passwordHash
     };
     
     // Store in database
@@ -217,6 +226,30 @@ export class IdentityService {
     return data.map(this.mapDatabaseToIdentity);
   }
 
+  /**
+   * Login by email and password (KYC users only)
+   * Returns identity if credentials are valid, null otherwise
+   */
+  async loginByEmail(email: string, password: string): Promise<Identity | null> {
+    // Look up identity by email
+    const { data, error } = await this.dbClient
+      .from('identities')
+      .select('*')
+      .eq('email', email)
+      .eq('type', 'kyc')
+      .single();
+
+    if (error || !data) return null;
+
+    // Verify password against stored hash
+    if (!data.password_hash) return null;
+
+    const passwordMatch = await bcrypt.compare(password, data.password_hash);
+    if (!passwordMatch) return null;
+
+    return this.mapDatabaseToIdentity(data);
+  }
+
   // ============================================================================
   // PRIVATE METHODS
   // ============================================================================
@@ -289,6 +322,10 @@ export class IdentityService {
         public_profile: identity.publicProfile,
         contact_info: identity.contactInfo,
         metadata: identity.metadata,
+        email: (identity as any).email || null,
+        password_hash: (identity as any).passwordHash || null,
+        public_key: (identity as any).publicKey || null,
+        signing_strategy: (identity as any).signingStrategy || 'single_key',
         created_at: identity.createdAt,
         updated_at: identity.updatedAt
       });

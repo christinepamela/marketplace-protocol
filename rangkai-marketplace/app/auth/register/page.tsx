@@ -230,52 +230,57 @@ export default function RegisterPage() {
             />
           </div>
 
-          {/* Email */}
-          <div>
-            <label className="block text-sm font-medium text-soft-black mb-2">
-              Email Address *
-            </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => handleChange('email', e.target.value)}
-              className="input w-full"
-              placeholder="you@example.com"
-              required
-            />
-          </div>
+          {/* Email, Password, Confirm Password — KYC only */}
+          {formData.type === 'kyc' && (
+            <>
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-soft-black mb-2">
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  className="input w-full"
+                  placeholder="you@example.com"
+                  required
+                />
+              </div>
 
-          {/* Password */}
-          <div>
-            <label className="block text-sm font-medium text-soft-black mb-2">
-              Password *
-            </label>
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => handleChange('password', e.target.value)}
-              className="input w-full"
-              placeholder="Minimum 8 characters"
-              required
-              minLength={8}
-            />
-          </div>
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-medium text-soft-black mb-2">
+                  Password *
+                </label>
+                <input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => handleChange('password', e.target.value)}
+                  className="input w-full"
+                  placeholder="Minimum 8 characters"
+                  required
+                  minLength={8}
+                />
+              </div>
 
-          {/* Confirm Password */}
-          <div>
-            <label className="block text-sm font-medium text-soft-black mb-2">
-              Confirm Password *
-            </label>
-            <input
-              type="password"
-              value={formData.confirmPassword}
-              onChange={(e) => handleChange('confirmPassword', e.target.value)}
-              className="input w-full"
-              placeholder="Re-enter password"
-              required
-              minLength={8}
-            />
-          </div>
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-sm font-medium text-soft-black mb-2">
+                  Confirm Password *
+                </label>
+                <input
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => handleChange('confirmPassword', e.target.value)}
+                  className="input w-full"
+                  placeholder="Re-enter password"
+                  required
+                  minLength={8}
+                />
+              </div>
+            </>
+          )}
 
           {/* Country */}
           <div>
