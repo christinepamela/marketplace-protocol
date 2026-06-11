@@ -1,0 +1,218 @@
+# Rangkai Protocol — Session 3 Handover Report
+
+> **Layer 5: Developer SDK & REST API** — Phase 1–3 Complete
+
+---
+
+## 📊 Token Capacity
+
+| Metric | Value |
+|---|---|
+| Used | 134,679 / 190,000 tokens (71%) |
+| Remaining | 55,321 tokens (29%) |
+| Next action | Switch sessions around 75–80% usage |
+
+---
+
+## 🔗 Project Overview
+
+| Field | Details |
+|---|---|
+| **Repository** | [christinepamela/marketplace-protocol](https://github.com/christinepamela/marketplace-protocol) |
+| **Project** | Rangkai Protocol — Decentralized marketplace protocol for globalizing small businesses |
+| **Tech Stack** | TypeScript, Supabase, Express.js, Bitcoin-native, Non-custodial |
+
+---
+
+## 📈 Session Progress
+
+### Starting Point (from Session 2)
+
+- ✅ Layers 0–4, 6 complete — **112 tests passing**
+- 🔜 Layer 5: Not started
+
+---
+
+## ✅ What Was Accomplished
+
+### Phase 1 — Core Infrastructure
+
+**Files created:**
+
+| File | Purpose |
+|---|---|
+| `src/api/core/config.ts` | Environment management with Zod validation |
+| `src/api/core/errors.ts` | Standardized error codes & handling |
+| `src/api/core/auth.ts` | JWT & API key authentication |
+| `src/api/core/utils.ts` | Retry logic, caching, pagination helpers |
+| `src/api/core/proof-keys.ts` | ECDSA key management for reputation proofs |
+| `src/api/middleware/auth.middleware.ts` | Authentication & permissions |
+| `src/api/middleware/ratelimit.middleware.ts` | 100 req/hour rate limiting |
+| `src/api/middleware/validation.middleware.ts` | Zod schema validation |
+| `src/api/middleware/error.middleware.ts` | Global error handler |
+| `src/api/middleware/index.ts` | Middleware exports |
+| `src/api/types/express.d.ts` | TypeScript type extensions |
+| `src/api/index.ts` | Express app setup |
+| `src/api/server.ts` | Server entry point |
+| `scripts/test-layer5.ts` | Core infrastructure tests |
+
+**Other changes:**
+- `.env.example` — Added `JWT_SECRET`, `API_KEY_SALT`, `PROOF_SIGNING_KEY`
+- `tsconfig.api.json` — TypeScript config for API
+- Database migration: `api_keys` table in Supabase
+
+**Features:**
+- Express server with CORS, helmet, compression
+- JWT token generation/verification
+- API key hashing and validation
+- Rate limiting by client ID or IP
+- Request validation with Zod
+- Consistent error responses
+- Request ID tracking
+- ECDSA cryptographic signing for reputation proofs
+
+**Tests: 8/8 passing ✅**
+
+---
+
+### Phase 2 — Identity Routes (Layer 0)
+
+**Files created:**
+
+| File | Purpose |
+|---|---|
+| `src/api/routes/identity.routes.ts` | 5 REST endpoints |
+| `src/api/routes/index.ts` | Route aggregator |
+| `scripts/test-identity-routes.ts` | Integration tests |
+
+**Endpoints:**
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/identity/register` | Public | Register new identity |
+| `GET` | `/api/v1/identity/:did` | Optional | Get identity details |
+| `GET` | `/api/v1/identity/:did/reputation` | Public | Get reputation score |
+| `POST` | `/api/v1/identity/:did/verify` | Required | Verify identity KYC |
+| `POST` | `/api/v1/identity/:did/proof` | Required | Generate cryptographic proof |
+
+**Features:**
+- Fully compatible with existing Layer 0 types
+- Permission-based access control
+- Visibility levels (public vs authenticated)
+- Real ECDSA signatures for reputation proofs
+- Ownership checks (users can only verify/proof their own identity)
+
+**Tests: 10/10 passing ✅**
+
+---
+
+### Phase 3 — Catalog Routes (Layer 1)
+
+**Files created:**
+
+| File | Purpose |
+|---|---|
+| `src/api/routes/catalog.routes.ts` | 6 REST endpoints |
+| `scripts/test-catalog-routes.ts` | Integration tests |
+
+**Endpoints:**
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/catalog/products` | Required | Create product |
+| `GET` | `/api/v1/catalog/products/:id` | Public | Get product by ID |
+| `PUT` | `/api/v1/catalog/products/:id` | Required + Ownership | Update product |
+| `DELETE` | `/api/v1/catalog/products/:id` | Required + Ownership | Soft delete product |
+| `GET` | `/api/v1/catalog/products` | Public | List products with filters |
+| `GET` | `/api/v1/catalog/search` | Public | Federated search |
+
+**Features:**
+- Full CRUD for products
+- Ownership verification
+- Partial updates (merges with existing data)
+- Soft deletes (sets status to `discontinued`)
+- Category, price range, and country filtering
+- Compatible with existing Layer 1 `ProductService`
+
+**Tests: 10/10 passing ✅**
+
+---
+
+## 📊 Current Test Status
+
+```
+✅ Layer 0: Identity & Reputation      22 tests
+✅ Layer 1: Catalog & Search           14 tests
+✅ Layer 2: Transaction & Settlement   14 tests
+✅ Layer 3: Logistics Coordination     18 tests
+✅ Layer 4: Trust & Compliance         18 tests
+✅ Layer 5: Developer SDK              28 tests  ← NEW
+    ├── Phase 1: Core Infrastructure    8 tests
+    ├── Phase 2: Identity Routes       10 tests
+    └── Phase 3: Catalog Routes        10 tests
+✅ Layer 6: Governance & Multisig      18 tests
+──────────────────────────────────────────────
+Total: 132 tests passing  (+20 from Session 2)
+```
+
+**Session additions:** 15 new files, 3 updated files, 1 database migration
+
+---
+
+## 🎯 Next Steps — Phase 4: Order Routes (Layer 2)
+
+### Endpoints to build (~6)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/v1/orders` | Create order |
+| `GET` | `/api/v1/orders/:id` | Get order details |
+| `POST` | `/api/v1/orders/:id/pay` | Initialize payment |
+| `POST` | `/api/v1/orders/:id/escrow/hold` | Hold escrow (7-day) |
+| `POST` | `/api/v1/orders/:id/escrow/release` | Release escrow |
+| `POST` | `/api/v1/orders/:id/complete` | Complete order |
+
+### Features needed
+- Order state machine validation
+- Payment method routing
+- Non-custodial escrow management
+- Auto-release after 7 days
+- Order status tracking
+- Buyer/vendor ownership checks
+
+**Estimated output:** ~10 new tests, 1 route file, 1 test file
+
+---
+
+## 🔑 Technical Reference
+
+### Environment Variables
+
+```bash
+SUPABASE_URL=...
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_KEY=...
+JWT_SECRET=<64-char-hex>
+API_KEY_SALT=<64-char-hex>
+PROOF_SIGNING_KEY=<128-char-hex>
+```
+
+### Key Patterns
+
+| Pattern | Implementation |
+|---|---|
+| Route structure | All routes match existing Layer services exactly |
+| Authentication | JWT for users, API keys for servers |
+| Validation | Zod schemas for request/response |
+| Errors | Standardized `ApiError` with codes |
+| Updates | Partial updates merge with existing data |
+| Deletes | Soft deletes (status changes, not removal) |
+
+### Testing
+
+Each route file has a corresponding test file under `scripts/`. Tests create real data, verify responses, and check auth.
+
+```bash
+npm run test:identity-routes
+npm run test:catalog-routes
+```
