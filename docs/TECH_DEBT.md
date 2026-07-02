@@ -22,10 +22,49 @@ Within each category, items are roughly priority-ordered.
 ## 🔴 Broken-but-shipped
 
 ### B1. Logistics is not paid for
-**What:** Buyer pays product subtotal only at checkout. Logistics provider submits quote, vendor accepts it post-payment, shipment is created — no money changes hands for logistics. The `order.shippingCost` field is rendered conditionally and is null in practice.
+**What:** Buyer pays product subtotal only at checkout. Logistics provider submits quote post-payment, no money moves for logistics.
 **Where:** `rangkai-marketplace/app/checkout/page.tsx`, `rangkai-marketplace/lib/api/cart.ts`, `marketplace-protocol/src/api/routes/logistics.routes.ts`
-**Fix:** Implement Path A from `LOGISTICS_ARCHITECTURE.md` section 6. Buyer picks logistics at checkout, single payment covers product + logistics + service fee.
-**Priority:** Highest. The last major broken item before v1 is production-ready. First order of business in Session 30 after B12.
+**Status:** 🔄 In progress S30. Architecture fully designed. Schema Tier 1 complete (L1–L4). Backend Tier 2 partial complete (L5–L8). L9 checkout and L10 escrow split next in S31.
+
+**Fee model confirmed S30:** Buyer pays product + logistics only. Protocol skims 0.5% from seller payout and 0.5% from logistics payout on escrow release. Fee is NOT added to buyer's total. `LOGISTICS_ARCHITECTURE.md` section 13 formula corrected accordingly.
+
+**Terminology confirmed S30:** seller (not vendor), buyer, logistics (not provider/courier). Use consistently in all new code and docs.
+
+**Full job list (L-series):**
+
+TIER 1 — Schema (✅ Complete S30)
+- L1. ✅ Added `product_id` (nullable) and `quote_type ('product'|'order')` to `shipping_quotes`
+- L2. ✅ Added `incoterm ('EXW'|'FOB'|'DAP'|'DDP')` to `products`, default DAP
+- L3. ✅ Created `quote_requests` table with RLS enabled. Columns: `id`, `requester_did`, `product_id`, `origin_country`, `destination_country`, `weight_kg`, `dimensions_cm` (JSONB), `incoterm`, `hs_code`, `insurance_required`, `status ('open'|'closed'|'expired')`, `created_at`, `expires_at`
+- L4. ✅ Added `routes` (JSONB), `modes` (TEXT[]), `incoterms_supported` (TEXT[]), `door_pickup` (BOOL), `door_delivery` (BOOL), `weight_min_kg`, `weight_max_kg` to `logistics_providers`
+
+TIER 2 — Backend API (❌ Not started — Session 31 priority)
+- L5. Seller RFQ broadcast endpoint: `POST /api/v1/logistics/quote-requests` — creates `quote_requests` row, filters matching logistics by routes/incoterms
+- L6. Rewrite `getOpportunities()` — reads `quote_requests` filtered by logistics profile, not raw orders
+- L7. Extend quote submission — `POST /api/v1/logistics/quotes` accepts `product_id` + `quote_type: 'product'`
+- L8. Verify `POST /api/v1/logistics/quotes/:id/accept` works for `quote_type: 'product'` quotes
+- L9. Unified checkout: order creation accepts `selected_quote_id`, stores `logistics_quote_id` + `logistics_cost` separately from `product_subtotal` on orders table. Confirm orders table has these columns — migrate if not.
+- L10. Escrow split on delivery: `createSplitPayout()` — seller receives `product_subtotal × 0.995`, logistics receives `logistics_cost × 0.995`, protocol retains 1% total. Works for both Bitcoin (two outbound transactions) and Stripe (two Connect transfers).
+- L11. Path B2 (buyer arranges own logistics): product-only order, `logistics_cost = 0`, no logistics payout on delivery, 0.5% on product side only.
+
+TIER 3 — Frontend (❌ Not started — Session 31+)
+- L12. Product creation: mandatory logistics quote request step for KYC sellers before publish. Collects origin country, weight, dimensions, Incoterm, optional HS code. Broadcasts RFQ.
+- L13. Seller: quote review UI on product page — accept one or more quotes, each becomes a buyer-visible shipping option.
+- L14. Product page: buyer sees logistics options as line items — provider name, price, days, Incoterm in plain language ("Door to door, you pay import duties on arrival" for DAP; "Fully delivered, all duties included" for DDP).
+- L15. Checkout: product subtotal + chosen logistics line. "Change shipping" link opens pool browser. "I'll arrange my own logistics" option (Path B2). Total = product + logistics only, no added fee line.
+- L16. Logistics-marketplace: opportunities dashboard reads `quote_requests`, not raw orders.
+
+TIER 4 — Spec corrections (✅ Complete S30)
+- L17. ✅ `LOGISTICS_ARCHITECTURE.md` section 13 fee formula corrected — buyer pays product + logistics only, 0.5%+0.5% deducted from payouts not added to buyer total.
+- L18. Tech debt updated (this entry).
+
+**Rules confirmed S30:**
+- KYC sellers: mandatory minimum of one logistics quote (firm or estimated) before product can be published
+- Anon sellers: manage own logistics, cannot access logistics pool
+- Multiple quotes per product allowed (competitive — multiple logistics providers can quote same product)
+- Currency for v1: USD. D6 (currency layer) stays deferred. Bitcoin escrow splits into two BTC transactions. Lightspark/Strike (R11) investigated offline by Pam — check Malaysia availability before Session 31.
+
+**Priority:** Highest. Next session opens at L5.
 
 ### B2. Login flow is missing
 **Status:** ✅ Fixed S29. Real login page built. `POST /api/v1/identity/login` endpoint added. bcrypt password verification working. Vendors persist across sessions. 33-ghost-vendor problem resolved.
@@ -89,6 +128,14 @@ Within each category, items are roughly priority-ordered.
 ```
 **Priority:** High. Small fix (~15 min). Do at start of Session 30 before B1 work begins.
 **Note:** This makes the symptom graceful but doesn't fix the underlying dependency on Blockstream's free tier. See R10 (BTCPay Server) for the real fix at production volume.
+**Status:** ✅ Fixed S30. Catch block updated to return graceful "not yet confirmed" result on 429. Committed and pushed to GitHub.
+
+### B13. Logistics marketplace registration has no email/password fields
+**What:** `logistics-marketplace/app/auth/register` has no email or password fields. Logistics providers register via Nostr/anon key only and cannot log back in after session ends.
+**Where:** `logistics-marketplace/app/auth/register/page.tsx` (or equivalent)
+**Fix:** Add email and password fields matching seller register pattern (B11, fixed S29). Wire to `POST /api/v1/identity/register` with `clientId: 'logistics-marketplace'`.
+**Priority:** High — blocks real logistics providers from returning. Fix start of S31.
+**Status:** ❌ Identified S30.
 
 ---
 
@@ -98,21 +145,25 @@ Within each category, items are roughly priority-ordered.
 **What:** `shipping_quotes` table has `order_id` but no `product_id`. Cannot represent product-level standing quotes (the core feature of Path A in `LOGISTICS_ARCHITECTURE.md` section 8).
 **Fix:** Add `product_id` (nullable) and `quote_type` discriminator. Either set, never both. Update SDK methods and routes accordingly.
 **Priority:** High — blocks the v1 logistics slice (B1).
+**Status:** ✅ Fixed S30. `product_id` (nullable) and `quote_type ('product'|'order')` added to `shipping_quotes`. Index added on `product_id`. See B1 L1.
 
 ### D2. Provider profile fields are too coarse
 **What:** Provider declares `service_regions`, `shipping_methods`, `insurance_available` but doesn't capture routes, modes, Incoterms supported, HS categories, weight brackets, insurance caps.
 **Fix:** Add new columns/tables. Migrate existing providers with sensible defaults. Update registration UI.
 **Priority:** Medium — works for now, blocks the "smart pool" matching.
+**Status:** ✅ Fixed S30 (schema layer). `routes`, `modes`, `incoterms_supported`, `door_pickup`, `door_delivery`, `weight_min_kg`, `weight_max_kg` added to `logistics_providers`. Old `service_regions` and `shipping_methods` fields kept for backwards compatibility, now deprecated. Registration UI update and buyer-language translation layer (Tier 3) still needed — see B1 L14.
 
 ### D3. Opportunities surface raw orders
-**What:** `getOpportunities()` returns orders that need logistics, post-payment. Should return RFQs filtered by provider specialties.
-**Fix:** New `logistics_rfq` table. New broadcast endpoint. Update `getOpportunities()` to read from it.
-**Priority:** Medium-High — this is the core "smart pool" feature.
+**What:** `getOpportunities()` returns raw orders. Should return RFQs filtered by logistics profile.
+**Fix:** `quote_requests` table now exists (L3 ✅). Rewrite `getOpportunities()` to read from it filtered by logistics `routes`/`modes`/`incoterms_supported`. See B1 L6.
+**Priority:** High — blocked on L5 being built first. Session 31.
+**Note:** Table was specced as `logistics_rfq` in older docs. Canonical name is `quote_requests` per part-3 spec and architecture doc addition 1.
 
 ### D4. No Incoterm on products
 **What:** Products have origin country, weight, dimensions, but no Incoterm. Required for any international B2B sale.
 **Fix:** Add `incoterm: 'EXW' | 'FOB' | 'DAP' | 'DDP'` to product schema. UI: dropdown on product create/edit.
 **Priority:** Medium-High — needed for real international orders.
+**Status:** ✅ Fixed S30. `incoterm` column added to `products` with CHECK constraint `('EXW'|'FOB'|'DAP'|'DDP')`, default DAP. UI (product creation step) still needed — see B1 L12.
 
 ### D5. No HS code on products
 **What:** Required for international shipping.
@@ -145,6 +196,7 @@ Within each category, items are roughly priority-ordered.
 **What:** 0.5% protocol fee should appear as a "Service fee" line on checkout.
 **Fix:** Roll into B1 fix. When implementing unified checkout, include service fee line.
 **Priority:** Bundled with B1.
+**Status:** ✅ Resolved by design decision S30. Fee model confirmed: buyer pays product + logistics only. 0.5% deducted from seller payout, 0.5% deducted from logistics payout at escrow release. No "service fee" line added to buyer's total. Checkout shows product + logistics lines only. `LOGISTICS_ARCHITECTURE.md` section 13 corrected accordingly (L17).
 
 ### D12. No quote refresh / expiry handling
 **What:** Quotes have `valid_until` but there's no notification system for expiring quotes.
@@ -251,10 +303,11 @@ Hardware-dependent. Requires Pi 4/5 + 1TB SSD + Umbrel/Start9, ~USD 150-220. BTC
 
 **Setup when ready:** Run BTCPay Server (Docker or hosted via Voltage/nodl.it). Create Store, generate API key, add webhook for `InvoiceSettled`/`InvoiceExpired`/`InvoiceInvalid`. Add `BTCPAY_URL`, `BTCPAY_API_KEY`, `BTCPAY_STORE_ID`, `BTCPAY_WEBHOOK_SECRET` to `.env`. Mount `btcpay.routes.ts` in `routes/index.ts`.
 
-### R11 (UPDATED). Currency abstraction with Bitcoin settlement
-User sees their local currency throughout. Bitcoin moves underneath as settlement rail. Sender pays MYR → BTC → recipient receives EUR. Pattern: Strike, CashApp, Bitkey. Reference: Bitcoin Dev Kit (BDK) open source from Square/Spiral.
-Pam: *"I likely won't use stablecoins but I will consider e-cash in the background where even if user pays in any currency it is converted to bitcoin in the background and transmitted and reconverted back to their currency."*
-**Priority:** v3. Major architectural undertaking but doesn't require renegotiating the Bitcoin payment rail.
+### R11. Currency abstraction with Bitcoin settlement ("invisible Bitcoin")
+**What:** User sees local currency throughout. Bitcoin settles in background. Buyer pays MYR → BTC → seller receives MYR. Pattern: Strike, CashApp, Bitkey, Block/Lightspark Grid.
+**Architecture confirmed S30:** This is the right long-term design. Lightspark Grid runs on Lightning (not yet built — R9). Strike API is a simpler alternative. **Pam to check offline:** does Strike support MYR payout in Malaysia? Does Lightspark Grid support Malaysia? Answer determines whether this is v1.5 or v2.
+**Current state:** v1 escrow holds BTC (on-chain) or USD (Stripe). Seller and logistics receive BTC directly for Bitcoin orders. Currency conversion is manual for v1. This is an explicit known limitation, not an oversight.
+**Priority:** v1.5 if Strike/Lightspark supports Malaysia. v2 otherwise. Do not block B1 on this.
 
 ### R12. Insurance marketplace
 Real insurance with caps, deductibles, exclusions, claims processes.
