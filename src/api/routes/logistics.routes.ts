@@ -40,7 +40,6 @@ const registerProviderSchema = z.object({
 });
 
 const submitQuoteSchema = z.object({
-  order_id: z.string().uuid(),
   provider_id: z.string().uuid(),
   method: z.enum(['standard', 'express', 'freight']),
   price_sats: z.number().positive().optional(),
@@ -48,8 +47,15 @@ const submitQuoteSchema = z.object({
   currency: z.string().optional(),
   estimated_days: z.number().positive(),
   insurance_included: z.boolean(),
-  valid_hours: z.number().positive()
-});
+  valid_hours: z.number().positive().optional(),
+  // Exactly one of order_id or product_id must be provided
+  order_id: z.string().uuid().optional(),
+  product_id: z.string().uuid().optional(),
+  quote_type: z.enum(['product', 'order']).optional()
+}).refine(
+  data => !!(data.order_id) !== !!(data.product_id),
+  { message: 'Exactly one of order_id or product_id must be provided' }
+);
 
 const createShipmentSchema = z.object({
   order_id: z.string().uuid(),
@@ -412,159 +418,75 @@ router.post(
  *   dimensions: { length: 30, width: 30, height: 15, unit: "cm" }
  * }
  */
+/**
+ * GET /api/v1/logistics/opportunities
+ * Get open quote requests filtered by logistics provider's profile
+ * Reads from quote_requests table (not raw orders)
+ * L6 — S30
+ */
 router.get(
   '/opportunities',
   requireAuth,
   async (req, res, next) => {
     try {
-      const { service_region, min_weight_kg, max_weight_kg } = req.query;
+      const userDid = getUserDid(req);
 
-      // Step 1: Get orders with accepted quotes to exclude them
-      const { data: ordersWithAcceptedQuotes } = await req.supabase
-        .from('shipping_quotes')
-        .select('order_id')
-        .eq('status', 'accepted');
+      // Step 1: Get the authenticated logistics provider's profile
+      const { data: providerData, error: providerError } = await req.supabase
+        .from('logistics_providers')
+        .select('id, routes, incoterms_supported, modes, weight_min_kg, weight_max_kg')
+        .eq('identity_did', userDid)
+        .single();
 
-      const acceptedOrderIds = (ordersWithAcceptedQuotes || []).map(q => q.order_id);
-
-      // Step 2: Find confirmed orders
-      let ordersQuery = req.supabase
-        .from('orders')
-        .select('*')
-        .eq('status', 'confirmed');
-
-      // Exclude orders with accepted quotes
-      if (acceptedOrderIds.length > 0) {
-        ordersQuery = ordersQuery.not('id', 'in', `(${acceptedOrderIds.join(',')})`);
+      if (providerError || !providerData) {
+        throw new ApiError(ErrorCode.NOT_FOUND, 'Logistics provider profile not found for this user');
       }
 
-      const { data: orders, error: ordersError } = await ordersQuery
+      const provider = providerData;
+      const hasRoutes = Array.isArray(provider.routes) && provider.routes.length > 0;
+      const hasIncoterms = Array.isArray(provider.incoterms_supported) && provider.incoterms_supported.length > 0;
+
+      // Step 2: Fetch open quote requests
+      const { data: requests, error: requestsError } = await req.supabase
+        .from('quote_requests')
+        .select(`
+          *,
+          product:products(id, basic, logistics, incoterm)
+        `)
+        .eq('status', 'open')
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (ordersError) {
-        console.error('Orders query error:', ordersError);
-        throw ordersError;
-      }
+      if (requestsError) throw requestsError;
 
-      if (!orders || orders.length === 0) {
+      if (!requests || requests.length === 0) {
         return res.json({ success: true, data: [] });
       }
 
-      // Step 3: Get all unique product IDs from all orders
-      const productIds = new Set<string>();
-      orders.forEach(order => {
-        const items = order.items as any[];
-        if (Array.isArray(items)) {
-          items.forEach(item => {
-            if (item.productId) {
-              productIds.add(item.productId);
-            }
-          });
-        }
-      });
-
-      // Step 4: Fetch all products at once
-      const { data: products } = await req.supabase
-        .from('products')
-        .select('id, logistics')
-        .in('id', Array.from(productIds));
-
-      // Create a map for quick product lookup
-      const productsMap = new Map();
-      (products || []).forEach(product => {
-        productsMap.set(product.id, product);
-      });
-
-      // Step 5: Transform orders into opportunities
-      const opportunities = orders.map(order => {
-        const items = order.items as any[];
-        
-        // Calculate total weight from items
-        let totalWeight = 0;
-        let dimensions = {
-          length_cm: 0,
-          width_cm: 0,
-          height_cm: 0
-        };
-
-        if (Array.isArray(items)) {
-          items.forEach(item => {
-            const product = productsMap.get(item.productId);
-            if (product && product.logistics) {
-              const logistics = product.logistics;
-              
-              // Extract weight (structure: { weight: { value: 2, unit: "kg" } })
-              if (logistics.weight) {
-                let weight = logistics.weight.value || 0;
-                // Convert to kg if needed
-                if (logistics.weight.unit === 'g') {
-                  weight = weight / 1000;
-                } else if (logistics.weight.unit === 'lb') {
-                  weight = weight * 0.453592;
-                }
-                totalWeight += weight * (item.quantity || 1);
-              }
-
-              // Use dimensions from first product (structure: { dimensions: { length: 30, width: 30, height: 15, unit: "cm" } })
-              if (dimensions.length_cm === 0 && logistics.dimensions) {
-                const dims = logistics.dimensions;
-                dimensions = {
-                  length_cm: dims.length || 0,
-                  width_cm: dims.width || 0,
-                  height_cm: dims.height || 0
-                };
-              }
-            }
-          });
+      // Step 3: Filter by provider profile
+      // If provider has empty routes or incoterms (migration default), return all — graceful degradation
+      const filtered = requests.filter(req => {
+        // Route match: provider must serve origin → destination
+        if (hasRoutes) {
+          const routeMatch = provider.routes.some(
+            (r: any) =>
+              r.origin_country === req.origin_country &&
+              r.destination_country === req.destination_country
+          );
+          if (!routeMatch) return false;
         }
 
-        // Get destination country
-        const shippingAddress = order.shipping_address as any;
-        const destinationCountry = shippingAddress?.country || 
-                                  shippingAddress?.countryCode || 
-                                  'Unknown';
+        // Incoterm match: provider must support the requested Incoterm
+        if (hasIncoterms && req.incoterm) {
+          if (!provider.incoterms_supported.includes(req.incoterm)) return false;
+        }
 
-        // Get declared value
-        const total = order.total as any;
-        const declaredValue = total?.amount || 0;
-        const currency = total?.currency || 'USD';
+        // Weight match: if provider declares weight limits, apply them
+        if (provider.weight_min_kg !== null && req.weight_kg < provider.weight_min_kg) return false;
+        if (provider.weight_max_kg !== null && req.weight_kg > provider.weight_max_kg) return false;
 
-        return {
-          id: order.id,
-          order_id: order.id,
-          destination_country: destinationCountry,
-          weight_kg: totalWeight,
-          dimensions: dimensions,
-          declared_value: declaredValue,
-          currency: currency,
-          insurance_required: shippingAddress?.insurance_required || false,
-          vendor_rating: null, // Would need vendor lookup
-          vendor_sales: null,
-          quotes_count: 0, // Could count pending quotes if needed
-          created_at: order.created_at
-        };
+        return true;
       });
-
-      // Step 6: Apply filters
-      let filtered = opportunities;
-
-      if (service_region) {
-        const region = String(service_region); // Type assertion
-        filtered = filtered.filter(o => 
-          o.destination_country.toUpperCase() === region.toUpperCase()
-        );
-      }
-
-      if (min_weight_kg) {
-        const minWeight = parseFloat(min_weight_kg as string);
-        filtered = filtered.filter(o => o.weight_kg >= minWeight);
-      }
-
-      if (max_weight_kg) {
-        const maxWeight = parseFloat(max_weight_kg as string);
-        filtered = filtered.filter(o => o.weight_kg <= maxWeight);
-      }
 
       res.json({
         success: true,
@@ -572,6 +494,134 @@ router.get(
       });
     } catch (error) {
       console.error('Opportunities endpoint error:', error);
+      next(error);
+    }
+  }
+);
+
+// ============================================================================
+// L5: QUOTE REQUESTS (RFQ BROADCAST) — S30
+// ============================================================================
+
+/**
+ * POST /api/v1/logistics/quote-requests
+ * Seller broadcasts a request for logistics quotes on a product
+ * KYC sellers only. Creates a quote_requests row visible to matching logistics providers.
+ * L5 — S30
+ */
+const createQuoteRequestSchema = z.object({
+  product_id: z.string().uuid(),
+  origin_country: z.string().min(2).max(3),
+  destination_country: z.string().min(2).max(3),
+  weight_kg: z.number().positive(),
+  dimensions_cm: z.object({
+    length: z.number().positive(),
+    width: z.number().positive(),
+    height: z.number().positive()
+  }),
+  incoterm: z.enum(['EXW', 'FOB', 'DAP', 'DDP']),
+  hs_code: z.string().optional(),
+  insurance_required: z.boolean().optional()
+});
+
+router.post(
+  '/quote-requests',
+  requireAuth,
+  validateBody(createQuoteRequestSchema),
+  async (req, res, next) => {
+    try {
+      const userDid = getUserDid(req);
+
+      // Verify the product belongs to the seller making the request
+      const { data: product, error: productError } = await req.supabase
+        .from('products')
+        .select('id, vendor_did')
+        .eq('id', req.body.product_id)
+        .single();
+
+      if (productError || !product) {
+        throw new NotFoundError('Product not found');
+      }
+
+      if (product.vendor_did !== userDid) {
+        throw new ApiError(ErrorCode.FORBIDDEN, 'You can only request quotes for your own products');
+      }
+
+      // Create the quote request
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30); // 30-day validity
+
+      const { data: quoteRequest, error: insertError } = await req.supabase
+        .from('quote_requests')
+        .insert({
+          requester_did: userDid,
+          product_id: req.body.product_id,
+          origin_country: req.body.origin_country,
+          destination_country: req.body.destination_country,
+          weight_kg: req.body.weight_kg,
+          dimensions_cm: req.body.dimensions_cm,
+          incoterm: req.body.incoterm,
+          hs_code: req.body.hs_code || null,
+          insurance_required: req.body.insurance_required || false,
+          status: 'open',
+          expires_at: expiresAt.toISOString()
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      res.status(201).json({
+        success: true,
+        data: quoteRequest
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/logistics/quote-requests/product/:productId
+ * Get all quote requests for a specific product (seller view)
+ * L5 — S30
+ */
+router.get(
+  '/quote-requests/product/:productId',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const { productId } = req.params;
+      const userDid = getUserDid(req);
+
+      // Verify product belongs to seller
+      const { data: product, error: productError } = await req.supabase
+        .from('products')
+        .select('id, vendor_did')
+        .eq('id', productId)
+        .single();
+
+      if (productError || !product) {
+        throw new NotFoundError('Product not found');
+      }
+
+      if (product.vendor_did !== userDid) {
+        throw new ApiError(ErrorCode.FORBIDDEN, 'You can only view quote requests for your own products');
+      }
+
+      const { data: requests, error } = await req.supabase
+        .from('quote_requests')
+        .select('*')
+        .eq('product_id', productId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        data: requests || []
+      });
+    } catch (error) {
       next(error);
     }
   }
