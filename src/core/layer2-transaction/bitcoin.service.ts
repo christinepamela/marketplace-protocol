@@ -252,7 +252,16 @@ export class BitcoinService {
           ? new Date(tx.status.block_time * 1000)
           : undefined
       };
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.response?.status === 429) {
+        console.warn('[Bitcoin] Blockstream rate limited (429). Will retry next poll cycle.');
+        return {
+          address,
+          confirmed: false,
+          confirmations: 0,
+          amountReceived: 0
+        };
+      }
       console.error('Error checking Bitcoin payment:', error);
       throw new Error('Failed to check payment status');
     }
