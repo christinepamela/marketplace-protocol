@@ -1,6 +1,6 @@
 # Tech Debt
 
-**Last updated:** 2026-06-11 (Session 29)
+**Last updated:** 2026-07-02 (Session 30)
 **Maintained by:** the team, updated each session
 **Companion docs:** `LOGISTICS_ARCHITECTURE.md`
 
@@ -64,7 +64,7 @@ TIER 4 — Spec corrections (✅ Complete S30)
 - Multiple quotes per product allowed (competitive — multiple logistics providers can quote same product)
 - Currency for v1: USD. D6 (currency layer) stays deferred. Bitcoin escrow splits into two BTC transactions. Lightspark/Strike (R11) investigated offline by Pam — check Malaysia availability before Session 31.
 
-**Priority:** Highest. Next session opens at L5.
+**Priority:** Highest. Next session opens at L9.
 
 ### B2. Login flow is missing
 **Status:** ✅ Fixed S29. Real login page built. `POST /api/v1/identity/login` endpoint added. bcrypt password verification working. Vendors persist across sessions. 33-ghost-vendor problem resolved.
@@ -156,8 +156,8 @@ TIER 4 — Spec corrections (✅ Complete S30)
 ### D3. Opportunities surface raw orders
 **What:** `getOpportunities()` returns raw orders. Should return RFQs filtered by logistics profile.
 **Fix:** `quote_requests` table now exists (L3 ✅). Rewrite `getOpportunities()` to read from it filtered by logistics `routes`/`modes`/`incoterms_supported`. See B1 L6.
-**Priority:** High — blocked on L5 being built first. Session 31.
 **Note:** Table was specced as `logistics_rfq` in older docs. Canonical name is `quote_requests` per part-3 spec and architecture doc addition 1.
+**Status:** ✅ Fixed S30. `getOpportunities()` rewritten to read `quote_requests` table, filtered by logistics provider's routes/incoterms/weight. See B1 L6.
 
 ### D4. No Incoterm on products
 **What:** Products have origin country, weight, dimensions, but no Incoterm. Required for any international B2B sale.
