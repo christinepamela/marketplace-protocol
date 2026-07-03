@@ -18,6 +18,9 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     business_name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
     service_regions: [] as string[],
     shipping_methods: [] as ShippingMethod[],
     insurance_available: false
@@ -29,6 +32,21 @@ export default function RegisterPage() {
     // Validation
     if (!formData.business_name.trim()) {
       alert('❌ Business name is required')
+      return
+    }
+    
+    if (!formData.email.trim()) {
+      alert('❌ Email is required')
+      return
+    }
+    
+    if (formData.password.length < 8) {
+      alert('❌ Password must be at least 8 characters')
+      return
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      alert('❌ Passwords do not match')
       return
     }
     
@@ -52,6 +70,8 @@ export default function RegisterPage() {
         body: JSON.stringify({
           type: 'kyc',
           clientId: 'logistics-marketplace',
+          email: formData.email,
+          password: formData.password,
           publicProfile: {
             displayName: formData.business_name,
             country: formData.service_regions[0],
@@ -160,6 +180,51 @@ export default function RegisterPage() {
               onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
               className="w-full px-4 py-2 border border-barely-beige rounded-lg focus:ring-2 focus:ring-warm-taupe focus:outline-none"
               placeholder="e.g. FastShip Express"
+              disabled={loading}
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="block text-sm font-medium text-soft-black mb-2">
+              Email Address <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full px-4 py-2 border border-barely-beige rounded-lg focus:ring-2 focus:ring-warm-taupe focus:outline-none"
+              placeholder="you@example.com"
+              disabled={loading}
+            />
+          </div>
+
+          {/* Password */}
+          <div>
+            <label className="block text-sm font-medium text-soft-black mb-2">
+              Password <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full px-4 py-2 border border-barely-beige rounded-lg focus:ring-2 focus:ring-warm-taupe focus:outline-none"
+              placeholder="Minimum 8 characters"
+              disabled={loading}
+            />
+          </div>
+
+          {/* Confirm Password */}
+          <div>
+            <label className="block text-sm font-medium text-soft-black mb-2">
+              Confirm Password <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              value={formData.confirmPassword}
+              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+              className="w-full px-4 py-2 border border-barely-beige rounded-lg focus:ring-2 focus:ring-warm-taupe focus:outline-none"
+              placeholder="Re-enter password"
               disabled={loading}
             />
           </div>

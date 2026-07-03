@@ -54,7 +54,7 @@ export default function ProviderDashboard() {
     if (providerLoading) return
     
     if (!provider) {
-      router.push('/auth/register')
+      router.push('/auth/login')
       return
     }
 
