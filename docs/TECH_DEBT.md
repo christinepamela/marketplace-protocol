@@ -87,7 +87,7 @@ TIER 4 — Spec corrections (✅ Complete S30)
 **Where:** `logistics-marketplace/app/dashboard/page.tsx` `loadDashboardData()`
 **Fix:** Check API server logs for failing endpoint. Likely empty-array vs null vs error response mismatch.
 **Priority:** Low.
-**Status:** Still open S31. Confirmed root cause: dashboard requests data for old SatsFleet provider ID (199e37cb) when BitHaul is logged in. Fix after B1 frontend complete.
+**Status:** Still open S31. Confirmed not just a fresh-account issue. Logging in as BitHaul shows SatsFleet Express data. ProviderContext is fetching provider by a cached/stale ID rather than the authenticated DID. Fix in S32 alongside B1 frontend work — affects every new logistics login.
 
 ### B6. Two leftover register-page artifacts
 **Status:** ✅ Fixed S28. Logistics provider register page no longer bypasses `ProviderContext.login()`.
@@ -307,7 +307,7 @@ Hardware-dependent. Requires Pi 4/5 + 1TB SSD + Umbrel/Start9, ~USD 150-220. BTC
 
 ### R11. Currency abstraction with Bitcoin settlement ("invisible Bitcoin")
 **What:** User sees local currency throughout. Bitcoin settles in background. Buyer pays MYR → BTC → seller receives MYR. Pattern: Strike, CashApp, Bitkey, Block/Lightspark Grid.
-**Architecture confirmed S30:** This is the right long-term design. Lightspark Grid runs on Lightning (not yet built — R9). Strike API is a simpler alternative. **Pam to check offline:** does Strike support MYR payout in Malaysia? Does Lightspark Grid support Malaysia? Answer determines whether this is v1.5 or v2.
+**Architecture confirmed S30:** This is the right long-term design. Lightspark Grid runs on Lightning (not yet built — R9). Strike API is a simpler alternative. **Pam checked offline:** Strike does NOT support MYR payout in Malaysia. Lightspark Grid does support Malaysia (confirmed: https://www.lightspark.com/knowledge/instant-payments-malaysia). R11 is v1.5 priority.
 **Current state:** v1 escrow holds BTC (on-chain) or USD (Stripe). Seller and logistics receive BTC directly for Bitcoin orders. Currency conversion is manual for v1. This is an explicit known limitation, not an oversight.
 **Priority:** v1.5 if Strike/Lightspark supports Malaysia. v2 otherwise. Do not block B1 on this.
 
