@@ -27,6 +27,8 @@ export interface CreateOrderRequest {
   shippingAddress: ShippingAddress;
   paymentMethod: PaymentMethod;
   buyerNotes?: string;
+  logisticsQuoteId?: string;
+  logisticsCost?: number;
 }
 
 export interface CreateOrderResponse {

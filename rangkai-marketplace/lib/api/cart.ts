@@ -39,7 +39,9 @@ export async function createOrderFromCart(
   cartItems: CartItem[],
   shippingAddress: ShippingAddress,
   paymentMethod: PaymentMethod,
-  buyerNotes?: string
+  buyerNotes?: string,
+  logisticsQuoteId?: string,
+  logisticsCost?: number
 ): Promise<CreateOrderResponse> {
   try {
     // Convert cart items to order items
@@ -57,7 +59,9 @@ export async function createOrderFromCart(
       items: orderItems,
       shippingAddress,
       paymentMethod,
-      buyerNotes
+      buyerNotes,
+      logisticsQuoteId,
+      logisticsCost
     }
     
     // Call SDK to create order

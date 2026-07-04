@@ -40,10 +40,14 @@ export class OrderService {
     }
     
     // Calculate pricing
+    // Fee model (confirmed S30): buyer pays product + logistics only.
+    // Protocol takes 0.5% from seller payout and 0.5% from logistics payout at escrow release.
+    // No fee is added to buyer's total.
     const subtotal = this.calculateSubtotal(request.items);
+    const logisticsCost = request.logisticsCost || 0;
     const fees = this.calculateFees(subtotal, request.paymentMethod);
     const total = {
-      amount: subtotal.amount + fees.totalFees.amount,
+      amount: subtotal.amount + logisticsCost,
       currency: subtotal.currency
     };
     
@@ -69,7 +73,9 @@ export class OrderService {
       status: 'payment_pending',
       createdAt: new Date(),
       updatedAt: new Date(),
-      buyerNotes: request.buyerNotes
+      buyerNotes: request.buyerNotes,
+      logisticsQuoteId: request.logisticsQuoteId,
+      logisticsCost: request.logisticsCost
     };
     
     // Store in database
@@ -499,6 +505,8 @@ export class OrderService {
         buyer_notes: order.buyerNotes,
         vendor_notes: order.vendorNotes,
         internal_notes: order.internalNotes,
+        logistics_quote_id: order.logisticsQuoteId || null,
+        logistics_cost: order.logisticsCost || 0,
         created_at: order.createdAt,
         updated_at: order.updatedAt
       });
@@ -586,7 +594,9 @@ export class OrderService {
       completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
       buyerNotes: data.buyer_notes,
       vendorNotes: data.vendor_notes,
-      internalNotes: data.internal_notes
+      internalNotes: data.internal_notes,
+      logisticsQuoteId: data.logistics_quote_id,
+      logisticsCost: data.logistics_cost
     };
   }
 }

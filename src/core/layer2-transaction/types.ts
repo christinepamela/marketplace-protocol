@@ -115,6 +115,10 @@ export interface Order {
   deliveredAt?: Date;
   completedAt?: Date;
   
+  // Logistics payment (L9 — S31)
+  logisticsQuoteId?: string;
+  logisticsCost?: number;
+
   // Notes and messages
   buyerNotes?: string;
   vendorNotes?: string;
@@ -307,8 +311,10 @@ export interface FeeConfiguration {
 /**
  * Default fee configuration
  */
+// Fee model confirmed S30: 0.5% deducted from seller payout + 0.5% from logistics payout
+// at escrow release. Nothing added to buyer's total. Protocol fee percentage here is 0.
 export const DEFAULT_FEE_CONFIG: FeeConfiguration = {
-  protocolFeePercentage: 3,
+  protocolFeePercentage: 0,
   clientFeePercentage: 0,
   paymentFeeBearer: 'buyer'
 };
@@ -461,6 +467,8 @@ export interface CreateOrderRequest {
   shippingAddress: ShippingAddress;
   paymentMethod: PaymentMethod;
   buyerNotes?: string;
+  logisticsQuoteId?: string;
+  logisticsCost?: number;
 }
 
 /**
