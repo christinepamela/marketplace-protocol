@@ -1,6 +1,6 @@
 # Tech Debt
 
-**Last updated:** 2026-07-02 (Session 30)
+**Last updated:** 2026-07-03 (Session 31)
 **Maintained by:** the team, updated each session
 **Companion docs:** `LOGISTICS_ARCHITECTURE.md`
 
@@ -24,7 +24,7 @@ Within each category, items are roughly priority-ordered.
 ### B1. Logistics is not paid for
 **What:** Buyer pays product subtotal only at checkout. Logistics provider submits quote post-payment, no money moves for logistics.
 **Where:** `rangkai-marketplace/app/checkout/page.tsx`, `rangkai-marketplace/lib/api/cart.ts`, `marketplace-protocol/src/api/routes/logistics.routes.ts`
-**Status:** 🔄 In progress S30. Architecture fully designed. Schema Tier 1 complete (L1–L4). Backend Tier 2 partial complete (L5–L8). L9 checkout and L10 escrow split next in S31.
+**Status:** 🔄 In progress S31. Tier 1 schema ✅. Tier 2 backend ✅ (L5–L10 all complete). Tier 3 frontend next in S32 (L11–L16).
 
 **Fee model confirmed S30:** Buyer pays product + logistics only. Protocol skims 0.5% from seller payout and 0.5% from logistics payout on escrow release. Fee is NOT added to buyer's total. `LOGISTICS_ARCHITECTURE.md` section 13 formula corrected accordingly.
 
@@ -38,14 +38,15 @@ TIER 1 — Schema (✅ Complete S30)
 - L3. ✅ Created `quote_requests` table with RLS enabled. Columns: `id`, `requester_did`, `product_id`, `origin_country`, `destination_country`, `weight_kg`, `dimensions_cm` (JSONB), `incoterm`, `hs_code`, `insurance_required`, `status ('open'|'closed'|'expired')`, `created_at`, `expires_at`
 - L4. ✅ Added `routes` (JSONB), `modes` (TEXT[]), `incoterms_supported` (TEXT[]), `door_pickup` (BOOL), `door_delivery` (BOOL), `weight_min_kg`, `weight_max_kg` to `logistics_providers`
 
-TIER 2 — Backend API (❌ Not started — Session 31 priority)
-- L5. Seller RFQ broadcast endpoint: `POST /api/v1/logistics/quote-requests` — creates `quote_requests` row, filters matching logistics by routes/incoterms
-- L6. Rewrite `getOpportunities()` — reads `quote_requests` filtered by logistics profile, not raw orders
-- L7. Extend quote submission — `POST /api/v1/logistics/quotes` accepts `product_id` + `quote_type: 'product'`
-- L8. Verify `POST /api/v1/logistics/quotes/:id/accept` works for `quote_type: 'product'` quotes
-- L9. Unified checkout: order creation accepts `selected_quote_id`, stores `logistics_quote_id` + `logistics_cost` separately from `product_subtotal` on orders table. Confirm orders table has these columns — migrate if not.
-- L10. Escrow split on delivery: `createSplitPayout()` — seller receives `product_subtotal × 0.995`, logistics receives `logistics_cost × 0.995`, protocol retains 1% total. Works for both Bitcoin (two outbound transactions) and Stripe (two Connect transfers).
-- L11. Path B2 (buyer arranges own logistics): product-only order, `logistics_cost = 0`, no logistics payout on delivery, 0.5% on product side only.
+TIER 2 — Backend API (✅ Complete S31)
+- L5. ✅ S30. Seller RFQ broadcast endpoint: `POST /api/v1/logistics/quote-requests` — creates `quote_requests` row, filters matching logistics by routes/incoterms
+- L6. ✅ S30. Rewrite `getOpportunities()` — reads `quote_requests` filtered by logistics profile, not raw orders
+- L7. ✅ S30. Extend quote submission — `POST /api/v1/logistics/quotes` accepts `product_id` + `quote_type: 'product'`
+- L8. ✅ S30. Verify `POST /api/v1/logistics/quotes/:id/accept` works for `quote_type: 'product'` quotes
+- L9. Unified checkout: order creation accepts `selected_quote_id`...
+  **Status:** ✅ S31. Orders table has logistics_quote_id and logistics_cost. Total = subtotal + logistics_cost. Fee bug (3%) corrected to 0.
+- L10. ✅ S31. `executeSplitPayoutBTC()` added to `bitcoin.service.ts`. `POST /api/v1/bitcoin/split-payout` route added. Untested e2e — needs delivered order with confirmed BTC.
+- L11. ❌ S32. Path B2 (buyer arranges own logistics): product-only order, `logistics_cost = 0`, no logistics payout on delivery, 0.5% on product side only.
 
 TIER 3 — Frontend (❌ Not started — Session 31+)
 - L12. Product creation: mandatory logistics quote request step for KYC sellers before publish. Collects origin country, weight, dimensions, Incoterm, optional HS code. Broadcasts RFQ.
@@ -64,7 +65,7 @@ TIER 4 — Spec corrections (✅ Complete S30)
 - Multiple quotes per product allowed (competitive — multiple logistics providers can quote same product)
 - Currency for v1: USD. D6 (currency layer) stays deferred. Bitcoin escrow splits into two BTC transactions. Lightspark/Strike (R11) investigated offline by Pam — check Malaysia availability before Session 31.
 
-**Priority:** Highest. Next session opens at L9.
+**Priority:** Highest. Next session opens at L11 (frontend tier L11–L16).
 
 ### B2. Login flow is missing
 **Status:** ✅ Fixed S29. Real login page built. `POST /api/v1/identity/login` endpoint added. bcrypt password verification working. Vendors persist across sessions. 33-ghost-vendor problem resolved.
@@ -86,6 +87,7 @@ TIER 4 — Spec corrections (✅ Complete S30)
 **Where:** `logistics-marketplace/app/dashboard/page.tsx` `loadDashboardData()`
 **Fix:** Check API server logs for failing endpoint. Likely empty-array vs null vs error response mismatch.
 **Priority:** Low.
+**Status:** Still open S31. Confirmed root cause: dashboard requests data for old SatsFleet provider ID (199e37cb) when BitHaul is logged in. Fix after B1 frontend complete.
 
 ### B6. Two leftover register-page artifacts
 **Status:** ✅ Fixed S28. Logistics provider register page no longer bypasses `ProviderContext.login()`.
@@ -135,7 +137,7 @@ TIER 4 — Spec corrections (✅ Complete S30)
 **Where:** `logistics-marketplace/app/auth/register/page.tsx` (or equivalent)
 **Fix:** Add email and password fields matching seller register pattern (B11, fixed S29). Wire to `POST /api/v1/identity/register` with `clientId: 'logistics-marketplace'`.
 **Priority:** High — blocks real logistics providers from returning. Fix start of S31.
-**Status:** ❌ Identified S30.
+**Status:** ✅ Fixed S31. Email/password added to registration form. Login page created. Logout now redirects to `/auth/login`. BitHaul (`BitHaul@123.com`) confirmed working.
 
 ---
 
