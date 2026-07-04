@@ -458,6 +458,145 @@ export class BitcoinService {
     return txid;
   }
 
+  /**
+   * Execute split payout on delivery (L10 — S31)
+   * Pays seller and logistics provider from one escrow address in a single transaction.
+   * Fee model (confirmed S30):
+   *   seller receives product_subtotal × 0.995
+   *   logistics receives logistics_cost × 0.995
+   *   protocol retains 1% total (0.5% from each side)
+   * For orders with no logistics (logistics_cost = 0), only the seller output is added.
+   */
+  async executeSplitPayoutBTC(
+    orderId: string,
+    sellerBtcAddress: string,
+    productSubtotalUsd: number,
+    logisticsBtcAddress?: string,
+    logisticsCostUsd?: number
+  ): Promise<{ sellerTxid: string; logisticsTxid?: string }> {
+    if (!this.masterNode) {
+      throw new Error('Wallet not initialized');
+    }
+
+    // Get payment address (escrow source)
+    const paymentAddress = await this.getPaymentAddress(orderId);
+    if (!paymentAddress) {
+      throw new Error('Payment address not found for order');
+    }
+
+    // Verify escrow payment was received and confirmed
+    const status = await this.checkPaymentStatus(paymentAddress.address);
+    if (!status.confirmed) {
+      throw new Error('Escrow payment not confirmed. Cannot release payout.');
+    }
+
+    // Derive private key for escrow address
+    const child = this.masterNode.derivePath(paymentAddress.derivationPath);
+    if (!child.privateKey) {
+      throw new Error('Failed to derive private key for escrow address');
+    }
+
+    // Get UTXOs from escrow address
+    const utxos = await this.getUTXOs(paymentAddress.address);
+    if (utxos.length === 0) {
+      throw new Error('No UTXOs found for escrow address');
+    }
+
+    // Convert USD amounts to satoshis using current BTC price
+    const btcPrice = await this.getBitcoinPrice();
+    const toSats = (usd: number) => Math.round((usd / btcPrice) * 100_000_000);
+
+    // Calculate payout amounts after protocol fee
+    const sellerSats = Math.round(toSats(productSubtotalUsd) * 0.995);
+    const hasLogistics = logisticsBtcAddress && logisticsCostUsd && logisticsCostUsd > 0;
+    const logisticsSats = hasLogistics
+      ? Math.round(toSats(logisticsCostUsd!) * 0.995)
+      : 0;
+
+    // Build single PSBT with both outputs (one on-chain fee for the split)
+    const psbt = new bitcoin.Psbt({ network: this.network });
+
+    // Add all inputs from escrow address
+    let totalInput = 0;
+    for (const utxo of utxos) {
+      psbt.addInput({
+        hash: utxo.txid,
+        index: utxo.vout,
+        witnessUtxo: {
+          script: bitcoin.payments.p2wpkh({
+            pubkey: child.publicKey!,
+            network: this.network
+          }).output!,
+          value: utxo.value
+        }
+      });
+      totalInput += utxo.value;
+    }
+
+    // Estimate fee for tx with 2-3 outputs (~250 vBytes at 10 sat/vByte)
+    const estimatedFee = 2500;
+    const totalOutput = sellerSats + logisticsSats;
+
+    if (totalInput < totalOutput + estimatedFee) {
+      throw new Error(
+        `Insufficient escrow funds. Have ${totalInput} sats, need ${totalOutput + estimatedFee}`
+      );
+    }
+
+    // Add seller output
+    psbt.addOutput({ address: sellerBtcAddress, value: sellerSats });
+
+    // Add logistics output only if logistics was used
+    if (hasLogistics) {
+      psbt.addOutput({ address: logisticsBtcAddress!, value: logisticsSats });
+    }
+
+    // Remaining sats (protocol fee + dust) stay in escrow address
+    // Protocol can sweep periodically — no change output needed for now
+
+    // Sign and broadcast
+    for (let i = 0; i < utxos.length; i++) {
+      psbt.signInput(i, child);
+    }
+    psbt.finalizeAllInputs();
+    const tx = psbt.extractTransaction();
+    const txid = await this.broadcastTransaction(tx.toHex());
+
+    // Log the split payout in DB
+    await this.dbClient
+      .from('bitcoin_vendor_payouts')
+      .insert([
+        {
+          order_id: orderId,
+          vendor_did: 'seller',
+          payout_method: 'btc',
+          btc_address: sellerBtcAddress,
+          amount: sellerSats,
+          usd_equivalent: (sellerSats / 100_000_000) * btcPrice,
+          status: 'completed',
+          txid,
+          created_at: new Date(),
+          completed_at: new Date()
+        },
+        ...(hasLogistics ? [{
+          order_id: orderId,
+          vendor_did: 'logistics',
+          payout_method: 'btc',
+          btc_address: logisticsBtcAddress,
+          amount: logisticsSats,
+          usd_equivalent: (logisticsSats / 100_000_000) * btcPrice,
+          status: 'completed',
+          txid,
+          created_at: new Date(),
+          completed_at: new Date()
+        }] : [])
+      ]);
+
+    console.log(`[Bitcoin] Split payout txid: ${txid} — seller: ${sellerSats} sats, logistics: ${logisticsSats} sats`);
+
+    return { sellerTxid: txid, logisticsTxid: hasLogistics ? txid : undefined };
+  }
+
   // ============================================================================
   // PRICE FEED
   // ============================================================================

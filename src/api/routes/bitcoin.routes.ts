@@ -282,4 +282,76 @@ router.post(
   }
 );
 
+/**
+ * @route   POST /api/v1/bitcoin/split-payout
+ * @desc    Split escrow payout between seller and logistics on delivery
+ * @access  System (called internally after delivery confirmation)
+ */
+router.post(
+  '/split-payout',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const {
+        orderId,
+        sellerBtcAddress,
+        productSubtotalUsd,
+        logisticsBtcAddress,
+        logisticsCostUsd
+      } = req.body;
+
+      if (!orderId || !sellerBtcAddress || productSubtotalUsd === undefined) {
+        throw new ApiError(
+          ErrorCode.VALIDATION_ERROR,
+          'Missing required fields: orderId, sellerBtcAddress, productSubtotalUsd'
+        );
+      }
+
+      // Verify order is delivered or completed
+      const { data: order } = await req.supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (!order) {
+        throw new ApiError(ErrorCode.ORDER_NOT_FOUND, 'Order not found');
+      }
+
+      if (order.status !== 'delivered' && order.status !== 'completed') {
+        throw new ApiError(
+          ErrorCode.INVALID_ORDER_STATUS,
+          'Order must be delivered before split payout'
+        );
+      }
+
+      const bitcoinService = new BitcoinService(
+        req.supabase,
+        process.env.BITCOIN_MNEMONIC,
+        process.env.BITCOIN_NETWORK === 'testnet'
+      );
+
+      const result = await bitcoinService.executeSplitPayoutBTC(
+        orderId,
+        sellerBtcAddress,
+        productSubtotalUsd,
+        logisticsBtcAddress,
+        logisticsCostUsd
+      );
+
+      res.json({
+        success: true,
+        data: {
+          sellerTxid: result.sellerTxid,
+          logisticsTxid: result.logisticsTxid,
+          status: 'completed'
+        }
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;
