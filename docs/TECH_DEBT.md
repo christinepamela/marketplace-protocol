@@ -46,7 +46,7 @@ TIER 2 — Backend API (✅ Complete S31)
 - L9. Unified checkout: order creation accepts `selected_quote_id`...
   **Status:** ✅ S31. Orders table has logistics_quote_id and logistics_cost. Total = subtotal + logistics_cost. Fee bug (3%) corrected to 0.
 - L10. ✅ S31. `executeSplitPayoutBTC()` added to `bitcoin.service.ts`. `POST /api/v1/bitcoin/split-payout` route added. Untested e2e — needs delivered order with confirmed BTC.
-- L11. ❌ S32. Path B2 (buyer arranges own logistics): product-only order, `logistics_cost = 0`, no logistics payout on delivery, 0.5% on product side only.
+- L11. ✅ S32. Path B2 implemented. `products.require_logistics_quote` (boolean, default false) and `orders.own_logistics` (boolean, default false) added via migration. `order.service.ts` `createOrder()` blocks order creation if any cart item's product requires a quote and neither `logisticsQuoteId` nor `ownLogistics` is set. Checkout has "I'll arrange my own logistics" checkbox wired through `createOrdersFromCart()` → `createOrderFromCart()` → SDK → API → service. Tested S32: gate blocks with correct product name in error, opt-out checkbox correctly sets own_logistics=true, regression checkout (no gate) unaffected.
 
 TIER 3 — Frontend (❌ Not started — Session 31+)
 - L12. Product creation: mandatory logistics quote request step for KYC sellers before publish. Collects origin country, weight, dimensions, Incoterm, optional HS code. Broadcasts RFQ.
@@ -55,8 +55,8 @@ TIER 3 — Frontend (❌ Not started — Session 31+)
 - L15. Checkout: product subtotal + chosen logistics line. "Change shipping" link opens pool browser. "I'll arrange my own logistics" option (Path B2). Total = product + logistics only, no added fee line.
 - L16. Logistics-marketplace: opportunities dashboard reads `quote_requests`, not raw orders.
 
-TIER 4 — Spec corrections (✅ Complete S30)
-- L17. ✅ `LOGISTICS_ARCHITECTURE.md` section 13 fee formula corrected — buyer pays product + logistics only, 0.5%+0.5% deducted from payouts not added to buyer total.
+TIER 4 — Spec corrections (🟡 Partially reopened S32)
+- L17. 🟡 S32: Section 13 fee formula fix applied (confirmed in file). Section 3 still describes the 0.5% as a visible checkout line item — contradicts the corrected model, not yet fixed. The "Architecture doc additions" block at the bottom of the file (quote_requests rename, Section 9.1 Vendor Favorites, Section 8 quote-expiry cron table) was drafted but never merged into the doc body — not yet fixed. Both deferred to after L16 by agreement with Pam. Do not mark this fully complete until both are also applied and the doc is reviewed end to end.
 - L18. Tech debt updated (this entry).
 
 **Rules confirmed S30:**
@@ -65,7 +65,7 @@ TIER 4 — Spec corrections (✅ Complete S30)
 - Multiple quotes per product allowed (competitive — multiple logistics providers can quote same product)
 - Currency for v1: USD. D6 (currency layer) stays deferred. Bitcoin escrow splits into two BTC transactions. Lightspark/Strike (R11) investigated offline by Pam — check Malaysia availability before Session 31.
 
-**Priority:** Highest. Next session opens at L11 (frontend tier L11–L16).
+**Priority:** Highest. L11 done S32. Next: L12 (product creation mandatory logistics step).
 
 ### B2. Login flow is missing
 **Status:** ✅ Fixed S29. Real login page built. `POST /api/v1/identity/login` endpoint added. bcrypt password verification working. Vendors persist across sessions. 33-ghost-vendor problem resolved.
@@ -138,6 +138,9 @@ TIER 4 — Spec corrections (✅ Complete S30)
 **Fix:** Add email and password fields matching seller register pattern (B11, fixed S29). Wire to `POST /api/v1/identity/register` with `clientId: 'logistics-marketplace'`.
 **Priority:** High — blocks real logistics providers from returning. Fix start of S31.
 **Status:** ✅ Fixed S31. Email/password added to registration form. Login page created. Logout now redirects to `/auth/login`. BitHaul (`BitHaul@123.com`) confirmed working.
+
+### B14. Logistics-required error message shows product ID, not name
+**Status:** ✅ Fixed S32. Confirmed `products.basic` is JSONB with a `name` field. `order.service.ts` now reads `blockingProduct.basic?.name`, falls back to `blockingProduct.id` only if `basic.name` is somehow missing.
 
 ---
 
