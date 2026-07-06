@@ -29,6 +29,7 @@ export interface CreateOrderRequest {
   buyerNotes?: string;
   logisticsQuoteId?: string;
   logisticsCost?: number;
+  ownLogistics?: boolean;
 }
 
 export interface CreateOrderResponse {

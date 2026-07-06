@@ -38,6 +38,26 @@ export class OrderService {
     if (request.items.length === 0) {
       throw new Error('Order must contain at least one item');
     }
+
+    // L11 (S32): if a product requires a logistics quote, buyer must either
+    // select one (logisticsQuoteId set) or explicitly opt into own logistics.
+    if (!request.logisticsQuoteId && !request.ownLogistics) {
+      const productIds = request.items.map(item => item.productId);
+      const { data: products, error: productsError } = await this.dbClient
+        .from('products')
+        .select('id, require_logistics_quote, basic')
+        .in('id', productIds);
+
+      if (productsError) throw productsError;
+
+      const blockingProduct = products?.find((p: any) => p.require_logistics_quote);
+      if (blockingProduct) {
+        const productName = blockingProduct.basic?.name || blockingProduct.id;
+        throw new Error(
+          `"${productName}" requires a logistics quote. Select a shipping option or choose "I'll arrange my own logistics" to continue.`
+        );
+      }
+    }
     
     // Calculate pricing
     // Fee model (confirmed S30): buyer pays product + logistics only.
@@ -75,7 +95,8 @@ export class OrderService {
       updatedAt: new Date(),
       buyerNotes: request.buyerNotes,
       logisticsQuoteId: request.logisticsQuoteId,
-      logisticsCost: request.logisticsCost
+      logisticsCost: request.logisticsCost,
+      ownLogistics: request.ownLogistics
     };
     
     // Store in database
@@ -507,6 +528,7 @@ export class OrderService {
         internal_notes: order.internalNotes,
         logistics_quote_id: order.logisticsQuoteId || null,
         logistics_cost: order.logisticsCost || 0,
+        own_logistics: order.ownLogistics || false,
         created_at: order.createdAt,
         updated_at: order.updatedAt
       });
@@ -596,7 +618,8 @@ export class OrderService {
       vendorNotes: data.vendor_notes,
       internalNotes: data.internal_notes,
       logisticsQuoteId: data.logistics_quote_id,
-      logisticsCost: data.logistics_cost
+      logisticsCost: data.logistics_cost,
+      ownLogistics: data.own_logistics
     };
   }
 }

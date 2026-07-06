@@ -65,7 +65,8 @@ const createOrderSchema = z.object({
   paymentMethod: z.enum(['lightning', 'bitcoin_onchain', 'stripe', 'paypal', 'bank_transfer', 'other']),
   buyerNotes: z.string().optional(),
   logisticsQuoteId: z.string().uuid().optional(),
-  logisticsCost: z.number().min(0).optional()
+  logisticsCost: z.number().min(0).optional(),
+  ownLogistics: z.boolean().optional()
 });
 
 const markShippedSchema = z.object({

@@ -41,7 +41,8 @@ export async function createOrderFromCart(
   paymentMethod: PaymentMethod,
   buyerNotes?: string,
   logisticsQuoteId?: string,
-  logisticsCost?: number
+  logisticsCost?: number,
+  ownLogistics?: boolean
 ): Promise<CreateOrderResponse> {
   try {
     // Convert cart items to order items
@@ -61,7 +62,8 @@ export async function createOrderFromCart(
       paymentMethod,
       buyerNotes,
       logisticsQuoteId,
-      logisticsCost
+      logisticsCost,
+      ownLogistics
     }
     
     // Call SDK to create order
@@ -86,7 +88,8 @@ export async function createOrderFromCart(
 export async function createOrdersFromCart(
   cart: Cart,
   shippingAddress: ShippingAddress,
-  paymentMethod: PaymentMethod
+  paymentMethod: PaymentMethod,
+  ownLogistics?: boolean
 ): Promise<CreateOrderResponse[]> {
   try {
     // Group items by vendor
@@ -95,7 +98,7 @@ export async function createOrdersFromCart(
     // Create order for each vendor
     const orderPromises = Object.entries(vendorGroups).map(
       ([vendorDid, items]) => 
-        createOrderFromCart(vendorDid, items, shippingAddress, paymentMethod)
+        createOrderFromCart(vendorDid, items, shippingAddress, paymentMethod, undefined, undefined, undefined, ownLogistics)
     )
     
     // Wait for all orders to be created

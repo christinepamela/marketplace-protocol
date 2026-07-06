@@ -31,6 +31,7 @@ function CheckoutPageContent() {
     phone: ''
   })
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('stripe')
+  const [ownLogistics, setOwnLogistics] = useState(false)
 
   // Load cart on mount
   useEffect(() => {
@@ -90,7 +91,8 @@ function CheckoutPageContent() {
       const orderResponses = await createOrdersFromCart(
         cart,
         shippingAddress as ShippingAddress,
-        paymentMethod
+        paymentMethod,
+        ownLogistics
       )
 
       // Clear cart
@@ -344,6 +346,28 @@ function CheckoutPageContent() {
               <p className="text-xs text-warm-gray mt-4">
                 Note: Actual payment will be processed on the next page after order creation.
               </p>
+            </div>
+
+            {/* Logistics */}
+            <div className="bg-white border border-barely-beige p-6">
+              <h2 className="text-lg font-medium text-soft-black mb-4">
+                Logistics
+              </h2>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={ownLogistics}
+                  onChange={(e) => setOwnLogistics(e.target.checked)}
+                  className="w-4 h-4 mt-0.5"
+                />
+                <div>
+                  <p className="font-medium text-soft-black">I'll arrange my own logistics</p>
+                  <p className="text-sm text-warm-gray">
+                    Skip seller-arranged shipping. You take responsibility for arranging and paying for delivery yourself.
+                  </p>
+                </div>
+              </label>
             </div>
           </div>
 

@@ -118,6 +118,7 @@ export interface Order {
   // Logistics payment (L9 — S31)
   logisticsQuoteId?: string;
   logisticsCost?: number;
+  ownLogistics?: boolean; // L11 — S32: buyer explicitly arranging own logistics (Path B2)
 
   // Notes and messages
   buyerNotes?: string;
@@ -469,6 +470,7 @@ export interface CreateOrderRequest {
   buyerNotes?: string;
   logisticsQuoteId?: string;
   logisticsCost?: number;
+  ownLogistics?: boolean;
 }
 
 /**
