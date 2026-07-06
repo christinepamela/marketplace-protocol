@@ -118,6 +118,9 @@ const createProductSchema = z.object({
     shippingMethods: z.array(z.string()).optional(),
   }),
   visibility: z.enum(['public', 'private', 'unlisted']).optional(),
+  incoterm: z.enum(['EXW', 'FOB', 'DAP', 'DDP']).optional(),
+  hsCode: z.string().optional(),
+  requireLogisticsQuote: z.boolean().optional(),
 });
 
 // Update product schema
@@ -134,6 +137,9 @@ const updateProductSchema = z.object({
   logistics: z.any().optional(),
   status: z.enum(['draft', 'active', 'inactive', 'out_of_stock', 'discontinued']).optional(),
   visibility: z.enum(['public', 'private', 'unlisted']).optional(),
+  incoterm: z.enum(['EXW', 'FOB', 'DAP', 'DDP']).optional(),
+  hsCode: z.string().optional(),
+  requireLogisticsQuote: z.boolean().optional(),
 });
 
 // Search query schema
@@ -272,6 +278,18 @@ router.put(
     
     if (req.body.visibility) {
       mergedUpdates.visibility = req.body.visibility;
+    }
+
+    if (req.body.incoterm) {
+      mergedUpdates.incoterm = req.body.incoterm;
+    }
+
+    if (req.body.hsCode !== undefined) {
+      mergedUpdates.hsCode = req.body.hsCode;
+    }
+
+    if (req.body.requireLogisticsQuote !== undefined) {
+      mergedUpdates.requireLogisticsQuote = req.body.requireLogisticsQuote;
     }
     
     // Update product

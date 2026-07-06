@@ -46,6 +46,9 @@ export class ProductService {
       logistics: request.logistics,
       status: 'draft', // New products start as draft
       visibility: request.visibility || 'public',
+      incoterm: request.incoterm || 'DAP',
+      hsCode: request.hsCode,
+      requireLogisticsQuote: request.requireLogisticsQuote || false,
       createdAt: new Date(),
       updatedAt: new Date(),
       stats: {
@@ -426,6 +429,9 @@ export class ProductService {
         logistics: product.logistics,
         status: product.status,
         visibility: product.visibility,
+        incoterm: product.incoterm,
+        hs_code: product.hsCode,
+        require_logistics_quote: product.requireLogisticsQuote,
         stats: product.stats,
         created_at: product.createdAt,
         updated_at: product.updatedAt
@@ -448,6 +454,9 @@ export class ProductService {
         logistics: product.logistics,
         status: product.status,
         visibility: product.visibility,
+        incoterm: product.incoterm,
+        hs_code: product.hsCode,
+        require_logistics_quote: product.requireLogisticsQuote,
         stats: product.stats,
         updated_at: product.updatedAt,
         last_synced_at: product.lastSyncedAt
@@ -499,6 +508,9 @@ export class ProductService {
       logistics: data.logistics,
       status: data.status,
       visibility: data.visibility,
+      incoterm: data.incoterm,
+      hsCode: data.hs_code,
+      requireLogisticsQuote: data.require_logistics_quote,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
       lastSyncedAt: data.last_synced_at ? new Date(data.last_synced_at) : undefined,

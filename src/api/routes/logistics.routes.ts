@@ -466,13 +466,20 @@ router.get(
       // Step 3: Filter by provider profile
       // If provider has empty routes or incoterms (migration default), return all — graceful degradation
       const filtered = requests.filter(req => {
-        // Route match: provider must serve origin → destination
+        // Route match: provider must serve this origin. No destination on the
+        // request (L12 — S32: global broadcast at publish time) matches any of
+        // the provider's routes from this origin. A specified destination
+        // (order-level RFQ) requires an exact origin+destination match.
         if (hasRoutes) {
-          const routeMatch = provider.routes.some(
-            (r: any) =>
-              r.origin_country === req.origin_country &&
-              r.destination_country === req.destination_country
-          );
+          const routeMatch = req.destination_country
+            ? provider.routes.some(
+                (r: any) =>
+                  r.origin_country === req.origin_country &&
+                  r.destination_country === req.destination_country
+              )
+            : provider.routes.some(
+                (r: any) => r.origin_country === req.origin_country
+              );
           if (!routeMatch) return false;
         }
 
@@ -512,7 +519,7 @@ router.get(
 const createQuoteRequestSchema = z.object({
   product_id: z.string().uuid(),
   origin_country: z.string().min(2).max(3),
-  destination_country: z.string().min(2).max(3),
+  destination_country: z.string().min(2).max(3).optional(), // L12 (S32): omitted = broadcast to any destination the pool serves
   weight_kg: z.number().positive(),
   dimensions_cm: z.object({
     length: z.number().positive(),
@@ -557,7 +564,7 @@ router.post(
           requester_did: userDid,
           product_id: req.body.product_id,
           origin_country: req.body.origin_country,
-          destination_country: req.body.destination_country,
+          destination_country: req.body.destination_country || null,
           weight_kg: req.body.weight_kg,
           dimensions_cm: req.body.dimensions_cm,
           incoterm: req.body.incoterm,

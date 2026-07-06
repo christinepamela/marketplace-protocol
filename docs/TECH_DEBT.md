@@ -49,7 +49,7 @@ TIER 2 — Backend API (✅ Complete S31)
 - L11. ✅ S32. Path B2 implemented. `products.require_logistics_quote` (boolean, default false) and `orders.own_logistics` (boolean, default false) added via migration. `order.service.ts` `createOrder()` blocks order creation if any cart item's product requires a quote and neither `logisticsQuoteId` nor `ownLogistics` is set. Checkout has "I'll arrange my own logistics" checkbox wired through `createOrdersFromCart()` → `createOrderFromCart()` → SDK → API → service. Tested S32: gate blocks with correct product name in error, opt-out checkbox correctly sets own_logistics=true, regression checkout (no gate) unaffected.
 
 TIER 3 — Frontend (❌ Not started — Session 31+)
-- L12. Product creation: mandatory logistics quote request step for KYC sellers before publish. Collects origin country, weight, dimensions, Incoterm, optional HS code. Broadcasts RFQ.
+- L12. 🔄 S32 in progress. Option A chosen (see R21 for deferred Option B). Frontend done: `incoterm` (required, default DAP), `hsCode` (optional), `requireLogisticsQuote` (seller-toggled checkbox) added to `packages/sdk/src/types.ts`, `catalog.ts` SDK module, and `ProductForm.tsx`. Migration: `products.hs_code` column added. Buyer-facing plain-language Incoterm explanations added (`lib/utils/incoterms.ts`), wired into product detail page. **Not yet done:** backend persistence unconfirmed — haven't seen the product-creation route/service that handles `POST /catalog/products`, so `incoterm`/`hsCode`/`requireLogisticsQuote` may not actually save to the DB yet. RFQ auto-broadcast on publish also not wired — needs the logistics quote-request route or SDK method. Both required before this can be marked done.
 - L13. Seller: quote review UI on product page — accept one or more quotes, each becomes a buyer-visible shipping option.
 - L14. Product page: buyer sees logistics options as line items — provider name, price, days, Incoterm in plain language ("Door to door, you pay import duties on arrival" for DAP; "Fully delivered, all duties included" for DDP).
 - L15. Checkout: product subtotal + chosen logistics line. "Change shipping" link opens pool browser. "I'll arrange my own logistics" option (Path B2). Total = product + logistics only, no added fee line.
@@ -141,6 +141,12 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 
 ### B14. Logistics-required error message shows product ID, not name
 **Status:** ✅ Fixed S32. Confirmed `products.basic` is JSONB with a `name` field. `order.service.ts` now reads `blockingProduct.basic?.name`, falls back to `blockingProduct.id` only if `basic.name` is somehow missing.
+
+### B15. Logistics-marketplace opportunities page crashes on real data
+**What:** `localhost:3002/opportunities` throws `TypeError: Cannot read properties of undefined (reading 'length_cm')` and fails to render. The page's `Opportunity` interface expects `dimensions.length_cm/width_cm/height_cm` and an always-present flat `destination_country`. The actual `/opportunities` endpoint (rewritten in S30 for L6) returns `dimensions_cm: {length, width, height}` — different key names entirely — and as of S32, `destination_country` can legitimately be `null` (global RFQ broadcasts with no pinned destination — see L12). This page was never updated to match either shape.
+**Where:** `logistics-marketplace/app/opportunities/page.tsx`
+**Fix:** Full rewrite as part of L16 (opportunities dashboard reads `quote_requests`) — not a standalone patch, since L16 already covers rebuilding this page's data model end to end.
+**Priority:** Bundled into L16. Discovered S32 while testing L12's destination-optional fix; not caused by L12, but is why L12's opportunities-matching step could only be logic-verified rather than confirmed live (see note below).
 
 ---
 
@@ -265,10 +271,20 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 **Decision context:** Frostr ecosystem is alpha as of 2025-2026. Schema is already forward-compatible — `signing_strategy` column exists with default `single_key`. v2 migration is additive. Wait for Frostr/Pomegranate to reach production readiness.
 **Priority:** v2, DEPENDENT on upstream Frostr stability. May slip to v2.5.
 
-### D19. Nostr data load management
+### D19. Country field is free text, but downstream validation expects ISO codes
+**What:** `ProductForm.tsx`'s Origin Country field is a plain text input (placeholder "Malaysia"). But `logistics.routes.ts`'s RFQ broadcast schema requires `origin_country` to be 2-3 characters (an ISO country code like "MY"), and `catalog.routes.ts`'s product schema requires `logistics.originCountry` to be exactly 2 characters. A seller typing "Malaysia" instead of "MY" will fail RFQ broadcast silently (caught in the try/catch, logged to console, doesn't block publish) or fail product creation outright depending on which validator catches it first. Noticed during L12 (S32) but pre-existing — not a new bug introduced by L12.
+**Fix:** Replace the free-text input with an autocomplete/typeahead backed by a small prefilled country name→ISO code list (e.g., "Malaysia" shown to the user, "MY" stored). This is likely the easier fix vs. asking sellers to know their own country's ISO code. Apply to both the base product logistics section and any future destination-country fields (L13/L14).
+**Priority:** Medium — real but not blocking, since KYC test sellers so far have been typing valid-length strings by chance. Will start silently failing for any real seller who doesn't know to type "MY" instead of "Malaysia."
+
+### D20. Nostr data load management
 **What:** Nostr clients sync large amounts of historical data by default. Pam: *"nostr has large data all the time. even when i run primal my laptop is noisy."*
 **Fix:** Scoped subscriptions only (never the general firehose), filtered relays, server-side aggregation, lightweight kind definitions for any Rangkai-specific Nostr usage.
 **Priority:** Cross-cutting design concern. Must inform D16 (search federation) and v2 messaging decisions.
+
+### D21. L12's opportunities-matching (null destination) not empirically confirmed
+**What:** The destination-optional RFQ fix (L12, S32) was verified by tracing the matching logic against known data (BitHaul's route MY→SG, a null-destination quote_request from MY, confirming origin-only matching should apply) rather than by observing it live in the UI — the opportunities page crash (see B[above]) blocked direct visual confirmation, and BitHaul's auth token couldn't be located to test the endpoint directly via curl.
+**Fix:** Once L16 rebuilds the opportunities page, confirm as a first sanity check that a null-destination quote_request actually appears for a provider whose routes specify a different destination than the request. If it doesn't, the bug is in the matching logic added this session (`src/api/routes/logistics.routes.ts`, the `/opportunities` route handler), not in the L16 rebuild itself.
+**Priority:** Low standalone — folded into L16's testing, not urgent on its own since the logic was reasoned through carefully and the code change was small and specific.
 
 ---
 
@@ -350,6 +366,11 @@ Originally proposed S28. Rejected in favour of single KYC-mandatory tier. Docume
 - Trust/sanctions screening is per-protocol — when D15 is built ✓
 - Search v1 is centralised within one marketplace, BUT schema and API must extend to federation in v2 — this is D16
 **Priority:** Architectural principle, always-on.
+
+### R21. L12 Option B — hard-block publish until a real quote exists
+**What:** S32 chose Option A for L12 (collect Incoterm/HS code, seller manually toggles `requireLogisticsQuote`). Option B is stricter: KYC sellers genuinely cannot publish until at least one quote (firm or estimated) exists for the product — turning "Publish" into a multi-step flow (draft → request quotes → wait/select → goes active). Deferred because it depends on L13 (quote review UI) existing first; building the hard gate before there's a UI to review quotes would strand sellers with drafts they can't act on.
+**Fix:** Revisit once L13 ships. Decide then whether to enforce.
+**Priority:** v1.1, after L13.
 
 ---
 

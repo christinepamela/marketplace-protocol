@@ -14,6 +14,7 @@ import type {
   ProductPricing,
   LogisticsInfo,
   ProductVisibility,
+  IncotermType,
 } from '../types';
 
 // ============================================================================
@@ -29,6 +30,9 @@ export interface CreateProductRequest {
   pricing: ProductPricing;
   logistics: LogisticsInfo;
   visibility?: ProductVisibility;
+  incoterm?: IncotermType;
+  hsCode?: string;
+  requireLogisticsQuote?: boolean;
 }
 
 export interface CreateProductResponse {

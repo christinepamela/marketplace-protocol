@@ -205,6 +205,11 @@ export type ProductStatus = 'draft' | 'active' | 'inactive' | 'out_of_stock' | '
 export type ProductVisibility = 'public' | 'private' | 'unlisted';
 
 /**
+ * Incoterm (L12 — S32)
+ */
+export type IncotermType = 'EXW' | 'FOB' | 'DAP' | 'DDP';
+
+/**
  * Complete product listing
  */
 export interface Product {
@@ -229,7 +234,12 @@ export interface Product {
   // Status and visibility
   status: ProductStatus;
   visibility: ProductVisibility;
-  
+
+  // Logistics compliance (L12 — S32) — top-level, mirrors `products` table columns
+  incoterm?: IncotermType;
+  hsCode?: string;
+  requireLogisticsQuote?: boolean;
+
   // Metadata
   createdAt: Date;
   updatedAt: Date;
@@ -410,6 +420,9 @@ export interface CreateProductRequest {
   pricing: ProductPricing;
   logistics: LogisticsInfo;
   visibility?: ProductVisibility;
+  incoterm?: IncotermType;
+  hsCode?: string;
+  requireLogisticsQuote?: boolean;
 }
 
 /**

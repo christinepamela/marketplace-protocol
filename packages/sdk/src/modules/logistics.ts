@@ -50,6 +50,21 @@ export interface UpdateTrackingRequest {
   notes?: string;
 }
 
+export interface CreateQuoteRequestRequest {
+  product_id: string;
+  origin_country: string;
+  destination_country?: string; // omit = broadcast to any destination the pool serves (L12 — S32)
+  weight_kg: number;
+  dimensions_cm: {
+    length: number;
+    width: number;
+    height: number;
+  };
+  incoterm: 'EXW' | 'FOB' | 'DAP' | 'DDP';
+  hs_code?: string;
+  insurance_required?: boolean;
+}
+
 // ============================================================================
 // LOGISTICS MODULE
 // ============================================================================
@@ -216,6 +231,25 @@ export class LogisticsModule {
     max_weight_kg?: number;
   }): Promise<any[]> {
     return this.http.get('/logistics/opportunities', filters);
+  }
+
+  /**
+   * Broadcast a request for logistics quotes on a product (L12 — S32)
+   * KYC sellers only. Creates an open quote_requests row visible to matching
+   * logistics providers. Omitting destination_country broadcasts to any
+   * provider serving the given origin, regardless of destination.
+   *
+   * @example
+   * await sdk.logistics.requestQuote({
+   *   product_id: 'product-uuid',
+   *   origin_country: 'MY',
+   *   weight_kg: 2,
+   *   dimensions_cm: { length: 30, width: 30, height: 15 },
+   *   incoterm: 'DAP'
+   * });
+   */
+  async requestQuote(request: CreateQuoteRequestRequest): Promise<any> {
+    return this.http.post('/logistics/quote-requests', request);
   }
 
   // =========================================================================

@@ -117,6 +117,7 @@ export type PrimaryCategory = 'footwear' | 'bags' | 'textiles' | 'electronics' |
 export type CurrencyCode = 'USD' | 'EUR' | 'GBP' | 'MYR' | 'SGD' | 'AUD' | 'BTC';
 export type ProductStatus = 'draft' | 'active' | 'inactive' | 'out_of_stock' | 'discontinued';
 export type ProductVisibility = 'public' | 'private' | 'unlisted';
+export type IncotermType = 'EXW' | 'FOB' | 'DAP' | 'DDP';
 
 export interface Category {
   primary: PrimaryCategory;
@@ -188,6 +189,10 @@ export interface Product {
     inquiries: number;
     orders: number;
   };
+  // L12 (S32) — top-level fields, mirror `products` table columns, NOT nested in `logistics` JSONB
+  incoterm?: IncotermType;
+  hsCode?: string;
+  requireLogisticsQuote?: boolean;
 }
 
 export interface SearchQuery {

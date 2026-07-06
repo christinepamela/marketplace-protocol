@@ -8,6 +8,7 @@ import { getProduct, getVendorReputation, getVendorIdentity } from '@/lib/api/pr
 import ProductImage from '@/components/products/ProductImage'
 import VendorBadge from '@/components/products/VendorBadge'
 import { formatPrice, formatWeight, formatDimensions } from '@/lib/utils/formatters'
+import { getIncotermExplanation } from '@/lib/utils/incoterms'
 import { ShoppingCart, Package, Truck, Shield, ArrowLeft } from 'lucide-react'
 
 export default function ProductDetailPage() {
@@ -77,7 +78,7 @@ export default function ProductDetailPage() {
     )
   }
 
-  const { basic, pricing, logistics, category, advanced } = product
+  const { basic, pricing, logistics, category, advanced, incoterm } = product
   const images = [basic.images.primary, ...(basic.images.gallery || [])]
 
   return (
@@ -227,6 +228,11 @@ export default function ProductDetailPage() {
               {logistics.leadTime} days lead time<br />
               {formatWeight(logistics.weight.value, logistics.weight.unit)}
             </p>
+            {incoterm && (
+              <p className="text-sm text-warm-gray mt-2 italic">
+                {getIncotermExplanation(incoterm)}
+              </p>
+            )}
           </div>
 
           {/* Quality */}

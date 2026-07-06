@@ -62,6 +62,10 @@ type FormData = {
     originCountry: string
     leadTime: number
   }
+  // Logistics compliance (L12 — S32)
+  incoterm: 'EXW' | 'FOB' | 'DAP' | 'DDP'
+  hsCode: string
+  requireLogisticsQuote: boolean
   // Status
   status: 'draft' | 'active' | 'inactive'
   visibility: 'public' | 'private' | 'unlisted'
@@ -111,6 +115,9 @@ const INITIAL_FORM_DATA: FormData = {
     originCountry: '',
     leadTime: 7
   },
+  incoterm: 'DAP',
+  hsCode: '',
+  requireLogisticsQuote: false,
   status: 'draft',
   visibility: 'public'
 }
@@ -145,11 +152,14 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
           keywords: product.advanced.keywords || [],
           attributes: product.advanced.attributes || {}
         },
-        pricing: product.pricing,
+       pricing: product.pricing,
         logistics: product.logistics,
+        incoterm: product.incoterm || 'DAP',
+        hsCode: product.hsCode || '',
+        requireLogisticsQuote: product.requireLogisticsQuote || false,
         status: product.status,
         visibility: product.visibility
-      })
+      }) 
     }
   }, [mode, product])
 
@@ -242,19 +252,48 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
             height: Number(formData.logistics.dimensions.height) || 0   // ✅ ADDED
           }
         },
+        incoterm: formData.incoterm,
+        hsCode: formData.hsCode || undefined,
+        requireLogisticsQuote: formData.requireLogisticsQuote,
         status: saveAs,
         visibility: formData.visibility
       }
 
+      let publishedProductId: string | null = null
+
       if (mode === 'create') {
         const result = await sdk.catalog.create(productData)
+        publishedProductId = result.productId
         alert('Product created successfully!')
-        router.push('/vendor/products')
       } else if (mode === 'edit' && product) {
         await sdk.catalog.update(product.id, productData)
+        publishedProductId = product.id
         alert('Product updated successfully!')
-        router.push('/vendor/products')
       }
+
+      // L12 (S32): KYC sellers publishing (not saving as draft) auto-broadcast
+      // an RFQ so logistics providers can start quoting. Best-effort — a
+      // broadcast failure shouldn't block the product from being published.
+      if (saveAs === 'active' && user.identity.type === 'kyc' && publishedProductId) {
+        try {
+          await sdk.logistics.requestQuote({
+            product_id: publishedProductId,
+            origin_country: formData.logistics.originCountry,
+            weight_kg: Number(formData.logistics.weight.value) || 0,
+            dimensions_cm: {
+              length: Number(formData.logistics.dimensions.length) || 0,
+              width: Number(formData.logistics.dimensions.width) || 0,
+              height: Number(formData.logistics.dimensions.height) || 0
+            },
+            incoterm: formData.incoterm,
+            hs_code: formData.hsCode || undefined
+          })
+        } catch (rfqError) {
+          console.error('Failed to broadcast logistics RFQ:', rfqError)
+        }
+      }
+
+      router.push('/vendor/products')
     } catch (error: any) {
       console.error('Failed to save product:', error)
       alert(error.message || 'Failed to save product. Please try again.')
@@ -708,6 +747,67 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
               )}
             </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-soft-black mb-2">
+                Incoterm <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.incoterm}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  incoterm: e.target.value as FormData['incoterm']
+                }))}
+                className="input w-full"
+              >
+                <option value="DAP">DAP — you ship, buyer pays import duties on arrival</option>
+                <option value="DDP">DDP — you cover shipping and all duties, buyer pays nothing extra</option>
+                <option value="FOB">FOB — you deliver to your local port, buyer arranges the rest</option>
+                <option value="EXW">EXW — buyer arranges everything from your door</option>
+              </select>
+              <p className="text-xs text-warm-gray mt-1">
+                Determines who pays shipping and import duties, and where your responsibility ends.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-soft-black mb-2">
+                HS Code (optional)
+              </label>
+              <input
+                type="text"
+                value={formData.hsCode}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  hsCode: e.target.value
+                }))}
+                placeholder="e.g., 6403.99"
+                className="input w-full"
+              />
+              <p className="text-xs text-warm-gray mt-1">
+                Customs classification code. Speeds up international clearance if known.
+              </p>
+            </div>
+          </div>
+
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formData.requireLogisticsQuote}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                requireLogisticsQuote: e.target.checked
+              }))}
+              className="w-4 h-4 mt-0.5"
+            />
+            <div>
+              <p className="text-sm font-medium text-soft-black">Require buyers to select a logistics quote at checkout</p>
+              <p className="text-xs text-warm-gray">
+                Turn this on once you have logistics quotes attached to this product. Buyers won't be able to check out without picking one or explicitly arranging their own shipping.
+              </p>
+            </div>
+          </label>
         </div>
       </section>
 
