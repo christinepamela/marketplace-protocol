@@ -223,8 +223,7 @@ Currently the cart and logistics quote use ad-hoc currency fields and assume USD
 When payment is received:
 
 ```
-buyer pays = product_subtotal + logistics_cost + (0.005 * product_subtotal) + (0.005 * logistics_cost)
-           = product portion + logistics portion + service fee
+buyer pays = product_subtotal + logistics_cost
 ```
 
 Escrow holds the full amount. On delivery confirmation:
@@ -232,12 +231,12 @@ Escrow holds the full amount. On delivery confirmation:
 - Seller receives `product_subtotal - (0.005 * product_subtotal) - (marketplace_fee_if_any)`
 - Logistics provider receives `logistics_cost - (0.005 * logistics_cost)`
 - Protocol receives `0.005 * (product_subtotal + logistics_cost)`
-- Marketplace receives whatever they configured for their seller fee
+- Marketplace receives whatever they configured for their seller fee. No fee is added to the buyer's total. The 0.5%+0.5% is deducted from the seller's and logistics provider's payouts at escrow release only.
 
 For Stripe: split via Stripe Connect transfers at delivery confirmation.
 For BTC: marketplace's payment router handles the split using PSBTs or routed Lightning payments.
 
-The current implementation doesn't split — vendor gets product money and logistics gets nothing. **This is the most important fix needed.** See `TECH_DEBT.md`.
+`executeSplitPayoutBTC()` (S31) implements this for BTC — single PSBT, both outputs, 0.5% deducted from each side. Stripe Connect split still pending. See `TECH_DEBT.md` L10.
 
 ---
 
