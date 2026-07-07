@@ -1,6 +1,6 @@
 # Tech Debt
 
-**Last updated:** 2026-07-03 (Session 31)
+**Last updated:** 2026-07-03 (Session 32)
 **Maintained by:** the team, updated each session
 **Companion docs:** `LOGISTICS_ARCHITECTURE.md`
 
@@ -49,8 +49,8 @@ TIER 2 — Backend API (✅ Complete S31)
 - L11. ✅ S32. Path B2 implemented. `products.require_logistics_quote` (boolean, default false) and `orders.own_logistics` (boolean, default false) added via migration. `order.service.ts` `createOrder()` blocks order creation if any cart item's product requires a quote and neither `logisticsQuoteId` nor `ownLogistics` is set. Checkout has "I'll arrange my own logistics" checkbox wired through `createOrdersFromCart()` → `createOrderFromCart()` → SDK → API → service. Tested S32: gate blocks with correct product name in error, opt-out checkbox correctly sets own_logistics=true, regression checkout (no gate) unaffected.
 
 TIER 3 — Frontend (❌ Not started — Session 31+)
-- L12. 🔄 S32 in progress. Option A chosen (see R21 for deferred Option B). Frontend done: `incoterm` (required, default DAP), `hsCode` (optional), `requireLogisticsQuote` (seller-toggled checkbox) added to `packages/sdk/src/types.ts`, `catalog.ts` SDK module, and `ProductForm.tsx`. Migration: `products.hs_code` column added. Buyer-facing plain-language Incoterm explanations added (`lib/utils/incoterms.ts`), wired into product detail page. **Not yet done:** backend persistence unconfirmed — haven't seen the product-creation route/service that handles `POST /catalog/products`, so `incoterm`/`hsCode`/`requireLogisticsQuote` may not actually save to the DB yet. RFQ auto-broadcast on publish also not wired — needs the logistics quote-request route or SDK method. Both required before this can be marked done.
-- L13. Seller: quote review UI on product page — accept one or more quotes, each becomes a buyer-visible shipping option.
+- L12. ✅ S32. Done, tested, pushed. `incoterm`, `hsCode`, `requireLogisticsQuote` added end-to-end: SDK types (`packages/sdk/src/types.ts`, `catalog.ts`), core types (`src/core/layer1-catalog/types.ts`), backend persistence (`product.service.ts`, `catalog.routes.ts` Zod schemas — this was the actual root cause of non-persistence, Zod was silently stripping the fields), `ProductForm.tsx` UI, migration (`products.hs_code`). RFQ auto-broadcast on publish wired via new `sdk.logistics.requestQuote()`, fires for KYC sellers only. Destination-country made optional on the RFQ broadcast (global "any destination" broadcast, matching Shopify-style shipping profiles rather than requiring a pinned destination at publish time) — required a DB-level constraint fix too (`quote_requests.destination_country` had `NOT NULL` even after the Zod schema was relaxed). All 7 test steps passed; opportunities-matching specifically logic-verified only, not empirically confirmed live (see D21).
+- L13. ✅ S32. Done, tested, pushed. Seller-facing quote review page at `app/vendor/products/[id]/quotes/page.tsx` — lists pending/accepted quotes with provider name, rating, price, days, insurance; Accept button calls `acceptQuote()`. Backend: new `GET /logistics/quotes/product/:productId` endpoint + `getQuotesWithProvidersForProduct()` service method; closed the pre-existing `// TODO: Add ownership check` gap on `POST /quotes/:id/accept` — now verifies the accepting user owns the product (product quotes) or is buyer/vendor on the order (order quotes) before allowing accept. Tested via direct SQL-inserted quote (BitHaul → "custom" product, $15 USD) since the logistics-marketplace's own quote-submission UI is blocked by pre-existing bugs (B5, B15) — accept correctly moved the quote to accepted status in the DB and the UI.
 - L14. Product page: buyer sees logistics options as line items — provider name, price, days, Incoterm in plain language ("Door to door, you pay import duties on arrival" for DAP; "Fully delivered, all duties included" for DDP).
 - L15. Checkout: product subtotal + chosen logistics line. "Change shipping" link opens pool browser. "I'll arrange my own logistics" option (Path B2). Total = product + logistics only, no added fee line.
 - L16. Logistics-marketplace: opportunities dashboard reads `quote_requests`, not raw orders.
@@ -65,7 +65,7 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 - Multiple quotes per product allowed (competitive — multiple logistics providers can quote same product)
 - Currency for v1: USD. D6 (currency layer) stays deferred. Bitcoin escrow splits into two BTC transactions. Lightspark/Strike (R11) investigated offline by Pam — check Malaysia availability before Session 31.
 
-**Priority:** Highest. L11 done S32. Next: L12 (product creation mandatory logistics step).
+**Priority:** Highest. L11, L12, L13 all done S32. Next: L14 (buyer-visible shipping options on product page).
 
 ### B2. Login flow is missing
 **Status:** ✅ Fixed S29. Real login page built. `POST /api/v1/identity/login` endpoint added. bcrypt password verification working. Vendors persist across sessions. 33-ghost-vendor problem resolved.
