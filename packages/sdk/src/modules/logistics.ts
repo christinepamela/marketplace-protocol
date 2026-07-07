@@ -234,6 +234,14 @@ export class LogisticsModule {
   }
 
   /**
+   * Get all quotes (pending + accepted) for a product, with provider details
+   * Seller-facing, product owner only (L13 — S32)
+   */
+  async getQuotesForProduct(productId: string): Promise<any[]> {
+    return this.http.get(`/logistics/quotes/product/${productId}`);
+  }
+
+  /**
    * Broadcast a request for logistics quotes on a product (L12 — S32)
    * KYC sellers only. Creates an open quote_requests row visible to matching
    * logistics providers. Omitting destination_country broadcasts to any

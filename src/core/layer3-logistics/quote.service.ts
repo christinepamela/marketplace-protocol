@@ -213,6 +213,31 @@ export class QuoteService {
   }
 
   /**
+   * Get quotes with provider details, scoped to a product (L13 — S32)
+   * Seller-facing: shows pending quotes to review/accept, plus the
+   * accepted one if already chosen. Unlike getQuotesWithProviders(orderId),
+   * this doesn't filter out expired pending quotes — the seller should see
+   * everything submitted, even stale offers, so they can decide.
+   */
+  async getQuotesWithProvidersForProduct(productId: string): Promise<QuoteWithProvider[]> {
+    const { data, error } = await this.supabase
+      .from('shipping_quotes')
+      .select(`
+        *,
+        provider:logistics_providers(*)
+      `)
+      .eq('product_id', productId)
+      .in('status', ['pending', 'accepted'])
+      .order('price_fiat', { ascending: true, nullsFirst: false });
+
+    if (error) {
+      throw new Error(`Failed to get quotes with providers: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
+  /**
    * Accept a quote
    * Automatically rejects all other quotes for the same order
    */

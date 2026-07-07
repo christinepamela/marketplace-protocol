@@ -74,6 +74,12 @@ export default function EditProductPage() {
           <p className="text-warm-gray">
             Update your product listing
           </p>
+          <Link
+            href={`/vendor/products/${productId}/quotes`}
+            className="inline-block mt-2 text-sm text-warm-taupe hover:text-soft-black transition-colors"
+          >
+            View logistics quotes →
+          </Link>
         </div>
 
         {/* Loading or Form */}

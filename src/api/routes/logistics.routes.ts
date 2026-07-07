@@ -353,9 +353,51 @@ router.get(
 );
 
 /**
+ * @route   GET /api/v1/logistics/quotes/product/:productId
+ * @desc    Get all quotes (pending + accepted) for a product, with provider details
+ * @access  Private (product owner only)
+ * L13 — S32
+ */
+router.get(
+  '/quotes/product/:productId',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const { productId } = req.params;
+      const userDid = getUserDid(req);
+
+      // Verify product belongs to seller
+      const { data: product, error: productError } = await req.supabase
+        .from('products')
+        .select('id, vendor_did')
+        .eq('id', productId)
+        .single();
+
+      if (productError || !product) {
+        throw new NotFoundError('Product not found');
+      }
+
+      if (product.vendor_did !== userDid) {
+        throw new ApiError(ErrorCode.FORBIDDEN, 'You can only view quotes for your own products');
+      }
+
+      const quoteService = new QuoteService(req.supabase);
+      const quotes = await quoteService.getQuotesWithProvidersForProduct(productId);
+
+      res.json({
+        success: true,
+        data: quotes
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * @route   POST /api/v1/logistics/quotes/:id/accept
  * @desc    Accept a quote
- * @access  Private (buyer or vendor)
+ * @access  Private (buyer/vendor for order quotes, product owner for product quotes)
  */
 router.post(
   '/quotes/:id/accept',
@@ -363,9 +405,44 @@ router.post(
   async (req, res, next) => {
     try {
       const { id } = req.params;
+      const userDid = getUserDid(req);
       const quoteService = new QuoteService(req.supabase);
 
-      // TODO: Add ownership check
+      // Ownership check (L13 — S32): fetch the quote first to know whether
+      // it's product- or order-scoped, then verify the caller owns that
+      // product or order before allowing the accept to proceed.
+      const existingQuote = await quoteService.getQuote(id);
+
+      if (existingQuote.product_id) {
+        const { data: product, error: productError } = await req.supabase
+          .from('products')
+          .select('vendor_did')
+          .eq('id', existingQuote.product_id)
+          .single();
+
+        if (productError || !product) {
+          throw new NotFoundError('Product not found');
+        }
+
+        if (product.vendor_did !== userDid) {
+          throw new ApiError(ErrorCode.FORBIDDEN, 'You can only accept quotes for your own products');
+        }
+      } else if (existingQuote.order_id) {
+        const { data: order, error: orderError } = await req.supabase
+          .from('orders')
+          .select('buyer_did, vendor_did')
+          .eq('id', existingQuote.order_id)
+          .single();
+
+        if (orderError || !order) {
+          throw new NotFoundError('Order not found');
+        }
+
+        if (order.buyer_did !== userDid && order.vendor_did !== userDid) {
+          throw new ApiError(ErrorCode.FORBIDDEN, 'You can only accept quotes for your own orders');
+        }
+      }
+
       const quote = await quoteService.acceptQuote(id);
 
       res.json({
