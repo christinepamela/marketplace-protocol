@@ -17,8 +17,10 @@ import type {
   CreateOrderRequest, 
   CreateOrderResponse,
   ShippingAddress,
-  PaymentMethod 
+  PaymentMethod,
+  Price
 } from '@rangkai/sdk'
+import { getAcceptedShippingQuote } from './products'
 
 // ============================================================================
 // ORDER CREATION
@@ -109,6 +111,67 @@ export async function createOrdersFromCart(
     console.error('Failed to create orders from cart:', error)
     throw error
   }
+}
+
+// ============================================================================
+// SHIPPING SUMMARY (L15 v1 — S33)
+// ============================================================================
+
+export interface VendorShippingSummary {
+  status: 'none' | 'firm' | 'estimated'
+  cost: Price | null
+  quoteCount: number
+}
+
+/**
+ * Fetch and summarize shipping cost per vendor for a cart (L15 v1 — S33)
+ * - 0 accepted quotes among a vendor's products -> status 'none', cost null
+ * - 1 accepted quote -> status matches that quote's own firm/estimated state
+ * - 2+ accepted quotes -> forced 'estimated' (summed as a ballpark; see R23
+ *   for the future consolidated-quote request that would replace this)
+ *
+ * Note: only price_fiat is summed for now. A quote priced only in price_sats
+ * (BTC) can't be added to a fiat total without a conversion step we don't have
+ * yet, so it's silently excluded from the sum. Fine for v1 since all test data
+ * is USD — revisit before Bitcoin-priced quotes are real (see D6, currency layer).
+ */
+export async function getShippingSummaryByVendor(
+  cart: Cart
+): Promise<Record<string, VendorShippingSummary>> {
+  const vendorGroups = groupCartByVendor(cart)
+  const summaries: Record<string, VendorShippingSummary> = {}
+
+  await Promise.all(
+    Object.entries(vendorGroups).map(async ([vendorDid, items]) => {
+      const uniqueProductIds = Array.from(new Set(items.map(i => i.productId)))
+      const quotes = await Promise.all(
+        uniqueProductIds.map(id => getAcceptedShippingQuote(id))
+      )
+      const acceptedQuotes = quotes.filter(
+        (q): q is NonNullable<typeof q> => q !== null && q.price_fiat != null
+      )
+
+      if (acceptedQuotes.length === 0) {
+        summaries[vendorDid] = { status: 'none', cost: null, quoteCount: 0 }
+      } else if (acceptedQuotes.length === 1) {
+        const q = acceptedQuotes[0]
+        summaries[vendorDid] = {
+          status: q.priceStatus,
+          cost: { amount: q.price_fiat, currency: q.currency || 'USD' },
+          quoteCount: 1
+        }
+      } else {
+        const total = acceptedQuotes.reduce((sum, q) => sum + q.price_fiat, 0)
+        summaries[vendorDid] = {
+          status: 'estimated',
+          cost: { amount: total, currency: acceptedQuotes[0].currency || 'USD' },
+          quoteCount: acceptedQuotes.length
+        }
+      }
+    })
+  )
+
+  return summaries
 }
 
 // ============================================================================

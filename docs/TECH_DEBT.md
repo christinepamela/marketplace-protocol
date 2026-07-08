@@ -335,6 +335,12 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 **Fix:** Set `outDir` to a path scoped inside `packages/` (e.g. `packages/dist`) so build artifacts don't leak into the repo root, where they could accidentally get committed or confused with `packages/sdk`'s separate `dist/`.
 **Priority:** Low. Cosmetic/organizational, not causing any functional issue currently.
 
+### D27. Master architecture docs are ~10 months stale, predate the Nostr decision
+**What:** `docs/ARCHITECTURE.md`, `docs/whitepaper/WHITEPAPER.md`, and the `docs/specs/LAYER0–6` files haven't been updated in ~10 months — since before the decision to use Nostr as transport (see `docs/NOSTR_ARCHITECTURE_RATIONALE.md`, which *is* current, S29). They don't reflect the actual current schema, terminology (still say "vendor" in places, not "seller"), fee model, or any of L1–L16's real implementation. Pam: "we get smarter as we go" — these docs describe an earlier, less-informed version of the design.
+**Where:** `docs/ARCHITECTURE.md`, `docs/whitepaper/WHITEPAPER.md`, `docs/specs/LAYER0_IDENTITY_AND_REPUTATION.md` through `LAYER6_GOVERNANCE.md`, `docs/specs/REF_CLIENT.md`, `docs/PROJECT_STRUCTURE.md`, `docs/diagrams/protocol-architecture.mmd`, `docs/diagrams/transaction-flow.mmd`.
+**Fix:** Not yet scoped — open question whether this becomes one consolidated whitepaper + architecture doc (specs folded in) or stays as separate whitepaper/architecture/specs. Deliberately not decided tonight, per Pam (S33), to avoid scope creep mid-L15. Revisit as its own session once L15/L16 ship — same "explicitly deferred" pattern as L17's `LOGISTICS_ARCHITECTURE.md` consolidation was for L16.
+**Priority:** Medium. Not blocking any current build work, but the drift is compounding — every session since S29 has been adding real decisions (fee model, terminology, Nostr rationale, this session's consolidation-vs-hub principle) that these master docs don't capture.
+
 ---
 
 ## 🟢 Roadmap / not v1
@@ -426,6 +432,18 @@ Originally proposed S28. Rejected in favour of single KYC-mandatory tier. Docume
 **Where:** `rangkai-marketplace/app/products/[id]/page.tsx`
 **Fix:** TBD whether L15 (checkout) implicitly covers this or it needs its own pass — check when L15 is scoped.
 **Priority:** Not yet triaged — revisit at L15 scoping.
+
+### R23. Consolidated order-level RFQ for multi-product carts (bulk logistics quote)
+**What:** When a buyer's cart has 2+ products from the same vendor, each with its own accepted product-level quote (summed as "estimated" per L15 v1), the buyer can opt to request one consolidated quote for the whole bundle instead. Deliberately not a centralized consolidation-warehouse model — stays inside the decentralized logistics pool, broadcasting a bundled RFQ the same way L12 broadcasts single-product RFQs, just scoped to multiple products/one order.
+
+**Algorithm (Pam, S33):**
+1. Adding products to cart never silently invalidates an already-accepted per-product quote — it stays intact and usable as-is.
+2. At 2+ products from one vendor, show a note offering to request a bulk quote. Opt-in only.
+3. Once requested, the existing individual quote(s) are **blocked from completing purchase** — this is a one-way, deliberate action with a real consequence, not a free preview. Checkout stays blocked until a bulk quote comes back and is accepted.
+4. UI copy must make the lockout consequence clear before the buyer confirms the request, so no one gets stuck waiting by accident.
+
+**Where:** New backend — order/cart-level RFQ broadcast (variant of L12's `POST /logistics/quote-requests`, currently product-scoped only, needs a bundle-scoped sibling). New frontend — checkout note, request action, purchase-block state tied to request status.
+**Priority:** Deferred. Real second feature, scope properly after L15 v1 ships.
 
 ---
 

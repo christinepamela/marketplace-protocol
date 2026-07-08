@@ -374,7 +374,7 @@ function CheckoutPageContent() {
           {/* Order Summary */}
           <div className="lg:col-span-1">
             <div className="sticky top-8">
-              <CartSummary cart={cart} showVendorBreakdown={true} />
+              <CartSummary cart={cart} showVendorBreakdown={true} ownLogistics={ownLogistics} />
               
               <button
                 type="submit"
