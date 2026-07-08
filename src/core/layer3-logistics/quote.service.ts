@@ -249,6 +249,11 @@ export class QuoteService {
   async getAcceptedQuoteForProduct(
     productId: string
   ): Promise<(QuoteWithProvider & { priceStatus: 'firm' | 'estimated' }) | null> {
+    // Uses limit(1) + newest-first rather than maybeSingle(): the app's own
+    // acceptQuote() flow enforces at most one accepted quote per product, but
+    // raw SQL test-data inserts can (and did, S33) violate that invariant.
+    // Degrade gracefully to "use the newest" rather than 500ing — see D29 for
+    // the real fix (a DB-level constraint that makes this state impossible).
     const { data, error } = await this.supabase
       .from('shipping_quotes')
       .select(`
@@ -257,18 +262,20 @@ export class QuoteService {
       `)
       .eq('product_id', productId)
       .eq('status', 'accepted')
-      .maybeSingle();
+      .order('created_at', { ascending: false })
+      .limit(1);
 
     if (error) {
       throw new Error(`Failed to get accepted quote: ${error.message}`);
     }
 
-    if (!data) return null;
+    if (!data || data.length === 0) return null;
 
+    const quote = data[0];
     const priceStatus: 'firm' | 'estimated' =
-      new Date(data.valid_until) < new Date() ? 'estimated' : 'firm';
+      new Date(quote.valid_until) < new Date() ? 'estimated' : 'firm';
 
-    return { ...data, priceStatus };
+    return { ...quote, priceStatus };
   }
 
   /**

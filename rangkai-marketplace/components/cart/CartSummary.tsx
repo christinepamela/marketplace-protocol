@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { Cart, CartItem } from '@/lib/stores/cart'
 import { formatPrice } from '@/lib/utils/formatters'
-import { groupCartByVendor, calculateVendorTotal } from '@/lib/stores/cart'
+import { groupCartByVendor } from '@/lib/stores/cart'
 import { getShippingSummaryByVendor, type VendorShippingSummary } from '@/lib/api/cart'
 
 interface CartSummaryProps {
@@ -14,20 +14,18 @@ interface CartSummaryProps {
 
 /**
  * Cart summary component
- * Shows price breakdown and totals
+ * Shows price breakdown and totals, grouped per vendor: name, item lines,
+ * shipping — all together (L15 v1 restructure — S33, per Pam's request after
+ * multi-vendor testing showed disjointed vendor/item/shipping blocks).
  */
 export default function CartSummary({ 
   cart, 
   showVendorBreakdown = false,
   ownLogistics = false
 }: CartSummaryProps) {
-  // Group items by vendor — needed for shipping lookup regardless of
-  // showVendorBreakdown, since shipping cost always depends on vendor (L15 v1 — S33)
   const vendorGroups = groupCartByVendor(cart)
   const hasMultipleVendors = Object.keys(vendorGroups).length > 1
 
-  // Shipping (L15 v1 — S33): fetch each vendor's accepted quote(s) and
-  // summarize into a per-vendor firm/estimated cost, or 'none' if no quote yet.
   const [shippingSummaries, setShippingSummaries] = useState<Record<string, VendorShippingSummary>>({})
   const [shippingLoading, setShippingLoading] = useState(true)
 
@@ -43,8 +41,6 @@ export default function CartSummary({
     return () => { cancelled = true }
   }, [cart])
 
-  // When the buyer opts to arrange their own logistics (L11), the seller's
-  // shipping quote is irrelevant to their total — they're not paying it (L15 v1 — S33)
   const shippingEntries = Object.entries(shippingSummaries)
   const allQuotesResolved = !shippingLoading && shippingEntries.length > 0 &&
     shippingEntries.every(([, s]) => s.status !== 'none')
@@ -55,73 +51,51 @@ export default function CartSummary({
     ? cart.subtotal.amount
     : cart.subtotal.amount + (allQuotesResolved ? totalShippingAmount : 0)
 
+  // D30 workaround: cart items currently carry a hardcoded "Vendor" placeholder
+  // name (see lib/stores/cart.ts addToCart()) — real fix is blocked on B17.
+  // Fall back to a DID-suffix label so vendors are at least distinguishable.
+  function vendorLabel(vendorDid: string, items: CartItem[]): string {
+    const name = items[0]?.vendorName
+    if (name && name !== 'Vendor') return name
+    return `Vendor (…${vendorDid.slice(-6)})`
+  }
+
   return (
     <div className="bg-light-cream p-6 space-y-4">
       <h2 className="text-lg font-medium text-soft-black">
         Order Summary
       </h2>
 
-      {/* Vendor breakdown (if multiple vendors) */}
-      {showVendorBreakdown && hasMultipleVendors && (
-        <div className="space-y-3 pb-4 border-b border-barely-beige">
-          <p className="text-sm font-medium text-soft-black">
-            Items by Vendor
-          </p>
+      {showVendorBreakdown ? (
+        <div className="space-y-4 pb-4 border-b border-barely-beige">
           {Object.entries(vendorGroups).map(([vendorDid, items]) => {
-            const vendorTotal = calculateVendorTotal(items)
-            const vendorName = items[0]?.vendorName || 'Unknown Vendor'
-            
+            const summary = shippingSummaries[vendorDid]
             return (
-              <div key={vendorDid} className="flex justify-between text-sm">
-                <span className="text-warm-gray">
-                  {vendorName} ({items.length} items)
-                </span>
-                <span className="text-soft-black">
-                  {formatPrice(vendorTotal)}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Item count */}
-      <div className="flex justify-between text-sm">
-        <span className="text-warm-gray">
-          Items ({cart.itemCount})
-        </span>
-        <span className="text-soft-black">
-          {formatPrice(cart.subtotal)}
-        </span>
-      </div>
-
-      {/* Shipping (L15 v1 — S33) — replaces the old static "Calculated at
-          checkout" placeholder now that L14's accepted-quote data exists.
-          Removed the stale "Protocol Fee (3%)" line here too — contradicted
-          the S30-confirmed fee model (D11): fee is skimmed from payouts at
-          escrow release, never shown to the buyer. */}
-      <div className="space-y-2">
-        {ownLogistics ? (
-          <div className="flex justify-between text-sm">
-            <span className="text-warm-gray">Shipping</span>
-            <span className="text-xs text-warm-gray">You're arranging this yourself</span>
-          </div>
-        ) : shippingLoading ? (
-          <div className="flex justify-between text-sm">
-            <span className="text-warm-gray">Shipping</span>
-            <span className="text-xs text-warm-gray">Checking shipping options…</span>
-          </div>
-        ) : hasMultipleVendors ? (
-          <>
-            <p className="text-sm font-medium text-soft-black">Shipping</p>
-            {Object.entries(vendorGroups).map(([vendorDid, items]) => {
-              const summary = shippingSummaries[vendorDid]
-              const vendorName = items[0]?.vendorName || 'Vendor'
-              return (
-                <div key={vendorDid} className="flex justify-between text-sm">
-                  <span className="text-warm-gray">{vendorName} shipping</span>
+              <div key={vendorDid} className="space-y-1">
+                <p className="text-sm font-medium text-soft-black">
+                  {vendorLabel(vendorDid, items)}
+                </p>
+                {items.map(item => (
+                  <div key={item.productId} className="flex justify-between text-sm pl-2">
+                    <span className="text-warm-gray">
+                      {item.quantity}x {item.productName}
+                    </span>
+                    <span className="text-soft-black">
+                      {formatPrice({
+                        amount: item.pricePerUnit.amount * item.quantity,
+                        currency: item.pricePerUnit.currency
+                      })}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-sm pl-2">
+                  <span className="text-warm-gray">Shipping</span>
                   <span className="text-soft-black">
-                    {!summary || summary.status === 'none' ? (
+                    {ownLogistics ? (
+                      <span className="text-xs text-warm-gray">You're arranging this</span>
+                    ) : shippingLoading ? (
+                      <span className="text-xs text-warm-gray">Checking…</span>
+                    ) : !summary || summary.status === 'none' ? (
                       <span className="text-xs text-warm-gray">Awaiting quote</span>
                     ) : (
                       <>
@@ -133,39 +107,22 @@ export default function CartSummary({
                     )}
                   </span>
                 </div>
-              )
-            })}
-          </>
-        ) : (
-          (() => {
-            const [vendorDid] = Object.keys(vendorGroups)
-            const summary = shippingSummaries[vendorDid]
-            return (
-              <div className="flex justify-between text-sm">
-                <span className="text-warm-gray">Shipping</span>
-                <span className="text-soft-black">
-                  {!summary || summary.status === 'none' ? (
-                    <span className="text-xs text-warm-gray">Awaiting quote</span>
-                  ) : (
-                    <>
-                      {formatPrice(summary.cost!)}
-                      {summary.status === 'estimated' && (
-                        <span className="text-xs text-warm-gray italic ml-1">(estimated)</span>
-                      )}
-                    </>
-                  )}
-                </span>
               </div>
             )
-          })()
-        )}
-      </div>
+          })}
+        </div>
+      ) : (
+        <div className="flex justify-between text-sm">
+          <span className="text-warm-gray">Items ({cart.itemCount})</span>
+          <span className="text-soft-black">{formatPrice(cart.subtotal)}</span>
+        </div>
+      )}
 
       {/* Total */}
       <div className="pt-4 border-t border-barely-beige">
         <div className="flex justify-between">
           <span className="text-lg font-medium text-soft-black">
-            {allQuotesResolved ? 'Total' : 'Subtotal'}
+            {allQuotesResolved || ownLogistics ? 'Total' : 'Subtotal'}
           </span>
           <span className="text-lg font-medium text-soft-black">
             {formatPrice({ amount: grandTotal, currency: shippingCurrency })}
