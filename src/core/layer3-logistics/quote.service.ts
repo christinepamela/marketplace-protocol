@@ -1,5 +1,5 @@
 // Layer 3: Logistics Coordination - Quote Service
-// Path: src/services/quote.service.ts
+// Path: src/core/layer3-logistics/quote.service.ts
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import {
@@ -47,7 +47,8 @@ export class QuoteService {
     // In a real implementation, you might store the quote request
     // in a separate table and notify providers via webhook/event
     // For now, we just return the order ID for providers to respond to
-    return request.order_id;
+    // (order was confirmed to exist above, so this is safe)
+    return request.order_id!;
   }
 
   /**
@@ -235,6 +236,39 @@ export class QuoteService {
     }
 
     return data || [];
+  }
+
+  /**
+   * Get the accepted shipping quote for a product, buyer-facing (L14 — S33).
+   * Returns only the accepted quote — never pending ones, so competing
+   * provider bids stay seller-only (see L13's ownership-gated endpoint for those).
+   * priceStatus is computed here, not stored: 'firm' while valid_until is in
+   * the future, 'estimated' once it's passed — seller still bears the gap if
+   * the real logistics cost differs at fulfillment (see D23, D24).
+   */
+  async getAcceptedQuoteForProduct(
+    productId: string
+  ): Promise<(QuoteWithProvider & { priceStatus: 'firm' | 'estimated' }) | null> {
+    const { data, error } = await this.supabase
+      .from('shipping_quotes')
+      .select(`
+        *,
+        provider:logistics_providers(*)
+      `)
+      .eq('product_id', productId)
+      .eq('status', 'accepted')
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to get accepted quote: ${error.message}`);
+    }
+
+    if (!data) return null;
+
+    const priceStatus: 'firm' | 'estimated' =
+      new Date(data.valid_until) < new Date() ? 'estimated' : 'firm';
+
+    return { ...data, priceStatus };
   }
 
   /**

@@ -242,6 +242,14 @@ export class LogisticsModule {
   }
 
   /**
+   * Get the accepted shipping quote for a product, buyer-facing (L14 — S33)
+   * Public endpoint. Returns null if no quote has been accepted yet.
+   */
+  async getAcceptedQuoteForProduct(productId: string): Promise<any | null> {
+    return this.http.get(`/logistics/quotes/product/${productId}/accepted`);
+  }
+
+  /**
    * Broadcast a request for logistics quotes on a product (L12 — S32)
    * KYC sellers only. Creates an open quote_requests row visible to matching
    * logistics providers. Omitting destination_country broadcasts to any

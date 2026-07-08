@@ -395,6 +395,31 @@ router.get(
 );
 
 /**
+ * @route   GET /api/v1/logistics/quotes/product/:productId/accepted
+ * @desc    Get the accepted shipping quote for a product, if any
+ * @access  Public — buyer-facing (L14, S33). Deliberately narrower than the
+ *          seller-only route above: returns only the accepted quote, never
+ *          pending bids from competing providers.
+ */
+router.get(
+  '/quotes/product/:productId/accepted',
+  async (req, res, next) => {
+    try {
+      const { productId } = req.params;
+      const quoteService = new QuoteService(req.supabase);
+      const quote = await quoteService.getAcceptedQuoteForProduct(productId);
+
+      res.json({
+        success: true,
+        data: quote
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * @route   POST /api/v1/logistics/quotes/:id/accept
  * @desc    Accept a quote
  * @access  Private (buyer/vendor for order quotes, product owner for product quotes)

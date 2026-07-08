@@ -1,6 +1,6 @@
 # Tech Debt
 
-**Last updated:** 2026-07-03 (Session 32)
+**Last updated:** 2026-07-08 (Session 33)
 **Maintained by:** the team, updated each session
 **Companion docs:** `LOGISTICS_ARCHITECTURE.md`
 
@@ -48,7 +48,7 @@ TIER 2 — Backend API (✅ Complete S31)
 - L10. ✅ S31. `executeSplitPayoutBTC()` added to `bitcoin.service.ts`. `POST /api/v1/bitcoin/split-payout` route added. Untested e2e — needs delivered order with confirmed BTC.
 - L11. ✅ S32. Path B2 implemented. `products.require_logistics_quote` (boolean, default false) and `orders.own_logistics` (boolean, default false) added via migration. `order.service.ts` `createOrder()` blocks order creation if any cart item's product requires a quote and neither `logisticsQuoteId` nor `ownLogistics` is set. Checkout has "I'll arrange my own logistics" checkbox wired through `createOrdersFromCart()` → `createOrderFromCart()` → SDK → API → service. Tested S32: gate blocks with correct product name in error, opt-out checkbox correctly sets own_logistics=true, regression checkout (no gate) unaffected.
 
-TIER 3 — Frontend (❌ Not started — Session 31+)
+TIER 3 — Frontend (🟡 In progress — L12/L13 done S32, L14 next)
 - L12. ✅ S32. Done, tested, pushed. `incoterm`, `hsCode`, `requireLogisticsQuote` added end-to-end: SDK types (`packages/sdk/src/types.ts`, `catalog.ts`), core types (`src/core/layer1-catalog/types.ts`), backend persistence (`product.service.ts`, `catalog.routes.ts` Zod schemas — this was the actual root cause of non-persistence, Zod was silently stripping the fields), `ProductForm.tsx` UI, migration (`products.hs_code`). RFQ auto-broadcast on publish wired via new `sdk.logistics.requestQuote()`, fires for KYC sellers only. Destination-country made optional on the RFQ broadcast (global "any destination" broadcast, matching Shopify-style shipping profiles rather than requiring a pinned destination at publish time) — required a DB-level constraint fix too (`quote_requests.destination_country` had `NOT NULL` even after the Zod schema was relaxed). All 7 test steps passed; opportunities-matching specifically logic-verified only, not empirically confirmed live (see D21).
 - L13. ✅ S32. Done, tested, pushed. Seller-facing quote review page at `app/vendor/products/[id]/quotes/page.tsx` — lists pending/accepted quotes with provider name, rating, price, days, insurance; Accept button calls `acceptQuote()`. Backend: new `GET /logistics/quotes/product/:productId` endpoint + `getQuotesWithProvidersForProduct()` service method; closed the pre-existing `// TODO: Add ownership check` gap on `POST /quotes/:id/accept` — now verifies the accepting user owns the product (product quotes) or is buyer/vendor on the order (order quotes) before allowing accept. Tested via direct SQL-inserted quote (BitHaul → "custom" product, $15 USD) since the logistics-marketplace's own quote-submission UI is blocked by pre-existing bugs (B5, B15) — accept correctly moved the quote to accepted status in the DB and the UI.
 - L14. Product page: buyer sees logistics options as line items — provider name, price, days, Incoterm in plain language ("Door to door, you pay import duties on arrival" for DAP; "Fully delivered, all duties included" for DDP).
@@ -147,6 +147,25 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 **Where:** `logistics-marketplace/app/opportunities/page.tsx`
 **Fix:** Full rewrite as part of L16 (opportunities dashboard reads `quote_requests`) — not a standalone patch, since L16 already covers rebuilding this page's data model end to end.
 **Priority:** Bundled into L16. Discovered S32 while testing L12's destination-optional fix; not caused by L12, but is why L12's opportunities-matching step could only be logic-verified rather than confirmed live (see note below).
+
+### B16. Buyer nav shows vendor-only items; no buyer purchase-history page
+**What:** Marketplace header nav (`Dashboard`, `My Products`) renders for all logged-in users, including buyers — these are vendor-facing. Buyers also have no page listing past purchases; an individual order detail page exists (B4, `app/orders/[id]/page.tsx`) but nothing lists or links to a buyer's order history.
+**Where:** Header/nav component (not yet identified), plus a new buyer order-history list page.
+**Fix:** (1) Role-based conditional rendering on nav items. (2) Build buyer order-history list, backed by whatever order-listing endpoint exists or needs adding.
+**Priority:** Medium. Buyer-facing usability gap, not blocking L14–L16.
+**Status:** Logged S33 (buyer session as Bitty Bit surfaced it). Deferred by agreement — not tonight's priority.
+
+### B17. Buyer product page silently swallows a broken `sdk.identity.getIdentity` call
+**What:** `getVendorIdentity()` in `products.ts` try/catches `sdk.identity.getIdentity()`, returning null on failure — which is why the page never visibly broke from this before. Console confirms: `TypeError: sdk.identity.getIdentity is not a function`. Given B18 below, unclear yet whether this is a D22-style missing method or a B18-style stale-build issue — needs re-checking once the build pipeline is unblocked, before assuming which.
+**Where:** `rangkai-marketplace/lib/api/products.ts` `getVendorIdentity()`; `packages/sdk/src/modules/identity.ts` (not yet viewed).
+**Fix:** Re-check after B18 is fixed and a clean build exists — if the method's still missing post-rebuild, it's a real D22-style gap; if it starts working, it was purely stale build.
+**Priority:** Low — degrades gracefully.
+
+### B18. `packages` build has been failing on pre-existing errors, silently stranding consuming apps on stale SDK code
+**What:** `npm run build` in `packages/` fails with 12 TypeScript errors across `identity.service.ts`, `quote.service.ts`, `dispute.service.ts`, and `stripe.adapter.ts` — none related to any session's active work, all pre-existing type drift. Because the build never completes, `dist/` never regenerates, so `rangkai-marketplace` (and likely `logistics-marketplace`) run against a stale compiled SDK. This is almost certainly why tonight's new `getAcceptedQuoteForProduct` method (confirmed present in source) doesn't exist at runtime.
+**Where:** `src/core/layer0-identity/identity.service.ts`, `src/core/layer3-logistics/quote.service.ts`, `src/core/layer4-trust/dispute.service.ts`, `src/infrastructure/payment/stripe.adapter.ts`.
+**Fix:** See patches below (S33) for the first three — narrow, non-behavioral type fixes. `stripe.adapter.ts` needs a decision (Stripe package version mismatch) before touching, since it's payment code.
+**Priority:** Highest — retroactively, this may have been silently capping every SDK-consuming feature since whenever these 12 errors were introduced. Worth establishing whether `npm run build` has ever succeeded, or a `postinstall`/CI check to catch this going forward.
 
 ---
 
@@ -286,6 +305,36 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 **Fix:** Once L16 rebuilds the opportunities page, confirm as a first sanity check that a null-destination quote_request actually appears for a provider whose routes specify a different destination than the request. If it doesn't, the bug is in the matching logic added this session (`src/api/routes/logistics.routes.ts`, the `/opportunities` route handler), not in the L16 rebuild itself.
 **Priority:** Low standalone — folded into L16's testing, not urgent on its own since the logic was reasoned through carefully and the code change was small and specific.
 
+### D22. SDK has two differently-named methods for "get one product" — one didn't exist
+**What:** `getById(productId)` is the real method on `CatalogModule` (`packages/sdk/src/modules/catalog.ts`). `getProduct(id)`, called from `rangkai-marketplace/lib/api/products.ts`, did not exist on the module at all — not an alias, a broken call. Confirmed live S33: buyer (Bitty Bit) hit `TypeError: sdk.catalog.getProduct is not a function` on every product-detail load, blocking checkout entirely.
+**Where:** `rangkai-marketplace/lib/api/products.ts` `getProduct()`.
+**Fix:** ✅ Fixed S33 — call site changed to `sdk.catalog.getById(id)`.
+**Priority:** Was Highest (blocking). Resolved.
+
+### D23. Seller notification: firm quote expired → auto-converted to estimated, seller bears price risk
+**What:** When an accepted firm quote's `valid_until` passes, L14 auto-relabels it "estimated" for buyer display (computed at query time from `valid_until`, no schema change). Per Pam (S33): the seller should also get a notice at that moment — both that the conversion happened, and that they now bear the gap between the stale number shown to the buyer and the real logistics cost at fulfillment. A note may be gentler/sufficient rather than a full notification, per Pam's own framing.
+**Where:** TBD — no notification system (email, in-app, or otherwise) has surfaced anywhere in the codebase so far.
+**Fix:** Depends on whether a notification system already exists. **Open question for Pam: does one exist that I haven't seen yet?** If not, this needs its own minimal system (even just a `notifications` table + unread badge) before this specific reminder can be built.
+**Priority:** Low-Medium. Doesn't block L14's display logic — the risk sits quietly on the seller's side either way — but worth not leaving open long, it's a trust issue.
+
+### D24. Seller self-declared "estimated" shipping quote at product upload
+**What:** S30 rules allow satisfying the mandatory pre-publish quote requirement with either a firm provider quote or a self-declared estimate. No mechanism exists for a seller to enter their own number — `submitQuote()` in `quote.service.ts` requires a real, registered `provider_id`, verified against `logistics_providers`. Per Pam (S33): this path should exist (gives sellers breathing room before they've gotten a real quote, or if they've simply forgotten to refresh one) but shouldn't be encouraged as the default, since a made-up number can be wrong in either direction — pair with a reminder nudge (see D23) rather than leaving it as a silent fallback.
+**Where:** `quote.service.ts` `submitQuote()`, product creation flow (`ProductForm.tsx`, per L12 notes).
+**Fix:** Needs a schema decision — likely nullable `provider_id` + an `is_seller_estimate` flag — plus a UI field on product creation, and copy that nudges toward getting a real quote rather than relying on the self-declared one.
+**Priority:** Medium. The mandatory-quote publish rule technically can't be satisfied by "estimated" in practice yet — only firm quotes exist as a real path. Worth resolving before R21 (hard-block publish) is revisited.
+
+### D25. `@rangkai/sdk` is installed as a physical copy, not a live link — `file:` dependency silently goes stale
+**What:** `rangkai-marketplace/package.json` declares `"@rangkai/sdk": "file:../packages/sdk"`, which is meant to behave like a live link (similar to `npm link`) so local SDK edits are picked up on rebuild. On this Windows setup, npm instead copied the package into `node_modules/@rangkai/sdk` as a real, physical directory (confirmed via `dir` showing `<DIR>` rather than `<SYMLINKD>`/`<JUNCTION>`). Every SDK edit since initial install (14/11/2025) was invisible to `rangkai-marketplace` — cost significant time S33 chasing what looked like a build failure but was actually a stale dependency snapshot.
+**Where:** `rangkai-marketplace/node_modules/@rangkai/sdk`, `rangkai-marketplace/package.json`.
+**Fix:** Short-term (done S33): delete the stale copy, `npm install` to force a fresh copy after any SDK change. Real fix: convert the repo to npm workspaces (root `package.json` with a `workspaces` field listing `packages/sdk`, `rangkai-marketplace`, `logistics-marketplace`) so npm creates a proper symlink and this class of bug can't recur. `logistics-marketplace` almost certainly has the identical issue — worth checking its `node_modules/@rangkai/sdk` the same way once this is confirmed fixed.
+**Priority:** Medium-High. Not urgent standalone, but every future SDK change will silently fail to reach the frontend the same way until this is fixed properly — worth doing before L15/L16 add more SDK methods.
+
+### D26. Backend package's `tsc` output lands at repo root, not inside `packages/`
+**What:** `packages/`'s `tsconfig.json` has `outDir` configured such that `npm run build` writes compiled output to `C:\Users\chris\marketplace-protocol\dist\` (repo root) rather than `packages/dist/`. Only noticed S33 because this was the first time that build succeeded all session (see B18) — first time `tsc` actually wrote anything. Purely a build-output location surprise, not a functional bug.
+**Where:** `packages/tsconfig.json` (`outDir` / `rootDir` settings — not yet viewed to confirm the exact misconfiguration).
+**Fix:** Set `outDir` to a path scoped inside `packages/` (e.g. `packages/dist`) so build artifacts don't leak into the repo root, where they could accidentally get committed or confused with `packages/sdk`'s separate `dist/`.
+**Priority:** Low. Cosmetic/organizational, not causing any functional issue currently.
+
 ---
 
 ## 🟢 Roadmap / not v1
@@ -371,6 +420,12 @@ Originally proposed S28. Rejected in favour of single KYC-mandatory tier. Docume
 **What:** S32 chose Option A for L12 (collect Incoterm/HS code, seller manually toggles `requireLogisticsQuote`). Option B is stricter: KYC sellers genuinely cannot publish until at least one quote (firm or estimated) exists for the product — turning "Publish" into a multi-step flow (draft → request quotes → wait/select → goes active). Deferred because it depends on L13 (quote review UI) existing first; building the hard gate before there's a UI to review quotes would strand sellers with drafts they can't act on.
 **Fix:** Revisit once L13 ships. Decide then whether to enforce.
 **Priority:** v1.1, after L13.
+
+### R22. Buyer product-detail page "Add to Cart" button is a non-functional placeholder
+**What:** Hardcoded `Add to Cart (Coming Soon)` with no click handler on `app/products/[id]/page.tsx`. The listing page's Add to Cart buttons are a separate, working code path. Surfaced S33 during L14 testing — not caused by tonight's work.
+**Where:** `rangkai-marketplace/app/products/[id]/page.tsx`
+**Fix:** TBD whether L15 (checkout) implicitly covers this or it needs its own pass — check when L15 is scoped.
+**Priority:** Not yet triaged — revisit at L15 scoping.
 
 ---
 

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import type { Product } from '@rangkai/sdk'
-import { getProduct, getVendorReputation, getVendorIdentity } from '@/lib/api/products'
+import { getProduct, getVendorReputation, getVendorIdentity, getAcceptedShippingQuote } from '@/lib/api/products'
 import ProductImage from '@/components/products/ProductImage'
 import VendorBadge from '@/components/products/VendorBadge'
 import { formatPrice, formatWeight, formatDimensions } from '@/lib/utils/formatters'
@@ -17,6 +17,7 @@ export default function ProductDetailPage() {
 
   const [product, setProduct] = useState<Product | null>(null)
   const [vendor, setVendor] = useState<any>(null)
+  const [shippingQuote, setShippingQuote] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState(0)
 
@@ -25,6 +26,9 @@ export default function ProductDetailPage() {
       try {
         const productData = await getProduct(productId)
         setProduct(productData)
+
+        // Non-blocking — a missing shipping quote shouldn't fail the whole page (L14 — S33)
+        getAcceptedShippingQuote(productId).then(setShippingQuote)
 
         // Load vendor info
         const [reputation, identity] = await Promise.all([
@@ -161,6 +165,31 @@ export default function ProductDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Shipping option (L14 — S33) */}
+          {shippingQuote && (
+            <div className="p-4 border border-barely-beige">
+              <div className="flex items-center gap-2 text-sm font-medium mb-1">
+                <Truck size={16} />
+                Shipping — {shippingQuote.provider.business_name}
+                {shippingQuote.priceStatus === 'estimated' && (
+                  <span className="text-xs font-normal text-warm-gray italic">(estimated)</span>
+                )}
+              </div>
+              <p className="text-lg font-medium text-soft-black">
+                {shippingQuote.price_fiat
+                  ? `$${shippingQuote.price_fiat.toFixed(2)} ${shippingQuote.currency}`
+                  : shippingQuote.price_sats
+                  ? `${shippingQuote.price_sats.toLocaleString()} sats`
+                  : 'Price not set'}
+              </p>
+              <p className="text-sm text-warm-gray">
+                {shippingQuote.estimated_days} days · {shippingQuote.method}
+                {shippingQuote.priceStatus === 'estimated' &&
+                  ' — price may change, seller will confirm before fulfillment'}
+              </p>
+            </div>
+          )}
 
           {/* Description */}
           <div>

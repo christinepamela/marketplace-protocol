@@ -51,11 +51,25 @@ function getMockSearchResults(): SearchResults {
  */
 export async function getProduct(id: string): Promise<Product> {
   try {
-    const product = await sdk.catalog.getProduct(id)
+    const product = await sdk.catalog.getById(id)
     return product
   } catch (error) {
     console.error('Failed to fetch product:', error)
     throw error
+  }
+}
+
+/**
+ * Get the accepted shipping quote for a product (L14 — S33)
+ * Returns null if no quote has been accepted yet — not an error state,
+ * the product may not have a logistics quote resolved.
+ */
+export async function getAcceptedShippingQuote(productId: string) {
+  try {
+    return await sdk.logistics.getAcceptedQuoteForProduct(productId)
+  } catch (error) {
+    console.error('Failed to fetch shipping quote:', error)
+    return null
   }
 }
 

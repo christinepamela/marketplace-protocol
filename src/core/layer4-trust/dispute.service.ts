@@ -145,7 +145,7 @@ export class DisputeService {
     const vendorResponse = (dispute.vendor_response || {}) as any;
 
     if (dispute.dispute_type === 'non_receipt') {
-      if (evidence.tracking_events?.length > 0) {
+      if (evidence.tracking_events && evidence.tracking_events.length > 0) {
         const hasDeliveryProof = evidence.tracking_events.some(
           (e: any) => e.status === 'delivered'
         );
@@ -161,7 +161,7 @@ export class DisputeService {
     }
 
     if (dispute.dispute_type === 'quality') {
-      const hasPhotos = evidence.photo_urls?.length > 0;
+      const hasPhotos = (evidence.photo_urls?.length ?? 0) > 0;
       const hasVendorCounterEvidence = vendorResponse.counter_evidence?.photo_urls?.length > 0;
 
       if (hasPhotos && !hasVendorCounterEvidence) {

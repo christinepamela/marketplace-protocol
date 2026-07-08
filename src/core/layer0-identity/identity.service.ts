@@ -49,7 +49,9 @@ export class IdentityService {
     }
 
     // Build identity object
-    const identity: Identity = {
+    // email/passwordHash aren't on the canonical Identity type yet — widened
+    // locally rather than editing the shared type blind (see B18).
+    const identity: Identity & { email?: string | null; passwordHash?: string | null } = {
       did,
       type: request.type,
       clientId: request.clientId,
