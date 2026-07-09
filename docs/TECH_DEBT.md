@@ -437,7 +437,19 @@ Considered and rejected for v1. Single KYC-mandatory tier with 0.5% fee. Documen
 **CLARIFICATION (see R20):** This is not a roadmap item — it's the goal of the entire project. R8 described federation as a feature to be added later. That framing is wrong. Every v1 design decision must preserve the federation path. The specific federation protocol still needs design (tied to D16).
 
 ### R9. Lightning Network as a payment rail
-Hardware-dependent. Requires Pi 4/5 + 1TB SSD + Umbrel/Start9, ~USD 150-220. BTC on-chain must be solid first (now confirmed S29). Lightning is the natural next rail — solves on-chain's two problems (slow confirmations, high fees for small transactions). Don't block on this. Decide if Lightning is v1.5 or later after B1 ships.
+**What:** BTC on-chain must be solid first (confirmed S29). Lightning solves on-chain's two problems for Rangkai — slow confirmations, high fees on small transactions.
+
+**Original framing (superseded — see below):** Hardware-dependent, requires Pi 4/5 + 1TB SSD + Umbrel/Start9, ~USD 150-220. This was the consumer self-hosted-node framing and isn't the right shape for a hosted protocol backend.
+
+**Researched S35 — LDK (Lightning Dev Kit):** Rust-based modular Lightning library (Rust/Swift/Java-Kotlin/JS-TS-WASM bindings), maintained by the Lightning Dev Kit org (Spiral/Block). Reportedly carries ~25% of Lightning Network volume as of mid-2026 (Cash App, Lightspark, Bitkit, Mutiny, Alby Hub). Not a full node like LND/Core Lightning — you own persistence, chain-data source, and key management; LDK handles the protocol state machine, routing, and on-chain punishment logic correctly underneath.
+
+**Relevant new component — LDK Server:** headless Lightning node daemon (built on LDK-Node + a BDK on-chain wallet) exposing a gRPC API, announced by Spiral at Bitcoin 2026. Designed to run in a containerized backend environment, not a dedicated home appliance — a better architectural fit for Rangkai's hosted Node/TS stack than the Pi/Umbrel plan, since the Node backend could call it via gRPC without embedding Rust directly. **Caveat, straight from the project's own repo:** "APIs are under development, expect breaking changes, not tested for production use" — not something to build against yet.
+
+**Relation to R11:** Lightspark (already under consideration for R11, confirmed Malaysia-viable) is itself built on LDK. So the real decision isn't "LDK vs Lightspark" — it's sovereignty vs convenience at the same architectural layer: Lightspark = managed service, less engineering, vendor dependency; self-run LDK Server = full control, more engineering, fits the "protocol never wants to be the government's chopping board" privacy stance more literally, since no third party ever sees routing.
+
+**Fix / next step:** No action needed now — still not blocking v1. When R9 is actually scheduled, check LDK Server's production-readiness status first; if still pre-production, either wait or fall back to the managed-Lightspark path under R11 rather than the original Pi/Umbrel hardware plan.
+
+**Priority:** v1.5/v2, dependent on B1 shipping first (unchanged). Re-evaluate LDK Server maturity when scheduled — don't build against it today.
 
 ### R10. BTCPay Server integration
 **Priority upgrade — S29:** Replace Blockstream polling with server-side BTCPay Server webhooks. Code already exists (`btcpay.adapter.ts`, `btcpay.routes.ts`) but not wired in. Blockstream rate limiting blocked Stage 6 during S29 burn scan (~526 requests in minutes hit the 700/hour free tier limit). At production volume (100 active orders polling every 60s = 6,000 req/hour), Blockstream's free tier is completely inadequate. BTCPay webhooks eliminate polling entirely and solve this permanently.
