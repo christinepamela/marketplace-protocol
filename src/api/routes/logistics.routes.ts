@@ -737,6 +737,157 @@ router.get(
 );
 
 // ============================================================================
+// L15c (S34): BUYER-INITIATED QUOTE REQUEST
+// ============================================================================
+
+/**
+ * POST /api/v1/logistics/quote-requests/buyer
+ * Buyer broadcasts a request for logistics quotes on a specific product,
+ * using their known destination country from their shipping address.
+ * Unlike the seller-initiated path (POST /quote-requests), this is called
+ * by the buyer — so the ownership check is reversed: we verify the caller
+ * is NOT the product's vendor (any authenticated buyer can request a quote).
+ *
+ * Product logistics data (weight, dimensions, incoterm, hs_code) is read
+ * directly from the product row so the buyer doesn't have to re-enter it.
+ * destination_country is required here (buyer knows their address).
+ * L15c — S34
+ */
+const createBuyerQuoteRequestSchema = z.object({
+  product_id: z.string().uuid(),
+  destination_country: z.string().min(2).max(3),
+});
+
+router.post(
+  '/quote-requests/buyer',
+  requireAuth,
+  validateBody(createBuyerQuoteRequestSchema),
+  async (req, res, next) => {
+    try {
+      const userDid = getUserDid(req);
+
+      // Fetch the product for its logistics data
+      const { data: product, error: productError } = await req.supabase
+        .from('products')
+        .select('id, vendor_did, logistics, incoterm, hs_code')
+        .eq('id', req.body.product_id)
+        .single();
+
+      if (productError || !product) {
+        throw new NotFoundError('Product not found');
+      }
+
+      // Buyers request quotes — sellers do not request quotes on their own products via this path
+      if (product.vendor_did === userDid) {
+        throw new ApiError(
+          ErrorCode.FORBIDDEN,
+          'Use the seller quote-request endpoint for your own products'
+        );
+      }
+
+      // Pull logistics data from the product row
+      const logistics = product.logistics || {};
+      const weight_kg =
+        logistics.weight?.unit === 'kg'
+          ? logistics.weight?.value
+          : logistics.weight?.unit === 'lb'
+          ? (logistics.weight?.value || 0) * 0.453592
+          : logistics.weight?.unit === 'g'
+          ? (logistics.weight?.value || 0) / 1000
+          : logistics.weight?.value || 1; // fallback: 1 kg
+
+      const dimensions_cm = {
+        length: logistics.dimensions?.length || 1,
+        width: logistics.dimensions?.width || 1,
+        height: logistics.dimensions?.height || 1,
+      };
+
+      const origin_country = logistics.originCountry || 'MY';
+      const incoterm = product.incoterm || 'DAP';
+      const hs_code = product.hs_code || null;
+
+      // 30-day validity, same as seller-initiated RFQs
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      const { data: quoteRequest, error: insertError } = await req.supabase
+        .from('quote_requests')
+        .insert({
+          requester_did: userDid,
+          product_id: req.body.product_id,
+          origin_country,
+          destination_country: req.body.destination_country,
+          weight_kg,
+          dimensions_cm,
+          incoterm,
+          hs_code,
+          insurance_required: false,
+          status: 'open',
+          expires_at: expiresAt.toISOString(),
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      res.status(201).json({
+        success: true,
+        data: quoteRequest,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/logistics/quote-requests/buyer/pending
+ * Returns all open quote_requests created by the authenticated buyer,
+ * joined with any quotes that have already been submitted against them.
+ * Used by checkout to show the buyer incoming quotes to accept.
+ * L15c — S34
+ */
+router.get(
+  '/quote-requests/buyer/pending',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const userDid = getUserDid(req);
+
+      const { data: requests, error } = await req.supabase
+        .from('quote_requests')
+        .select(`
+          *,
+          product:products(id, basic, logistics),
+          quotes:shipping_quotes(
+            id, provider_id, method, price_fiat, currency,
+            estimated_days, insurance_included, status, valid_until, created_at,
+            provider:logistics_providers(id, business_name, average_rating)
+          )
+        `)
+        .eq('requester_did', userDid)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Only return requests that have at least one pending quote to act on
+      const withQuotes = (requests || []).map(r => ({
+        ...r,
+        quotes: (r.quotes || []).filter((q: any) => q.status === 'pending'),
+      }));
+
+      res.json({
+        success: true,
+        data: withQuotes,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ============================================================================
 // ✅ NEW: FAVORITES ROUTES
 // ============================================================================
 

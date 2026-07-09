@@ -91,7 +91,10 @@ export async function createOrdersFromCart(
   cart: Cart,
   shippingAddress: ShippingAddress,
   paymentMethod: PaymentMethod,
-  ownLogistics?: boolean
+  ownLogistics?: boolean,
+  // L15c (S34): per-vendor accepted quote selections from the pool.
+  // Key = vendorDid, value = { quoteId, cost } for the quote the buyer accepted.
+  acceptedLogisticsQuotes?: Record<string, { quoteId: string; cost: number }>
 ): Promise<CreateOrderResponse[]> {
   try {
     // Group items by vendor
@@ -99,8 +102,19 @@ export async function createOrdersFromCart(
     
     // Create order for each vendor
     const orderPromises = Object.entries(vendorGroups).map(
-      ([vendorDid, items]) => 
-        createOrderFromCart(vendorDid, items, shippingAddress, paymentMethod, undefined, undefined, undefined, ownLogistics)
+      ([vendorDid, items]) => {
+        const accepted = acceptedLogisticsQuotes?.[vendorDid]
+        return createOrderFromCart(
+          vendorDid,
+          items,
+          shippingAddress,
+          paymentMethod,
+          undefined,
+          accepted?.quoteId,
+          accepted?.cost,
+          ownLogistics
+        )
+      }
     )
     
     // Wait for all orders to be created

@@ -250,6 +250,36 @@ export class LogisticsModule {
   }
 
   /**
+   * Buyer-initiated: broadcast a request for quotes on a product (L15c — S34)
+   * Called by the buyer at checkout. destination_country is required (buyer
+   * knows their shipping address). Product logistics data (weight, dimensions,
+   * incoterm) is read server-side from the product row — buyer doesn't re-enter.
+   *
+   * @example
+   * await sdk.logistics.requestQuoteAsBuyer({
+   *   product_id: 'product-uuid',
+   *   destination_country: 'SG'
+   * });
+   */
+  async requestQuoteAsBuyer(request: {
+    product_id: string;
+    destination_country: string;
+  }): Promise<any> {
+    return this.http.post('/logistics/quote-requests/buyer', request);
+  }
+
+  /**
+   * Buyer: get all open quote requests I created, with any incoming quotes on them (L15c — S34)
+   * Used by checkout to poll for provider responses and let the buyer accept one.
+   *
+   * @example
+   * const pending = await sdk.logistics.getBuyerPendingQuoteRequests();
+   */
+  async getBuyerPendingQuoteRequests(): Promise<any[]> {
+    return this.http.get('/logistics/quote-requests/buyer/pending');
+  }
+
+  /**
    * Broadcast a request for logistics quotes on a product (L12 — S32)
    * KYC sellers only. Creates an open quote_requests row visible to matching
    * logistics providers. Omitting destination_country broadcasts to any
