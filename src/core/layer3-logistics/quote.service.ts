@@ -304,22 +304,62 @@ export class QuoteService {
       throw new Error('Quote has expired');
     }
 
-    // Check if this order or product already has an accepted quote
-    let existingAcceptedQuery = this.supabase
-      .from('shipping_quotes')
-      .select('id')
-      .eq('status', 'accepted');
-
+    // Check if this order or product already has an accepted quote.
+    // For order-scoped quotes: always enforce one accepted quote per order.
+    // For product-scoped quotes: only enforce this for seller-context accepts
+    // (seller reviewing standing quotes for their product via L13). Skip the
+    // guard for buyer-initiated RFQ accepts (L15c) — a buyer accepting their
+    // own logistics quote lives alongside the seller's accepted standing quote;
+    // the two serve different purposes and must not conflict.
     if (quote.order_id) {
-      existingAcceptedQuery = existingAcceptedQuery.eq('order_id', quote.order_id);
+      const { data: existingAccepted } = await this.supabase
+        .from('shipping_quotes')
+        .select('id')
+        .eq('order_id', quote.order_id)
+        .eq('status', 'accepted')
+        .maybeSingle();
+
+      if (existingAccepted) {
+        throw new Error('This order already has an accepted quote');
+      }
     } else if (quote.product_id) {
-      existingAcceptedQuery = existingAcceptedQuery.eq('product_id', quote.product_id);
-    }
+      // Determine whether this is a buyer RFQ accept or a seller standing-quote accept.
+      // A buyer RFQ accept means there is a quote_requests row for this product
+      // where requester_did is NOT the product's vendor.
+      const { data: product } = await this.supabase
+        .from('products')
+        .select('vendor_did')
+        .eq('id', quote.product_id)
+        .maybeSingle();
 
-    const { data: existingAccepted } = await existingAcceptedQuery.maybeSingle();
+      const isBuyerRfqAccept = product
+        ? await (async () => {
+            const { data: rfq } = await this.supabase
+              .from('quote_requests')
+              .select('id')
+              .eq('product_id', quote.product_id)
+              .neq('requester_did', product.vendor_did)
+              .limit(1)
+              .maybeSingle();
+            return !!rfq;
+          })()
+        : false;
 
-    if (existingAccepted) {
-      throw new Error('This order or product already has an accepted quote');
+      if (!isBuyerRfqAccept) {
+        // Seller context: enforce one accepted quote per product
+        const { data: existingAccepted } = await this.supabase
+          .from('shipping_quotes')
+          .select('id')
+          .eq('product_id', quote.product_id)
+          .eq('status', 'accepted')
+          .maybeSingle();
+
+        if (existingAccepted) {
+          throw new Error('This product already has an accepted quote');
+        }
+      }
+      // Buyer RFQ context: no guard — buyer's accepted quote coexists with
+      // the seller's standing accepted quote intentionally.
     }
 
     // Accept this quote
@@ -344,13 +384,35 @@ export class QuoteService {
         .eq('status', 'pending')
         .neq('id', quoteId);
     } else if (quote.product_id) {
-      // For product quotes: seller accepted one provider — reject others on this product
-      await this.supabase
-        .from('shipping_quotes')
-        .update({ status: 'rejected' })
-        .eq('product_id', quote.product_id)
-        .eq('status', 'pending')
-        .neq('id', quoteId);
+      // For product quotes in seller context: reject other pending quotes on this product.
+      // For buyer RFQ context: do NOT reject other pending quotes — the buyer may have
+      // multiple RFQ responses and the seller's standing quotes must be left untouched.
+      const { data: product } = await this.supabase
+        .from('products')
+        .select('vendor_did')
+        .eq('id', quote.product_id)
+        .maybeSingle();
+
+      if (product) {
+        const { data: rfq } = await this.supabase
+          .from('quote_requests')
+          .select('id')
+          .eq('product_id', quote.product_id)
+          .neq('requester_did', product.vendor_did)
+          .limit(1)
+          .maybeSingle();
+
+        if (!rfq) {
+          // Seller context: reject competing pending quotes
+          await this.supabase
+            .from('shipping_quotes')
+            .update({ status: 'rejected' })
+            .eq('product_id', quote.product_id)
+            .eq('status', 'pending')
+            .neq('id', quoteId);
+        }
+        // Buyer RFQ context: leave other pending quotes alone
+      }
     }
 
     return acceptedQuote;

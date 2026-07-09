@@ -449,8 +449,20 @@ router.post(
           throw new NotFoundError('Product not found');
         }
 
+        // Allow: product owner (seller accepting a standing quote for their product)
+        // Allow: buyer who created an RFQ for this product (L15c — S34)
         if (product.vendor_did !== userDid) {
-          throw new ApiError(ErrorCode.FORBIDDEN, 'You can only accept quotes for your own products');
+          const { data: rfq } = await req.supabase
+            .from('quote_requests')
+            .select('id')
+            .eq('product_id', existingQuote.product_id)
+            .eq('requester_did', userDid)
+            .limit(1)
+            .maybeSingle();
+
+          if (!rfq) {
+            throw new ApiError(ErrorCode.FORBIDDEN, 'You can only accept quotes for your own products or your own logistics requests');
+          }
         }
       } else if (existingQuote.order_id) {
         const { data: order, error: orderError } = await req.supabase
@@ -854,32 +866,55 @@ router.get(
     try {
       const userDid = getUserDid(req);
 
-      const { data: requests, error } = await req.supabase
+      // Step 1: fetch open quote requests for this buyer
+      const { data: requests, error: requestsError } = await req.supabase
         .from('quote_requests')
         .select(`
           *,
-          product:products(id, basic, logistics),
-          quotes:shipping_quotes(
-            id, provider_id, method, price_fiat, currency,
-            estimated_days, insurance_included, status, valid_until, created_at,
-            provider:logistics_providers(id, business_name, average_rating)
-          )
+          product:products(id, basic, logistics)
         `)
         .eq('requester_did', userDid)
         .eq('status', 'open')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (requestsError) throw requestsError;
+      if (!requests || requests.length === 0) {
+        return res.json({ success: true, data: [] });
+      }
 
-      // Only return requests that have at least one pending quote to act on
-      const withQuotes = (requests || []).map(r => ({
+      // Step 2: fetch pending quotes for those product IDs separately
+      // (avoids ambiguous FK in a single nested select)
+      const productIds = requests
+        .map(r => r.product_id)
+        .filter(Boolean) as string[];
+
+      const { data: quotes, error: quotesError } = await req.supabase
+        .from('shipping_quotes')
+        .select(`
+          id, provider_id, product_id, method, price_fiat, currency,
+          estimated_days, insurance_included, status, valid_until, created_at,
+          provider:logistics_providers(id, business_name, average_rating)
+        `)
+        .in('product_id', productIds)
+        .eq('status', 'pending');
+
+      if (quotesError) throw quotesError;
+
+      const quotesByProductId: Record<string, any[]> = {};
+      for (const q of quotes || []) {
+        if (!q.product_id) continue;
+        if (!quotesByProductId[q.product_id]) quotesByProductId[q.product_id] = [];
+        quotesByProductId[q.product_id].push(q);
+      }
+
+      const result = requests.map(r => ({
         ...r,
-        quotes: (r.quotes || []).filter((q: any) => q.status === 'pending'),
+        quotes: r.product_id ? (quotesByProductId[r.product_id] || []) : [],
       }));
 
       res.json({
         success: true,
-        data: withQuotes,
+        data: result,
       });
     } catch (error) {
       next(error);

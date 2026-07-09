@@ -54,10 +54,12 @@ export function ProviderProvider({ children }: { children: React.ReactNode }) {
       // Set token on SDK before making authenticated calls
       sdk.setToken(token)
 
-      // FIXED: fetch only this provider — no full table scan
-      // Uses identity_did filter instead of fetching all providers
-      const providers = await sdk.logistics.searchProviders({ identity_did: did })
-      const found = providers[0] || null
+      // Fetch all providers and find the one matching this user's DID.
+      // identity_did is not a supported filter in searchProviders() — the
+      // backend schema doesn't expose it. Client-side filter is safe for now.
+      // Real fix: add GET /logistics/providers/me endpoint (see D34).
+      const providers = await sdk.logistics.searchProviders()
+      const found = providers.find((p: any) => p.identity_did === did) || null
       setProvider(found)
 
       if (refreshToken) {
@@ -124,9 +126,8 @@ export function ProviderProvider({ children }: { children: React.ReactNode }) {
     sdk.setToken(token)
 
     try {
-      // FIXED: filter by identity_did — no full table scan
-      const providers = await sdk.logistics.searchProviders({ identity_did: did })
-      const found = providers[0] || null
+      const providers = await sdk.logistics.searchProviders()
+      const found = providers.find((p: any) => p.identity_did === did) || null
       setProvider(found)
 
       if (refreshToken) {

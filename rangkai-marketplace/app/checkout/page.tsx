@@ -573,6 +573,7 @@ function CheckoutPageContent() {
                     <input type="text" required value={shippingAddress.country}
                       onChange={e => handleFieldChange('country', e.target.value)}
                       className="input w-full" placeholder="MY" />
+                    <p className="text-xs text-warm-gray mt-1">Use 2-letter ISO code, e.g. MY, SG, US, GB</p>
                   </div>
                 </div>
                 <div>
