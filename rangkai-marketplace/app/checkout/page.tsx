@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, AlertCircle, Truck, CheckCircle, Clock, RefreshCw } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Truck, CheckCircle, Clock, RefreshCw, Search } from 'lucide-react'
 import type { Cart } from '@/lib/stores/cart'
 import type { ShippingAddress, PaymentMethod } from '@rangkai/sdk'
 import { getCart, validateCart, clearCart, groupCartByVendor } from '@/lib/stores/cart'
@@ -12,6 +12,9 @@ import {
   broadcastBuyerQuoteRequest,
   getBuyerPendingQuoteRequests,
   acceptIncomingQuote,
+  searchLogisticsProviders,
+  getFavouriteProviders,
+  directQuoteRequest,
   type BuyerQuoteRequest,
   type IncomingQuote,
 } from '@/lib/api/logistics'
@@ -28,14 +31,19 @@ import { getCurrentUserDid } from '@/lib/contexts/AuthContext'
 // Per-vendor logistics state for L15c pool flow
 interface VendorPoolState {
   // 'idle'       — KYC buyer, hasn't requested quotes yet
-  // 'requesting' — broadcast in flight
-  // 'waiting'    — broadcast done, polling for provider responses
+  // 'browsing'   — buyer is viewing provider list (L15d)
+  // 'requesting' — broadcast or direct request in flight
+  // 'waiting'    — request done, polling for provider responses
   // 'received'   — at least one quote came in, buyer must accept one
   // 'accepted'   — buyer accepted a quote, ready to submit order
-  status: 'idle' | 'requesting' | 'waiting' | 'received' | 'accepted'
+  status: 'idle' | 'browsing' | 'requesting' | 'waiting' | 'received' | 'accepted'
   quoteRequestId: string | null
   incomingQuotes: IncomingQuote[]
   acceptedQuote: { quoteId: string; cost: number; currency: string; providerName: string } | null
+  // L15d browse state
+  browseProviders: any[]
+  browseLoading: boolean
+  favouriteProviderIds: Set<string>
 }
 
 // ============================================================================
@@ -133,6 +141,9 @@ function CheckoutPageContent() {
         quoteRequestId: null,
         incomingQuotes: [],
         acceptedQuote: null,
+        browseProviders: [],
+        browseLoading: false,
+        favouriteProviderIds: new Set(),
       }
     })
     setVendorPoolState(initial)
@@ -190,6 +201,94 @@ function CheckoutPageContent() {
       setVendorPoolState(prev => ({
         ...prev,
         [vendorDid]: { ...prev[vendorDid], status: 'idle' },
+      }))
+    }
+  }
+
+  async function handleBrowseProviders(vendorDid: string) {
+    if (!cart || !shippingAddress.country) {
+      setErrors(['Please enter your destination country before browsing providers.'])
+      return
+    }
+
+    // Switch to browsing state immediately so the panel opens
+    setVendorPoolState(prev => ({
+      ...prev,
+      [vendorDid]: { ...prev[vendorDid], status: 'browsing', browseLoading: true },
+    }))
+
+    try {
+      // Load providers and favourites in parallel
+      const [providers, favourites] = await Promise.all([
+        searchLogisticsProviders({}),
+        getFavouriteProviders(),
+      ])
+
+      const favouriteIds = new Set(favourites.map((p: any) => p.id as string))
+
+      // Favourites float to the top, rest sorted by rating
+      const sorted = [...providers].sort((a, b) => {
+        const aFav = favouriteIds.has(a.id) ? 1 : 0
+        const bFav = favouriteIds.has(b.id) ? 1 : 0
+        if (bFav !== aFav) return bFav - aFav
+        return (b.average_rating ?? 0) - (a.average_rating ?? 0)
+      })
+
+      setVendorPoolState(prev => ({
+        ...prev,
+        [vendorDid]: {
+          ...prev[vendorDid],
+          browseLoading: false,
+          browseProviders: sorted,
+          favouriteProviderIds: favouriteIds,
+        },
+      }))
+    } catch {
+      setVendorPoolState(prev => ({
+        ...prev,
+        [vendorDid]: { ...prev[vendorDid], status: 'idle', browseLoading: false },
+      }))
+      setErrors(['Failed to load providers. Please try again.'])
+    }
+  }
+
+  async function handleDirectRequest(vendorDid: string, providerId: string, providerName: string) {
+    if (!cart || !shippingAddress.country) return
+
+    const vendorGroups = groupCartByVendor(cart)
+    const items = vendorGroups[vendorDid] || []
+    const uniqueProductIds = Array.from(new Set(items.map(i => i.productId)))
+
+    setVendorPoolState(prev => ({
+      ...prev,
+      [vendorDid]: { ...prev[vendorDid], status: 'requesting' },
+    }))
+
+    try {
+      const results = await Promise.all(
+        uniqueProductIds.map(pid =>
+          directQuoteRequest(pid, shippingAddress.country!, providerId)
+        )
+      )
+
+      const firstRequestId = results[0]?.id || null
+
+      setVendorPoolState(prev => ({
+        ...prev,
+        [vendorDid]: {
+          ...prev[vendorDid],
+          status: 'waiting',
+          quoteRequestId: firstRequestId,
+          incomingQuotes: [],
+        },
+      }))
+
+      setPollingActive(true)
+    } catch {
+      setErrors(['Failed to send quote request. Please try again.'])
+      setVendorPoolState(prev => ({
+        ...prev,
+        [vendorDid]: { ...prev[vendorDid], status: 'browsing' },
       }))
     }
   }
@@ -354,24 +453,114 @@ function CheckoutPageContent() {
     switch (vs.status) {
       case 'idle':
         return (
-          <div className="mt-3">
-            <p className="text-sm text-warm-gray mb-2">
-              Request quotes from Rangkai's logistics pool for items from{' '}
-              <span className="font-medium text-soft-black">{vendorName}</span>.
+          <div className="mt-3 space-y-2">
+            <p className="text-sm text-warm-gray mb-3">
+              Choose how you'd like to arrange shipping for items from{' '}
+              <span className="font-medium text-soft-black">{vendorName}</span>:
             </p>
             <button
               type="button"
               onClick={() => handleRequestPoolQuotes(vendorDid)}
-              className="btn btn-secondary text-sm"
+              className="btn btn-secondary text-sm w-full text-left flex items-center gap-2"
               disabled={!shippingAddress.country}
             >
-              <Truck size={14} className="inline mr-1.5" />
-              Request shipping quotes
+              <Truck size={14} className="flex-shrink-0" />
+              <div>
+                <p className="font-medium">Broadcast to all providers</p>
+                <p className="text-xs text-warm-gray font-normal">Any matching provider can respond with a quote</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBrowseProviders(vendorDid)}
+              className="btn btn-secondary text-sm w-full text-left flex items-center gap-2"
+              disabled={!shippingAddress.country}
+            >
+              <Search size={14} className="flex-shrink-0" />
+              <div>
+                <p className="font-medium">Browse and choose a provider</p>
+                <p className="text-xs text-warm-gray font-normal">Find a specific provider and send them a direct request</p>
+              </div>
             </button>
             {!shippingAddress.country && (
               <p className="text-xs text-warm-gray mt-1">
                 Enter your destination country above first.
               </p>
+            )}
+          </div>
+        )
+
+      case 'browsing':
+        return (
+          <div className="mt-3">
+            {vs.browseLoading ? (
+              <div className="flex items-center gap-2 text-sm text-warm-gray p-3">
+                <div className="animate-spin w-4 h-4 border-2 border-warm-taupe border-t-transparent rounded-full" />
+                Loading providers…
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-soft-black">
+                    {vs.browseProviders.length} provider{vs.browseProviders.length !== 1 ? 's' : ''} available
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVendorPoolState(prev => ({
+                        ...prev,
+                        [vendorDid]: { ...prev[vendorDid], status: 'idle' },
+                      }))
+                    }
+                    className="text-xs text-warm-gray hover:text-soft-black transition-colors"
+                  >
+                    ← Back
+                  </button>
+                </div>
+                {vs.browseProviders.length === 0 ? (
+                  <p className="text-sm text-warm-gray p-3 bg-light-cream border border-barely-beige">
+                    No providers found. Try broadcasting to the pool instead.
+                  </p>
+                ) : (
+                  vs.browseProviders.map(provider => (
+                    <div
+                      key={provider.id}
+                      className="flex items-center justify-between p-3 border border-barely-beige bg-white"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-soft-black truncate">
+                            {provider.business_name}
+                          </p>
+                          {vs.favouriteProviderIds.has(provider.id) && (
+                            <span className="text-xs bg-warm-taupe text-white px-1.5 py-0.5 rounded">
+                              Saved
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-warm-gray mt-0.5">
+                          {provider.average_rating
+                            ? `★ ${provider.average_rating.toFixed(1)}`
+                            : 'No rating yet'}
+                          {Array.isArray(provider.modes) && provider.modes.length > 0
+                            ? ` · ${provider.modes.join(', ')}`
+                            : ''}
+                          {Array.isArray(provider.incoterms_supported) && provider.incoterms_supported.length > 0
+                            ? ` · ${provider.incoterms_supported.join(', ')}`
+                            : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDirectRequest(vendorDid, provider.id, provider.business_name)}
+                        className="btn btn-primary text-xs px-3 py-1.5 ml-3 flex-shrink-0"
+                      >
+                        Request quote
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
             )}
           </div>
         )

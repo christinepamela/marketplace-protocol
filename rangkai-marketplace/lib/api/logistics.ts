@@ -92,3 +92,56 @@ export async function getBuyerPendingQuoteRequests(): Promise<BuyerQuoteRequest[
 export async function acceptIncomingQuote(quoteId: string): Promise<void> {
   await sdk.logistics.acceptQuote(quoteId)
 }
+
+/**
+ * Search logistics providers for the browse panel (L15d — S35).
+ * origin_country pre-filters to providers who serve that origin.
+ */
+export async function searchLogisticsProviders(filters: {
+  origin_country?: string
+  shipping_method?: string
+  min_rating?: number
+}): Promise<any[]> {
+  try {
+    const result = await sdk.logistics.searchProviders(filters as any)
+    return result || []
+  } catch (error) {
+    console.error('Failed to search logistics providers:', error)
+    return []
+  }
+}
+
+/**
+ * Get the current buyer's favourited providers (L15d — S35).
+ */
+export async function getFavouriteProviders(): Promise<any[]> {
+  try {
+    const result = await sdk.logistics.getFavoriteProviders()
+    return result || []
+  } catch (error) {
+    console.error('Failed to fetch favourite providers:', error)
+    return []
+  }
+}
+
+/**
+ * Send a direct quote request to a specific provider (L15d — S35).
+ * Same endpoint as broadcast but with target_provider_id set.
+ */
+export async function directQuoteRequest(
+  productId: string,
+  destinationCountry: string,
+  targetProviderId: string
+): Promise<{ id: string }> {
+  try {
+    const result = await sdk.logistics.requestQuoteAsBuyer({
+      product_id: productId,
+      destination_country: destinationCountry,
+      target_provider_id: targetProviderId,
+    })
+    return result
+  } catch (error) {
+    console.error('Failed to send direct quote request:', error)
+    throw error
+  }
+}

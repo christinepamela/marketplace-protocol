@@ -264,6 +264,7 @@ export class LogisticsModule {
   async requestQuoteAsBuyer(request: {
     product_id: string;
     destination_country: string;
+    target_provider_id?: string; // L15d: omit for broadcast, set for direct request
   }): Promise<any> {
     return this.http.post('/logistics/quote-requests/buyer', request);
   }

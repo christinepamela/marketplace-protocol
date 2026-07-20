@@ -560,7 +560,8 @@ router.get(
       const hasRoutes = Array.isArray(provider.routes) && provider.routes.length > 0;
       const hasIncoterms = Array.isArray(provider.incoterms_supported) && provider.incoterms_supported.length > 0;
 
-      // Step 2: Fetch open quote requests
+      // Step 2: Fetch open quote requests — broadcasts (null target) OR
+      // direct requests specifically addressed to this provider (L15d — S35)
       const { data: requests, error: requestsError } = await req.supabase
         .from('quote_requests')
         .select(`
@@ -568,6 +569,7 @@ router.get(
           product:products(id, basic, logistics, incoterm)
         `)
         .eq('status', 'open')
+        .or(`target_provider_id.is.null,target_provider_id.eq.${provider.id}`)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -768,6 +770,7 @@ router.get(
 const createBuyerQuoteRequestSchema = z.object({
   product_id: z.string().uuid(),
   destination_country: z.string().min(2).max(3),
+  target_provider_id: z.string().uuid().optional(), // L15d: direct request to a specific provider
 });
 
 router.post(
@@ -836,6 +839,7 @@ router.post(
           insurance_required: false,
           status: 'open',
           expires_at: expiresAt.toISOString(),
+          target_provider_id: req.body.target_provider_id || null,
         })
         .select()
         .single();

@@ -25,6 +25,7 @@ interface QuoteRequest {
   product_id: string | null
   origin_country: string
   destination_country: string | null  // null = global broadcast (L12)
+  target_provider_id: string | null   // null = open broadcast, set = direct request (L15d)
   weight_kg: number
   dimensions_cm: {
     length: number
@@ -259,6 +260,11 @@ function OpportunityCard({ opportunity, providerId, onQuoteSubmitted }: Opportun
               {isGlobalBroadcast && (
                 <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200">
                   global broadcast
+                </span>
+              )}
+              {opportunity.target_provider_id && (
+                <span className="text-xs px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200">
+                  direct request
                 </span>
               )}
               <h3 className="text-base font-medium text-soft-black truncate">{productName}</h3>

@@ -1,6 +1,6 @@
 # Tech Debt
 
-**Last updated:** 2026-07-09 (Session 34)
+**Last updated:** 2026-07-20 (Session 35)
 **Maintained by:** the team, updated each session
 **Companion docs:** `LOGISTICS_ARCHITECTURE.md`
 
@@ -48,7 +48,7 @@ TIER 2 — Backend API (✅ Complete S31)
 - L10. ✅ S31. `executeSplitPayoutBTC()` added to `bitcoin.service.ts`. `POST /api/v1/bitcoin/split-payout` route added. Untested e2e — needs delivered order with confirmed BTC.
 - L11. ✅ S32. Path B2 implemented. `products.require_logistics_quote` (boolean, default false) and `orders.own_logistics` (boolean, default false) added via migration. `order.service.ts` `createOrder()` blocks order creation if any cart item's product requires a quote and neither `logisticsQuoteId` nor `ownLogistics` is set. Checkout has "I'll arrange my own logistics" checkbox wired through `createOrdersFromCart()` → `createOrderFromCart()` → SDK → API → service. Tested S32: gate blocks with correct product name in error, opt-out checkbox correctly sets own_logistics=true, regression checkout (no gate) unaffected.
 
-TIER 3 — Frontend (🟡 In progress — L12–L16 done, L15d next)
+TIER 3 — Frontend (✅ Complete — L12–L16 and L15d all done)
 - L12. ✅ S32. Done, tested, pushed. `incoterm`, `hsCode`, `requireLogisticsQuote` added end-to-end: SDK types (`packages/sdk/src/types.ts`, `catalog.ts`), core types (`src/core/layer1-catalog/types.ts`), backend persistence (`product.service.ts`, `catalog.routes.ts` Zod schemas — this was the actual root cause of non-persistence, Zod was silently stripping the fields), `ProductForm.tsx` UI, migration (`products.hs_code`). RFQ auto-broadcast on publish wired via new `sdk.logistics.requestQuote()`, fires for KYC sellers only. Destination-country made optional on the RFQ broadcast (global "any destination" broadcast, matching Shopify-style shipping profiles rather than requiring a pinned destination at publish time) — required a DB-level constraint fix too (`quote_requests.destination_country` had `NOT NULL` even after the Zod schema was relaxed). All 7 test steps passed; opportunities-matching specifically logic-verified only, not empirically confirmed live (see D21).
 - L13. ✅ S32. Done, tested, pushed. Seller-facing quote review page at `app/vendor/products/[id]/quotes/page.tsx` — lists pending/accepted quotes with provider name, rating, price, days, insurance; Accept button calls `acceptQuote()`. Backend: new `GET /logistics/quotes/product/:productId` endpoint + `getQuotesWithProvidersForProduct()` service method; closed the pre-existing `// TODO: Add ownership check` gap on `POST /quotes/:id/accept` — now verifies the accepting user owns the product (product quotes) or is buyer/vendor on the order (order quotes) before allowing accept. Tested via direct SQL-inserted quote (BitHaul → "custom" product, $15 USD) since the logistics-marketplace's own quote-submission UI is blocked by pre-existing bugs (B5, B15) — accept correctly moved the quote to accepted status in the DB and the UI.
 - L14. ✅ S33. Done, tested, pushed. Product page: buyer sees the accepted shipping quote as a line item — provider name, price, days, firm/estimated computed from `valid_until`. Two prerequisite bugs fixed en route: D22 (`sdk.catalog.getProduct` didn't exist — was blocking every buyer product-page load) and B18 (stale `packages` build silently stranding the frontend on old SDK code). Tested live as buyer Bitty Bit against BitHaul's real accepted quote on "custom" ($15 USD, firm).
@@ -56,7 +56,7 @@ TIER 3 — Frontend (🟡 In progress — L12–L16 done, L15d next)
   - **L15a — ✅ done, tested S33.** Per-vendor shipping display (firm/estimated), total calculation, `ownLogistics` suppresses shipping cost in `CartSummary`. Confirmed working on the actual `/checkout` page (not just `/cart`) after a hard-refresh cleared a stale render. **Known gap, deferred on purpose:** `createOrderFromCart()` still doesn't pass `logisticsQuoteId`/`logisticsCost` — real orders total product-only regardless of what checkout previews. Next step, not yet built.
   - **L15b — ✅ done, tested S33.** 2+-products-per-vendor summing verified with real data (Bitshop: $15+$20 → $35 estimated) and real multi-vendor data (Bitshop + new seller Hash Heel). Surfaced and fixed two bugs along the way: D29 (duplicate-accepted-quote crash) and D30 (hardcoded "Vendor" placeholder name — `CartSummary` restructured to group vendor/items/shipping together per Pam's request).
   - **L15c — ✅ done, tested S34.** Buyer-initiated RFQ broadcast at checkout. KYC buyer ticks "I'll arrange my own logistics" → pool UI appears per vendor group → "Request shipping quotes" broadcasts `POST /logistics/quote-requests/buyer` (new endpoint, reads product logistics server-side, destination from buyer's shipping address) → checkout polls `GET /logistics/quote-requests/buyer/pending` every 10s → buyer accepts an incoming quote → `logisticsQuoteId`/`logisticsCost` wired through `createOrdersFromCart()` into order creation (closing the L15a known gap). D31 (KYC gate) fixed in the same change: non-KYC buyers see the checkbox only; KYC buyers who tick it enter the pool flow instead of bypassing it. Confirmed live: DB shows `quote_requests` row with `requester_did` = Bitty Buy, `destination_country = SG`, correct weight/incoterm read from product. Full end-to-end confirmed S34 via L16 testing: buyer broadcasts RFQ → BitHaul sees in opportunities → submits quote → Bitty Buy accepts in checkout → "Shipping confirmed" state reached. Order placement with logistics cost confirmed in CartSummary ($8 showing correctly). quote.service.ts acceptQuote() guard updated to allow buyer RFQ accepts alongside seller standing accepted quotes.
-  - **L15d — not started.** Direct pool browsing — buyer browses logistics providers directly, requests a quote from a specific one. Confirmed quote from either L15c or L15d gets attached to cart, buyer proceeds to pay/ship normally. In-system conversations/calls between buyer and provider are an explicit later feature, not part of L15c/d.
+ - **L15d — ✅ done, tested S35.** Direct pool browsing at checkout. KYC buyer ticks "I'll arrange my own logistics" → two options appear: broadcast (L15c) or browse providers (L15d) → buyer browses provider list (favourites float to top, modes/incoterms shown) → clicks "Request quote" next to a specific provider → targeted `quote_requests` row created with `target_provider_id` set → polling flow same as L15c → buyer accepts → "Shipping confirmed". Provider sees amber "direct request" badge on opportunities page alongside blue "global broadcast" badge. Confirmed live S35: BitHaul saw direct request, submitted $17 quote, Bitty Buy accepted, order `ORD-2026-205695-FXK` placed with `logistics_cost: 17.00`.Confirmed quote from either L15c or L15d gets attached to cart, buyer proceeds to pay/ship normally. In-system conversations/calls between buyer and provider are an explicit later feature, not part of L15c/d.
   - **Both L15c and L15d are gated by D31** — the KYC-buyer routing fix needs to land alongside them, since the current "I'll arrange my own logistics" checkbox incorrectly lets any buyer (KYC or not) skip the pool entirely.
 - L16. ✅ Done, tested S34. Logistics-marketplace opportunities dashboard rebuilt: correct data shape (dimensions_cm not dimensions.length_cm), null destination_country handled (global broadcasts show "global broadcast" badge), inline quote submission modal (no separate page), destination filter, timeAgo() showing minutes not just hours. B5 fixed (wrong provider loaded — SatsFleet showing for BitHaul). D21 confirmed: null-destination requests appear correctly. L15c end-to-end confirmed live.
 
@@ -171,6 +171,17 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 **Where:** `src/core/layer0-identity/identity.service.ts`, `src/core/layer3-logistics/quote.service.ts`, `src/core/layer4-trust/dispute.service.ts`, `src/infrastructure/payment/stripe.adapter.ts`.
 **Fix:** ✅ Fixed S33. Three narrow, non-behavioral type patches (`identity.service.ts`, `quote.service.ts`, `dispute.service.ts`). `stripe.adapter.ts` fixed by pinning `stripe` to exact version `18.1.0` (matches the adapter's `apiVersion` string) rather than editing the adapter itself — safer for payment code. `npm run build` in `packages/` now completes clean.
 **Priority:** Was Highest, retroactively — this may have been silently capping every SDK-consuming feature since whenever these 12 errors were introduced. Resolved. Worth a `postinstall`/CI check going forward so this can't silently recur (not yet set up — consider logging as its own low-priority roadmap item if it matters enough to you).
+
+### B19. Cart not cleared on logout
+**What:** Logging out of rangkai-marketplace does not clear the cart.
+Items persist in localStorage and appear on next login (even as a
+different user).
+**Where:** Logout handler in `rangkai-marketplace` (AuthContext or logout
+button component — not yet traced).
+**Fix:** Call `clearCart()` from `lib/stores/cart.ts` in the logout handler
+before redirecting.
+**Priority:** Medium. Real data hygiene issue — one buyer's cart visible to
+the next.
 
 ---
 
@@ -407,6 +418,36 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 **Fix:** Two parts. (1) Schema: add a `context` column to `shipping_quotes` — `'seller_standing' | 'buyer_rfq'` — set at insert time. `getAcceptedShippingQuote()` then filters to `context = 'seller_standing'` for cart/product display; buyer RFQ accepts only look at `context = 'buyer_rfq'`. (2) Cleanup: when a buyer removes all items of a product from cart, or when an order is placed, close open `quote_requests` rows for that product/buyer (`status = 'closed'`). Also close them on session logout.
 
 **Priority:** Medium-High. Causes incorrect pricing display for other buyers as soon as one buyer has completed an RFQ accept on a product. Needs schema migration — batch with next schema changes.
+
+### D36. Order detail page doesn't show logistics cost as a line item
+**What:** `app/orders/[id]/page.tsx` shows subtotal ($10) and total ($27) but no
+logistics line between them. Data is correct in DB (logistics_cost: 17.00).
+Pure display gap.
+**Where:** `rangkai-marketplace/app/orders/[id]/page.tsx`
+**Fix:** Add a "Shipping" line item between subtotal and total, reading
+`order.logistics_cost` when present.
+**Priority:** Medium. Data is correct, display is misleading.
+
+### D37. Checkout error state not cleared when pool flow resets to idle
+**What:** If a direct quote request fails (e.g. country field typed as
+"Singapore" instead of "SG"), the error banner persists even after the
+buyer corrects the country and the browse panel resets. On the next
+attempt the stale error is visible alongside a successful flow.
+**Where:** `rangkai-marketplace/app/checkout/page.tsx` `handleDirectRequest()`
+**Fix:** Call `setErrors([])` at the start of `handleDirectRequest()` and
+`handleRequestPoolQuotes()`, same as `handleSubmit()` does.
+**Priority:** Low. UX polish, doesn't block anything.
+
+### D38. Supabase SQL editor has accumulated ~116 untitled test queries
+**What:** The SQL editor has 116 private untitled queries from testing across
+sessions. Most are one-off test queries with no lasting value. Hard to find
+useful reference queries among the noise.
+**Where:** Supabase dashboard SQL editor, private queries.
+**Fix:** Review each query, delete pure test queries (one-off selects, data
+cleanup runs). Keep only queries that are genuinely reusable (schema
+inspection, data integrity checks, cleanup scripts). The cleanup SQLs from
+each session's handover are the ones worth keeping — label them by session.
+**Priority:** Low. Cosmetic, doesn't affect anything functional.
 
 ---
 
