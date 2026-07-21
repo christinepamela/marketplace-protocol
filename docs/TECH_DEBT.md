@@ -1,6 +1,6 @@
 # Tech Debt
 
-**Last updated:** 2026-07-20 (Session 35)
+**Last updated:** 2026-07-21 (Session 36)
 **Maintained by:** the team, updated each session
 **Companion docs:** `LOGISTICS_ARCHITECTURE.md`
 
@@ -182,6 +182,7 @@ button component — not yet traced).
 before redirecting.
 **Priority:** Medium. Real data hygiene issue — one buyer's cart visible to
 the next.
+**Status:** ✅ Fixed S36. `logout()` in `AuthContext.tsx` now calls `clearCart()` before clearing auth storage.
 
 ---
 
@@ -310,6 +311,7 @@ the next.
 **What:** `ProductForm.tsx`'s Origin Country field is a plain text input (placeholder "Malaysia"). But `logistics.routes.ts`'s RFQ broadcast schema requires `origin_country` to be 2-3 characters (an ISO country code like "MY"), and `catalog.routes.ts`'s product schema requires `logistics.originCountry` to be exactly 2 characters. A seller typing "Malaysia" instead of "MY" will fail RFQ broadcast silently (caught in the try/catch, logged to console, doesn't block publish) or fail product creation outright depending on which validator catches it first. Noticed during L12 (S32) but pre-existing — not a new bug introduced by L12.
 **Fix:** Replace the free-text input with an autocomplete/typeahead backed by a small prefilled country name→ISO code list (e.g., "Malaysia" shown to the user, "MY" stored). This is likely the easier fix vs. asking sellers to know their own country's ISO code. Apply to both the base product logistics section and any future destination-country fields (L13/L14).
 **Priority:** Medium — real but not blocking, since KYC test sellers so far have been typing valid-length strings by chance. Will start silently failing for any real seller who doesn't know to type "MY" instead of "Malaysia."
+**Status:** ✅ Fixed S36. Created `rangkai-marketplace/components/ui/CountryCombobox.tsx` — autocomplete with 37 trading countries, shows full name, stores ISO code. Applied to checkout country field and `ProductForm.tsx` origin country field. Confirmed live: typing "Sing" shows Singapore/SG, selecting stores "SG".
 
 ### D20. Nostr data load management
 **What:** Nostr clients sync large amounts of historical data by default. Pam: *"nostr has large data all the time. even when i run primal my laptop is noisy."*
@@ -401,6 +403,7 @@ the next.
 **Where:** `logistics-marketplace/lib/contexts/ProviderContext.tsx` `loadProvider()` and `login()`.
 **Fix:** Add `GET /api/v1/logistics/providers/me` backend endpoint — looks up provider by authenticated user's DID, returns single result. Then update `ProviderContext` to call that instead of `searchProviders()`.
 **Priority:** Medium. Workaround is correct for small provider counts but becomes a full-table scan at scale.
+**Status (part 1):** ✅ Fixed S36. `GET /api/v1/logistics/providers/me` added to `logistics.routes.ts` (registered before `/:id` to avoid route shadowing). `ProviderContext` `loadProvider()` and `login()` now fetch this endpoint directly with Bearer token instead of `searchProviders()` + client-side find.
 
 **What (part 2):** Opportunities page "Submit quote" button resets to enabled on page refresh — submitted state is session-local React state only. A provider can submit multiple quotes for the same request across page loads (the backend `submitQuote()` service blocks duplicate pending quotes from the same provider, but only if the previous one is still pending — if it was accepted/rejected, a new one can be created).
 **Where:** `logistics-marketplace/app/opportunities/page.tsx` `OpportunityCard` component.
@@ -418,6 +421,7 @@ the next.
 **Fix:** Two parts. (1) Schema: add a `context` column to `shipping_quotes` — `'seller_standing' | 'buyer_rfq'` — set at insert time. `getAcceptedShippingQuote()` then filters to `context = 'seller_standing'` for cart/product display; buyer RFQ accepts only look at `context = 'buyer_rfq'`. (2) Cleanup: when a buyer removes all items of a product from cart, or when an order is placed, close open `quote_requests` rows for that product/buyer (`status = 'closed'`). Also close them on session logout.
 
 **Priority:** Medium-High. Causes incorrect pricing display for other buyers as soon as one buyer has completed an RFQ accept on a product. Needs schema migration — batch with next schema changes.
+**Status:** ✅ Fixed S36. Added `context` column (`text NOT NULL DEFAULT 'seller_standing' CHECK IN ('seller_standing', 'buyer_rfq')`) to `shipping_quotes` via Supabase SQL editor. `submitQuote()` sets `context: 'seller_standing'` on insert. `acceptQuote()` computes `finalContext` at accept time by checking for a buyer `quote_requests` row. `getAcceptedQuoteForProduct()` filters to `.eq('context', 'seller_standing')` so product page and cart are never affected by buyer RFQ accepts. Note: the abandoned-checkout cleanup (part 2 of the original fix description) is not yet done — open quote_requests rows are still not closed on cart removal or logout.
 
 ### D36. Order detail page doesn't show logistics cost as a line item
 **What:** `app/orders/[id]/page.tsx` shows subtotal ($10) and total ($27) but no
@@ -427,6 +431,7 @@ Pure display gap.
 **Fix:** Add a "Shipping" line item between subtotal and total, reading
 `order.logistics_cost` when present.
 **Priority:** Medium. Data is correct, display is misleading.
+**Status:** ✅ Fixed S36. Added "Logistics" line item between Subtotal and Total in `orders/[id]/page.tsx`. Reads `(order as any).logisticsCost` — present at runtime via `mapDatabaseToOrder` but not yet on the SDK `Order` type. Only renders when `logisticsCost > 0`.
 
 ### D37. Checkout error state not cleared when pool flow resets to idle
 **What:** If a direct quote request fails (e.g. country field typed as
@@ -437,6 +442,7 @@ attempt the stale error is visible alongside a successful flow.
 **Fix:** Call `setErrors([])` at the start of `handleDirectRequest()` and
 `handleRequestPoolQuotes()`, same as `handleSubmit()` does.
 **Priority:** Low. UX polish, doesn't block anything.
+**Status:** ✅ Fixed S36. `setErrors([])` added at the top of both `handleDirectRequest()` and `handleRequestPoolQuotes()` in `checkout/page.tsx`.
 
 ### D38. Supabase SQL editor has accumulated ~116 untitled test queries
 **What:** The SQL editor has 116 private untitled queries from testing across
