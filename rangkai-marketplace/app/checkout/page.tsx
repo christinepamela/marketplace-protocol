@@ -23,6 +23,7 @@ import CartSummary from '@/components/cart/CartSummary'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import { sdk } from '@/lib/sdk'
 import { getCurrentUserDid } from '@/lib/contexts/AuthContext'
+import CountryCombobox from '@/components/ui/CountryCombobox'
 
 // ============================================================================
 // TYPES
@@ -761,10 +762,12 @@ function CheckoutPageContent() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-soft-black mb-1">Country *</label>
-                    <input type="text" required value={shippingAddress.country}
-                      onChange={e => handleFieldChange('country', e.target.value)}
-                      className="input w-full" placeholder="MY" />
-                    <p className="text-xs text-warm-gray mt-1">Use 2-letter ISO code, e.g. MY, SG, US, GB</p>
+                    <CountryCombobox
+                      value={shippingAddress.country || ''}
+                      onChange={(code) => handleFieldChange('country', code)}
+                      placeholder="Type a country…"
+                      required
+                    />
                   </div>
                 </div>
                 <div>

@@ -7,6 +7,7 @@ import { sdk } from '@/lib/sdk'
 import type { Product, PrimaryCategory, CurrencyCode } from '@rangkai/sdk'
 import ImageUploader from '@/components/vendor/ImageUploader'
 import { Loader2, Save, Eye } from 'lucide-react'
+import CountryCombobox from '@/components/ui/CountryCombobox'
 
 interface ProductFormProps {
   product?: Product // If editing
@@ -713,15 +714,15 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
               <label className="block text-sm font-medium text-soft-black mb-2">
                 Origin Country <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
+              <CountryCombobox
                 value={formData.logistics.originCountry}
-                onChange={(e) => setFormData(prev => ({
+                onChange={(code) => setFormData(prev => ({
                   ...prev,
-                  logistics: { ...prev.logistics, originCountry: e.target.value }
+                  logistics: { ...prev.logistics, originCountry: code }
                 }))}
-                placeholder="Malaysia"
-                className={`input w-full ${errors.originCountry ? 'border-red-500' : ''}`}
+                placeholder="Type a country…"
+                required
+                error={!!errors.originCountry}
               />
               {errors.originCountry && (
                 <p className="text-sm text-red-600 mt-1">{errors.originCountry}</p>
