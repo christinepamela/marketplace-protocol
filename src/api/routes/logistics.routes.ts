@@ -142,6 +142,36 @@ router.get(
 );
 
 /**
+ * @route   GET /api/v1/logistics/providers/me
+ * @desc    Get the authenticated user's own provider profile
+ * @access  Private (authenticated logistics provider)
+ * D34 — S36: replaces full-table scan + client-side find in ProviderContext
+ */
+router.get(
+  '/providers/me',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const userDid = getUserDid(req)
+      const { data: provider, error } = await req.supabase
+        .from('logistics_providers')
+        .select('*')
+        .eq('identity_did', userDid)
+        .maybeSingle()
+
+      if (error) throw error
+
+      res.json({
+        success: true,
+        data: provider // null if this user has no provider profile
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+/**
  * @route   GET /api/v1/logistics/providers/:id
  * @desc    Get provider by ID with stats
  * @access  Public

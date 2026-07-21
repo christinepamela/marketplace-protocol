@@ -54,13 +54,13 @@ export function ProviderProvider({ children }: { children: React.ReactNode }) {
       // Set token on SDK before making authenticated calls
       sdk.setToken(token)
 
-      // Fetch all providers and find the one matching this user's DID.
-      // identity_did is not a supported filter in searchProviders() — the
-      // backend schema doesn't expose it. Client-side filter is safe for now.
-      // Real fix: add GET /logistics/providers/me endpoint (see D34).
-      const providers = await sdk.logistics.searchProviders()
-      const found = providers.find((p: any) => p.identity_did === did) || null
-      setProvider(found)
+      // D34: use dedicated /providers/me endpoint instead of full-table scan
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/v1/logistics/providers/me`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const json = await response.json()
+      setProvider(json.data || null)
 
       if (refreshToken) {
         scheduleTokenRefresh(refreshToken)
@@ -126,9 +126,13 @@ export function ProviderProvider({ children }: { children: React.ReactNode }) {
     sdk.setToken(token)
 
     try {
-      const providers = await sdk.logistics.searchProviders()
-      const found = providers.find((p: any) => p.identity_did === did) || null
-      setProvider(found)
+      // D34: use dedicated /providers/me endpoint instead of full-table scan
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/v1/logistics/providers/me`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const json = await response.json()
+      setProvider(json.data || null)
 
       if (refreshToken) {
         scheduleTokenRefresh(refreshToken)
