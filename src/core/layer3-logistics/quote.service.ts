@@ -140,6 +140,14 @@ export class QuoteService {
     }
 
     // Create quote
+    // D35: context distinguishes seller standing quotes (shown to all buyers)
+    // from buyer RFQ accepts (only relevant to that buyer's checkout session).
+    // Buyer RFQ quotes are product-scoped and created from a quote_requests row
+    // where requester_did is not the product's vendor. All other quotes default
+    // to seller_standing.
+    const context = 'seller_standing'; // submitQuote() is always seller context
+    // (buyer RFQ accepts go through acceptQuote(), not submitQuote)
+
     const { data: quote, error } = await this.supabase
       .from('shipping_quotes')
       .insert({
@@ -154,6 +162,7 @@ export class QuoteService {
         estimated_days: input.estimated_days,
         insurance_included: input.insurance_included,
         valid_until: validUntil.toISOString(),
+        context,
       })
       .select()
       .single();
@@ -254,6 +263,8 @@ export class QuoteService {
     // raw SQL test-data inserts can (and did, S33) violate that invariant.
     // Degrade gracefully to "use the newest" rather than 500ing — see D29 for
     // the real fix (a DB-level constraint that makes this state impossible).
+    // D35: filter to seller_standing only — buyer RFQ accepts must not
+    // bleed through to the product page or cart price display for other buyers.
     const { data, error } = await this.supabase
       .from('shipping_quotes')
       .select(`
@@ -262,6 +273,7 @@ export class QuoteService {
       `)
       .eq('product_id', productId)
       .eq('status', 'accepted')
+      .eq('context', 'seller_standing')
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -362,10 +374,32 @@ export class QuoteService {
       // the seller's standing accepted quote intentionally.
     }
 
-    // Accept this quote
+    // Accept this quote — set context at accept time so buyer RFQ accepts
+    // are distinguishable from seller standing accepted quotes (D35).
+    // Determine final context: for product quotes we need to check
+    // whether a quote_request exists (buyer RFQ) or not (seller standing).
+    let finalContext = 'seller_standing';
+    if (quote.product_id) {
+      const { data: productForContext } = await this.supabase
+        .from('products')
+        .select('vendor_did')
+        .eq('id', quote.product_id)
+        .maybeSingle();
+      if (productForContext) {
+        const { data: rfqForContext } = await this.supabase
+          .from('quote_requests')
+          .select('id')
+          .eq('product_id', quote.product_id)
+          .neq('requester_did', productForContext.vendor_did)
+          .limit(1)
+          .maybeSingle();
+        if (rfqForContext) finalContext = 'buyer_rfq';
+      }
+    }
+
     const { data: acceptedQuote, error: updateError } = await this.supabase
       .from('shipping_quotes')
-      .update({ status: 'accepted' })
+      .update({ status: 'accepted', context: finalContext })
       .eq('id', quoteId)
       .select()
       .single();
