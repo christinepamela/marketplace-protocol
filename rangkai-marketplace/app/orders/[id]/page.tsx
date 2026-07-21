@@ -191,6 +191,14 @@ export default function OrderDetailPage() {
                   </span>
                 </div>
               )}
+              {(order as any).logisticsCost > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-warm-gray">Logistics</span>
+                  <span className="text-soft-black">
+                    ${((order as any).logisticsCost as number).toFixed(2)} {order.total.currency}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-lg font-medium pt-2 border-t border-barely-beige">
                 <span>Total</span>
                 <span>${order.total.amount.toFixed(2)} {order.total.currency}</span>

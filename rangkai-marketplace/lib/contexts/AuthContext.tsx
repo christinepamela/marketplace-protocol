@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react'
 import { sdk } from '@/lib/sdk'
+import { clearCart } from '@/lib/stores/cart'
 import type { Identity } from '@rangkai/sdk'
 
 // ============================================================================
@@ -174,12 +175,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
-    // ✅ NEW: Clear refresh timer
+    // Clear refresh timer
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current)
       refreshTimerRef.current = null
     }
-    
+
+    // B19: Clear cart on logout so it doesn't persist to next user
+    clearCart()
+
     // Clear localStorage
     clearAuthStorage()
 

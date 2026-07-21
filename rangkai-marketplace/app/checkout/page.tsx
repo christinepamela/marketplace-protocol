@@ -154,6 +154,7 @@ function CheckoutPageContent() {
   // -------------------------------------------------------------------------
 
   async function handleRequestPoolQuotes(vendorDid: string) {
+    setErrors([])
     if (!cart || !shippingAddress.country) {
       setErrors(['Please enter your destination country before requesting shipping quotes.'])
       return
@@ -253,6 +254,7 @@ function CheckoutPageContent() {
   }
 
   async function handleDirectRequest(vendorDid: string, providerId: string, providerName: string) {
+    setErrors([])
     if (!cart || !shippingAddress.country) return
 
     const vendorGroups = groupCartByVendor(cart)
