@@ -87,6 +87,7 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 **Where:** `rangkai-marketplace/app/orders/[id]/page.tsx`, `components/logistics/TrackingTimeline.tsx`
 **Fix:** Trace the data path from `getShipmentByOrder` → component props → render. Add the `tracking_number` field where missing.
 **Priority:** Medium. Buyer-facing bug, makes the buyer experience feel incomplete.
+**Status:** 🟡 Code verified S37. `mapDatabaseToOrder` correctly maps `tracking_number`, `markAsShipped` correctly writes it, and the order detail page correctly renders it when present. No shipped orders exist in DB to test against — all 10 orders are `payment_pending` or `paid`. Needs end-to-end shipping test once an order reaches `shipped` status.
 
 ### B5. Dashboard data fails to load on fresh provider account
 **What:** "Failed to load dashboard data" banner on `logistics-marketplace/app/dashboard/page.tsx` for a brand-new provider with no quotes/shipments.
