@@ -31,17 +31,24 @@ export default function Header() {
               Shop
             </Link>
             
-            {/* ✅ ADD THIS: Vendor Links (show if user is authenticated) */}
-            {user && (
+            {/* Role-based nav: buyers see My Orders, sellers see Dashboard + My Products */}
+            {user && user.identity.publicProfile.businessType === 'buyer' ? (
+              <Link
+                href="/orders"
+                className="text-soft-black hover:text-warm-taupe transition-colors font-medium"
+              >
+                My Orders
+              </Link>
+            ) : user && (
               <>
-                <Link 
-                  href="/vendor/dashboard" 
+                <Link
+                  href="/vendor/dashboard"
                   className="text-soft-black hover:text-warm-taupe transition-colors font-medium"
                 >
                   Dashboard
                 </Link>
-                <Link 
-                  href="/vendor/products" 
+                <Link
+                  href="/vendor/products"
                   className="text-soft-black hover:text-warm-taupe transition-colors font-medium"
                 >
                   My Products

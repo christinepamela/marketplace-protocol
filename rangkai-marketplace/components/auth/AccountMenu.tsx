@@ -77,17 +77,27 @@ export default function AccountMenu() {
             )}
           </div>
 
-          {/* Menu items */}
+          {/* Menu items — role-based */}
           <div className="py-2">
-            <Link
-              href="/orders"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-3 px-4 py-2 text-sm text-soft-black hover:bg-light-cream transition-colors"
-            >
-              <Package size={16} />
-              <span>My Orders</span>
-            </Link>
-
+            {user?.identity.publicProfile.businessType === 'buyer' ? (
+              <Link
+                href="/orders"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-4 py-2 text-sm text-soft-black hover:bg-light-cream transition-colors"
+              >
+                <Package size={16} />
+                <span>My Orders</span>
+              </Link>
+            ) : (
+              <Link
+                href="/vendor/dashboard"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-4 py-2 text-sm text-soft-black hover:bg-light-cream transition-colors"
+              >
+                <Package size={16} />
+                <span>Dashboard</span>
+              </Link>
+            )}
             <Link
               href="/profile"
               onClick={() => setIsOpen(false)}

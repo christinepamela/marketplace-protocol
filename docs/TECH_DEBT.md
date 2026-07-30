@@ -159,7 +159,7 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 **Where:** Header/nav component (not yet identified), plus a new buyer order-history list page.
 **Fix:** (1) Role-based conditional rendering on nav items. (2) Build buyer order-history list, backed by whatever order-listing endpoint exists or needs adding.
 **Priority:** Medium. Buyer-facing usability gap, not blocking L14–L16.
-**Status:** Logged S33 (buyer session as Bitty Bit surfaced it). Deferred by agreement — not tonight's priority.
+**Status:** ✅ Fixed S37. `Header.tsx` now renders "My Orders" for `businessType: 'buyer'` and "Dashboard" + "My Products" for all other types. `AccountMenu.tsx` matches the same logic. `app/orders/page.tsx` already handled buyer order history — no new page needed, it auto-detects role. Confirmed live: Bitty Buy sees buyer nav, Bitshop sees seller nav.
 
 ### B17. Buyer product page silently swallows a broken `sdk.identity.getIdentity` call
 **What:** `getVendorIdentity()` in `products.ts` try/catches `sdk.identity.getIdentity()`, returning null on failure — which is why the page never visibly broke from this before. **Confirmed S33, post-B18-fix:** the error persisted even after `packages` build was cleaned, `packages/sdk` rebuilt, and the stale `node_modules` copy force-reinstalled (D25's workaround). Same shape as D22 — this is a real missing/misnamed method on `IdentityModule`, not a stale-build symptom.
