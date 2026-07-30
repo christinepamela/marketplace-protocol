@@ -275,12 +275,12 @@ the next.
 - `docs/specs/LAYER4_TRUST_AND_COMPLIANCE.md` (spec is thorough)
 
 **Sub-items:**
-- **D15a.** Build trust.routes.ts — expose existing compliance service via REST (~2-3 hours). Required endpoints: `POST /trust/sanctions-check`, `GET /trust/sanctions-history/:did`, `POST /trust/sanctions-list`, `POST /trust/sanctions-list/bulk-update`, `GET /trust/stats`, `GET /trust/tax-rates`, `POST /trust/tax-rates`, `POST /trust/tax-calculation`
-- **D15b.** Populate sanctions list from OFAC/UN/EU feeds (data work, not code)
-- **D15c.** Integrate sanctions check into rangkai-marketplace KYC registration
-- **D15d.** Marketplace operator dashboard for flagged identities
-- **D15e.** Compliance events for real-time wiring (v1.5, low priority within this group)
-- **D15f.** Public sanctions-list transparency page
+- **D15a.** ✅ Fixed S37. `trust.routes.ts` built and mounted. All 8 endpoints live: `POST /trust/sanctions-check`, `GET /trust/sanctions-history/:did`, `POST /trust/sanctions-list`, `POST /trust/sanctions-list/bulk-update`, `GET /trust/stats`, `GET /trust/tax-rates`, `POST /trust/tax-rates`, `POST /trust/tax-calculation`. Confirmed working via curl.
+- **D15b.** ✅ Fixed S37. `sanctions_list` seeded with 8 real entries from OFAC, UN, and EU lists (Kim Jong Un, Al-Qaida, ISIS, Viktor Bout, Aum Shinrikyo, Hamas, Gaddafi Estate, plus one inactive test entry).
+- **D15c.** ✅ Fixed S37. `POST /identity/register` now runs `checkSanctions()` automatically for KYC registrations. Blocked identities get 403 and are deleted. Flagged identities are logged for review but registration proceeds. Confirmed: sanctions check auto-logged on new KYC registration.
+- **D15d.** Marketplace operator dashboard for flagged identities — deferred, post-v1.
+- **D15e.** Compliance events for real-time wiring — v1.5, low priority.
+- **D15f.** Public sanctions-list transparency page — v1.5.
 
 **Priority:** HIGH. Sprint after B1 (logistics payment) completes. D15a–c are the meaningful trust delivery. D15d–f can follow.
 

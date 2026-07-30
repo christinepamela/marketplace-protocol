@@ -30,6 +30,7 @@ import {
 } from '../middleware/auth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
 import { NotFoundError, ValidationError } from '../core/errors';
+import { ComplianceService } from '../../core/layer4-trust/compliance.service';
 
 const router = Router();
 
@@ -106,6 +107,29 @@ router.post(
     
     // Register identity
     const identity = await identityService.registerIdentity(requestData);
+
+    // D15c (S37): Sanctions check for KYC registrations
+    if (requestData.type === 'kyc' && requestData.kycData) {
+      const complianceService = new ComplianceService(supabase);
+      const sanctionResult = await complianceService.checkSanctions({
+        identity_did: identity.did,
+        full_name: requestData.kycData.ownerName || requestData.publicProfile.displayName,
+        check_type: 'kyc_onboarding',
+      });
+
+      if (sanctionResult.action === 'blocked') {
+        // Roll back registration
+        await supabase.from('identities').delete().eq('did', identity.did);
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'SANCTIONS_BLOCKED',
+            message: 'Registration blocked: identity matches a sanctions list entry.',
+          },
+        });
+      }
+      // 'flagged' — logged automatically, registration proceeds, compliance team reviews
+    }
     
     // Generate JWT tokens
     const jwt = require('jsonwebtoken');
