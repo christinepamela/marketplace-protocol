@@ -106,8 +106,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(refreshTimerRef.current)
     }
     
-    // For 1-hour tokens, refresh after 55 minutes (5 min buffer)
-    const refreshInterval = 55 * 60 * 1000 // 55 minutes in milliseconds
+    // Calculate actual time remaining from JWT exp claim, refresh 5 min before expiry
+    let refreshInterval = 55 * 60 * 1000 // 55 min fallback
+    try {
+      const token = localStorage.getItem(TOKEN_KEY)
+      if (token) {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        const expiresInMs = (payload.exp * 1000) - Date.now() - (5 * 60 * 1000)
+        if (expiresInMs > 0) refreshInterval = expiresInMs
+      }
+    } catch {
+      // Fall back to default 55 min if decode fails
+    }
     
     refreshTimerRef.current = setTimeout(async () => {
       try {

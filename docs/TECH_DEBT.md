@@ -80,6 +80,7 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 **Where:** `rangkai-marketplace/lib/contexts/AuthContext.tsx`
 **Fix:** Mirror `logistics-marketplace/lib/contexts/ProviderContext.tsx` — JWT-aware refresh scheduling, refresh-token storage, automatic re-auth on 401.
 **Priority:** High. Annoying during dev, broken in production.
+**Status:** ✅ Fixed S37. `scheduleTokenRefresh()` in `AuthContext.tsx` now decodes JWT `exp` claim to calculate actual time remaining, matching the pattern in `ProviderContext.tsx`. Confirmed: API server restart no longer kicks logged-in users out on page refresh.
 
 ### B4. Tracking number not shown in buyer shipment UI
 **What:** Buyer's order page renders shipment data, but tracking number doesn't appear. Likely a missing field in the hydrated query or a renderer that's looking at the wrong path.
