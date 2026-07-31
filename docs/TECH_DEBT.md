@@ -1,6 +1,6 @@
 # Tech Debt
 
-**Last updated:** 2026-07-21 (Session 36)
+**Last updated:** 2026-07-31 (Session 37)
 **Maintained by:** the team, updated each session
 **Companion docs:** `LOGISTICS_ARCHITECTURE.md`
 
@@ -107,8 +107,7 @@ TIER 4 — Spec corrections (🟡 Partially reopened S32)
 
 ### B9. Four route files exist but aren't mounted in routes/index.ts
 **What:** `bitcoin.routes.ts`, `btcpay.routes.ts`, `stripe.routes.ts`, and `trust.routes.ts` existed as files but were not mounted. Bitcoin route added S28. Stripe and BTCPay are mounted directly in `server.ts` as webhooks (correct — webhooks need raw body parsing). Trust is the only legitimate gap, deferred as D15.
-**Status:** Partially resolved S28. Bitcoin mounted. Stripe/BTCPay confirmed correct in server.ts. Trust deferred as D15.
-**Priority:** D15 sprint.
+**Status:** ✅ Fully resolved S37. Bitcoin mounted S28. Stripe/BTCPay confirmed correct in server.ts S28. Trust routes built and mounted S37 (see D15a) — all four route files now accounted for.
 
 ### B10. Bitcoin auto-confirms on burned derivation indexes
 **Status:** ✅ Fixed S29. `getNextDerivationIndex()` now scans for burned addresses via Blockstream before assigning. `isAddressBurned()` and `storeBurnedPlaceholder()` added. Fresh mnemonic generated — `abandon abandon...` replaced. `BITCOIN_START_INDEX=0`. Confirmed working in Stage 6 end-to-end test S29.
