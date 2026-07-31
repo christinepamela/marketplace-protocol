@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Decentralized marketplace protocol",
   "main": "index.js",
+  "workspaces": [
+    "packages/sdk",
+    "rangkai-marketplace"
+  ],
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
