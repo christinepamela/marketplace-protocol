@@ -80,6 +80,15 @@ const providerSearchSchema = z.object({
   min_rating: z.string().transform(val => parseFloat(val)).optional()
 });
 
+// D24 — S38: seller self-declared shipping estimate
+const sellerEstimateSchema = z.object({
+  product_id: z.string().uuid(),
+  price_fiat: z.number().positive(),
+  currency: z.string().optional(),
+  estimated_days: z.number().positive().optional(),
+  method: z.enum(['standard', 'express', 'freight']).optional()
+});
+
 // ============================================================================
 // PROVIDER ROUTES
 // ============================================================================
@@ -345,6 +354,52 @@ router.post(
     try {
       const quoteService = new QuoteService(req.supabase);
       const quote = await quoteService.submitQuote(req.body);
+
+      res.status(201).json({
+        success: true,
+        data: quote
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @route   POST /api/v1/logistics/quotes/seller-estimate
+ * @desc    Seller submits their own shipping estimate for their product
+ *          (D24 — S38). No provider involved; goes straight to accepted.
+ *          Superseded automatically when a real provider quote is accepted.
+ * @access  Private (product owner only)
+ */
+router.post(
+  '/quotes/seller-estimate',
+  requireAuth,
+  validateBody(sellerEstimateSchema),
+  async (req, res, next) => {
+    try {
+      const userDid = getUserDid(req);
+
+      // Verify the product belongs to the seller making the request
+      const { data: product, error: productError } = await req.supabase
+        .from('products')
+        .select('id, vendor_did')
+        .eq('id', req.body.product_id)
+        .single();
+
+      if (productError || !product) {
+        throw new NotFoundError('Product not found');
+      }
+
+      if (product.vendor_did !== userDid) {
+        throw new ApiError(
+          ErrorCode.FORBIDDEN,
+          'You can only submit estimates for your own products'
+        );
+      }
+
+      const quoteService = new QuoteService(req.supabase);
+      const quote = await quoteService.submitSellerEstimate(req.body);
 
       res.status(201).json({
         success: true,

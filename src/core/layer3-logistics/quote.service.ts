@@ -175,6 +175,92 @@ export class QuoteService {
   }
 
   /**
+   * Seller submits their own shipping estimate for a product (D24 — S38).
+   * No provider involved: provider_id is null, is_seller_estimate is true.
+   * Goes straight to accepted (seller is both author and accepter) with
+   * context seller_standing, so the product page and cart pick it up through
+   * the exact same query path as a real accepted quote. Always displays as
+   * 'estimated', never 'firm' — see getAcceptedQuoteForProduct().
+   * Superseded automatically when the seller accepts a real provider quote
+   * (see acceptQuote). Ownership is verified at the route layer.
+   */
+  async submitSellerEstimate(input: {
+    product_id: string;
+    price_fiat: number;
+    currency?: string;
+    estimated_days?: number;
+    method?: string;
+  }): Promise<ShippingQuote> {
+    if (!input.price_fiat || input.price_fiat <= 0) {
+      throw new Error('Estimate price must be greater than 0');
+    }
+
+    // Verify product exists
+    const { data: product, error: productError } = await this.supabase
+      .from('products')
+      .select('id')
+      .eq('id', input.product_id)
+      .single();
+
+    if (productError || !product) {
+      throw new Error('Product not found');
+    }
+
+    // Block if the product already has an accepted standing quote —
+    // a real provider quote always outranks a seller estimate, and two
+    // estimates make no sense. The D29 unique index enforces this at the
+    // schema level too; this check just gives a readable error first.
+    const { data: existingAccepted } = await this.supabase
+      .from('shipping_quotes')
+      .select('id, is_seller_estimate')
+      .eq('product_id', input.product_id)
+      .eq('status', 'accepted')
+      .eq('context', 'seller_standing')
+      .maybeSingle();
+
+    if (existingAccepted) {
+      throw new Error(
+        existingAccepted.is_seller_estimate
+          ? 'This product already has a seller estimate'
+          : 'This product already has an accepted provider quote'
+      );
+    }
+
+    // valid_until is meaningless for a seller estimate (it displays as
+    // 'estimated' regardless) but the column is required — set it far out
+    // so expiry logic never touches it.
+    const validUntil = new Date();
+    validUntil.setFullYear(validUntil.getFullYear() + 1);
+
+    const { data: quote, error } = await this.supabase
+      .from('shipping_quotes')
+      .insert({
+        order_id: null,
+        product_id: input.product_id,
+        quote_type: 'product',
+        provider_id: null,
+        is_seller_estimate: true,
+        method: input.method || 'standard',
+        price_sats: null,
+        price_fiat: input.price_fiat,
+        currency: input.currency || 'USD',
+        estimated_days: input.estimated_days || null,
+        insurance_included: false,
+        valid_until: validUntil.toISOString(),
+        status: 'accepted',
+        context: 'seller_standing',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to submit seller estimate: ${error.message}`);
+    }
+
+    return quote;
+  }
+
+  /**
    * Get all active quotes for an order
    * Only returns pending quotes that haven't expired
    */
@@ -284,8 +370,12 @@ export class QuoteService {
     if (!data || data.length === 0) return null;
 
     const quote = data[0];
+    // D24: seller estimates are always 'estimated', never 'firm',
+    // regardless of valid_until.
     const priceStatus: 'firm' | 'estimated' =
-      new Date(quote.valid_until) < new Date() ? 'estimated' : 'firm';
+      quote.is_seller_estimate || new Date(quote.valid_until) < new Date()
+        ? 'estimated'
+        : 'firm';
 
     return { ...quote, priceStatus };
   }
@@ -358,16 +448,34 @@ export class QuoteService {
         : false;
 
       if (!isBuyerRfqAccept) {
-        // Seller context: enforce one accepted quote per product
+        // Seller context: enforce one accepted quote per product.
+        // Exception (D24): if the existing accepted quote is the seller's own
+        // estimate, a real provider quote supersedes it automatically — mark
+        // the estimate rejected and let the accept proceed. Sellers should
+        // never have to manually clean up their placeholder estimate.
         const { data: existingAccepted } = await this.supabase
           .from('shipping_quotes')
-          .select('id')
+          .select('id, is_seller_estimate')
           .eq('product_id', quote.product_id)
           .eq('status', 'accepted')
+          .eq('context', 'seller_standing')
           .maybeSingle();
 
         if (existingAccepted) {
-          throw new Error('This product already has an accepted quote');
+          if (existingAccepted.is_seller_estimate) {
+            const { error: supersedeError } = await this.supabase
+              .from('shipping_quotes')
+              .update({ status: 'rejected' })
+              .eq('id', existingAccepted.id);
+
+            if (supersedeError) {
+              throw new Error(
+                `Failed to supersede seller estimate: ${supersedeError.message}`
+              );
+            }
+          } else {
+            throw new Error('This product already has an accepted quote');
+          }
         }
       }
       // Buyer RFQ context: no guard — buyer's accepted quote coexists with

@@ -166,12 +166,14 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          {/* Shipping option (L14 — S33) */}
+          {/* Shipping option (L14 — S33; D24 — S38: provider is null for seller estimates) */}
           {shippingQuote && (
             <div className="p-4 border border-barely-beige">
               <div className="flex items-center gap-2 text-sm font-medium mb-1">
                 <Truck size={16} />
-                Shipping — {shippingQuote.provider.business_name}
+                Shipping — {shippingQuote.is_seller_estimate
+                  ? "Seller's estimate"
+                  : shippingQuote.provider?.business_name || 'Logistics provider'}
                 {shippingQuote.priceStatus === 'estimated' && (
                   <span className="text-xs font-normal text-warm-gray italic">(estimated)</span>
                 )}

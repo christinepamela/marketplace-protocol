@@ -1,6 +1,6 @@
 # Tech Debt
 
-**Last updated:** 2026-07-31 (Session 37)
+**Last updated:** 2026-08-10 (Session 388)
 **Maintained by:** the team, updated each session
 **Companion docs:** `LOGISTICS_ARCHITECTURE.md`
 
@@ -341,6 +341,7 @@ the next.
 **Where:** `quote.service.ts` `submitQuote()`, product creation flow (`ProductForm.tsx`, per L12 notes).
 **Fix:** Needs a schema decision — likely nullable `provider_id` + an `is_seller_estimate` flag — plus a UI field on product creation, and copy that nudges toward getting a real quote rather than relying on the self-declared one.
 **Priority:** Medium. The mandatory-quote publish rule technically can't be satisfied by "estimated" in practice yet — only firm quotes exist as a real path. Worth resolving before R21 (hard-block publish) is revisited.
+**Status:** ✅ Fixed S38. Schema: `provider_id` nullable, `is_seller_estimate` flag, CHECK constraint (`provider_id IS NOT NULL OR is_seller_estimate = true`). Backend: `submitSellerEstimate()` in `quote.service.ts` inserts straight to `accepted`/`seller_standing`; `acceptQuote()` auto-supersedes a seller estimate (marks it `rejected`) when a real provider quote is accepted. Route: `POST /logistics/quotes/seller-estimate`, product-owner only. SDK: `sdk.logistics.submitSellerEstimate()`, `ShippingQuote` type updated to real table shape. UI: estimate field on `ProductForm.tsx` (create mode, KYC sellers only) with copy nudging toward a real quote; product page shows "Seller's estimate" and always "(estimated)", never "firm". Tested end-to-end: create, duplicate-block, ownership 403, buyer display, supersede.
 
 ### D25. `@rangkai/sdk` is installed as a physical copy, not a live link — `file:` dependency silently goes stale
 **What:** `rangkai-marketplace/package.json` declares `"@rangkai/sdk": "file:../packages/sdk"`, which is meant to behave like a live link (similar to `npm link`) so local SDK edits are picked up on rebuild. On this Windows setup, npm instead copied the package into `node_modules/@rangkai/sdk` as a real, physical directory (confirmed via `dir` showing `<DIR>` rather than `<SYMLINKD>`/`<JUNCTION>`). Every SDK edit since initial install (14/11/2025) was invisible to `rangkai-marketplace` — cost significant time S33 chasing what looked like a build failure but was actually a stale dependency snapshot.
@@ -372,6 +373,7 @@ the next.
 **Where:** `shipping_quotes` table schema.
 **Fix:** `CREATE UNIQUE INDEX ON shipping_quotes (product_id) WHERE status = 'accepted';` — a partial unique index makes the multi-accepted state impossible to create at all, even by hand, rather than just handling it gracefully after the fact.
 **Priority:** Low-Medium. App-level code already prevents this in normal operation; only bites on manual/raw test-data manipulation. Worth doing as a real migration when schema changes are next batched, not urgent enough for its own session.
+**Status:** ✅ Fixed S38. `CREATE UNIQUE INDEX one_accepted_standing_quote_per_product ON shipping_quotes (product_id) WHERE status = 'accepted' AND context = 'seller_standing'` — batched with D24's migration. Scoped to `seller_standing` (per D35's context model, buyer RFQ accepts legitimately coexist). Duplicate check run pre-migration: clean.
 
 
 ### D30. Cart items carry a hardcoded "Vendor" placeholder name, never populated
@@ -456,6 +458,18 @@ cleanup runs). Keep only queries that are genuinely reusable (schema
 inspection, data integrity checks, cleanup scripts). The cleanup SQLs from
 each session's handover are the ones worth keeping — label them by session.
 **Priority:** Low. Cosmetic, doesn't affect anything functional.
+
+### D39. Service-layer errors surface as 500 INTERNAL_ERROR instead of 4xx
+**What:** Plain `Error` throws from service classes (e.g. `quote.service.ts` "Provider already has a pending quote", "This product already has a seller estimate") reach the API error handler untyped and return as HTTP 500 `INTERNAL_ERROR`. These are client errors (conflict/validation) and should be 4xx with proper codes. Systemic across services — routes that throw `ApiError` directly are fine; only service-layer throws are affected. Noticed S38 during D24 testing.
+**Where:** All `src/core/layer*/**.service.ts` throw sites; `src/api/core/errors.ts` / error-handler middleware.
+**Fix:** Either typed error classes in the service layer (e.g. `ConflictError`, `ValidationError` mapped to 409/400) or a mapping layer in the error handler. Decide pattern once, apply incrementally.
+**Priority:** Low-Medium. Cosmetic for dev, but misleading status codes are real API-quality debt for any future marketplace integrating against the protocol.
+
+### D40. `acceptQuote()` infers context from product-level RFQ history, misclassifying seller standing accepts
+**What:** `finalContext` in `acceptQuote()` (and the same inference in its guard and reject-competing-quotes logic) checks whether *any* `quote_requests` row exists for the product from a non-vendor requester — not whether *this specific quote* was submitted in response to an RFQ. Once any buyer has ever RFQ'd a product, every subsequent accept on it is stamped `buyer_rfq`, including a seller accepting a pool standing quote. Confirmed live S38: "custom"'s canonical BitHaul standing quote (`8a54f596`) had been misfiled as `buyer_rfq`, hiding the shipping line from the product page. Repaired by hand; the S37 handover's claim that it was `seller_standing` reflected design intent, not DB state.
+**Where:** `src/core/layer3-logistics/quote.service.ts` `acceptQuote()` (three inference sites: guard, finalContext, reject-competing).
+**Fix:** Stop inferring. Link quotes to their originating request: add nullable `quote_request_id` to `shipping_quotes`, set at submit time when the quote answers an RFQ. Context at accept time = `buyer_rfq` iff `quote_request_id` points to a buyer-created request, else `seller_standing`. Schema change — batch with next migration round.
+**Priority:** Medium-High. Same class of bug as D35 and will keep silently mislabeling quotes (and hiding standing-quote display) any time a product has mixed RFQ history — which is every real product eventually.
 
 ---
 

@@ -327,8 +327,11 @@ export interface LogisticsProvider {
 
 export interface ShippingQuote {
   id: string;
-  order_id: string;
-  provider_id: string;
+  order_id: string | null;
+  product_id: string | null; // exactly one of order_id/product_id is set (L1 — S30)
+  quote_type: 'product' | 'order';
+  provider_id: string | null; // null only for seller estimates (D24 — S38)
+  is_seller_estimate: boolean; // D24 — S38: seller's own declared estimate, no provider
   method: ShippingMethod;
   price_sats?: number;
   price_fiat?: number;
@@ -336,6 +339,7 @@ export interface ShippingQuote {
   estimated_days: number;
   insurance_included: boolean;
   status: string;
+  context: 'seller_standing' | 'buyer_rfq'; // D35 — S36
   valid_until: Date;
   created_at: Date;
 }

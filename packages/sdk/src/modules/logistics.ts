@@ -193,6 +193,30 @@ export class LogisticsModule {
   }
 
   /**
+   * Seller submits their own shipping estimate for their product (D24 — S38)
+   * Requires authentication (product owner only). No provider involved —
+   * the estimate goes straight to accepted status and displays to buyers
+   * as "estimated", never "firm". Automatically superseded when the seller
+   * accepts a real provider quote.
+   *
+   * @example
+   * const estimate = await sdk.logistics.submitSellerEstimate({
+   *   product_id: 'product-uuid',
+   *   price_fiat: 12,
+   *   estimated_days: 10
+   * });
+   */
+  async submitSellerEstimate(request: {
+    product_id: string;
+    price_fiat: number;
+    currency?: string;
+    estimated_days?: number;
+    method?: ShippingMethod;
+  }): Promise<ShippingQuote> {
+    return this.http.post('/logistics/quotes/seller-estimate', request);
+  }
+
+  /**
    * ✅ NEW: Get all quotes for a provider
    * Requires authentication (provider only)
    * 

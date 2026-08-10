@@ -135,6 +135,9 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM_DATA)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  // D24 (S38): seller self-declared shipping estimate, create mode only.
+  // Kept out of FormData — it's not product data, it becomes a shipping_quotes row.
+  const [sellerEstimate, setSellerEstimate] = useState({ price: '', days: '' })
 
   // Load existing product data if editing
   useEffect(() => {
@@ -291,6 +294,32 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
           })
         } catch (rfqError) {
           console.error('Failed to broadcast logistics RFQ:', rfqError)
+        }
+      }
+
+      // D24 (S38): seller self-declared shipping estimate. Fires whenever the
+      // seller entered a price, draft or publish — they typed it, we keep it.
+      // Unlike the RFQ broadcast, failure is surfaced: the seller expects
+      // this number to stick.
+      if (
+        mode === 'create' &&
+        user.identity.type === 'kyc' &&
+        publishedProductId &&
+        Number(sellerEstimate.price) > 0
+      ) {
+        try {
+          await sdk.logistics.submitSellerEstimate({
+            product_id: publishedProductId,
+            price_fiat: Number(sellerEstimate.price),
+            estimated_days:
+              Number(sellerEstimate.days) > 0 ? Number(sellerEstimate.days) : undefined
+          })
+        } catch (estimateError: any) {
+          console.error('Failed to save seller shipping estimate:', estimateError)
+          alert(
+            'Product saved, but your shipping estimate could not be saved: ' +
+            (estimateError?.message || 'unknown error')
+          )
         }
       }
 
@@ -809,6 +838,52 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
               </p>
             </div>
           </label>
+
+          {/* D24 (S38): seller self-declared shipping estimate — create mode, KYC only */}
+          {mode === 'create' && user?.identity?.type === 'kyc' && (
+            <div className="border border-barely-beige rounded p-4 bg-cream/30">
+              <p className="text-sm font-medium text-soft-black mb-1">
+                Your own shipping estimate (optional)
+              </p>
+              <p className="text-xs text-warm-gray mb-3">
+                The best option is a real quote from a logistics provider — your product
+                is broadcast to the pool when you publish, and quotes usually follow.
+                If you'd like a shipping price shown to buyers in the meantime, you can
+                enter your own estimate. It's shown as "estimated", and if the real
+                shipping cost turns out higher, the difference is on you. A provider
+                quote you accept later replaces this automatically.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-soft-black mb-2">
+                    Estimated shipping price (USD)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={sellerEstimate.price}
+                    onChange={(e) => setSellerEstimate(prev => ({ ...prev, price: e.target.value }))}
+                    placeholder="e.g., 12"
+                    className="input w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-soft-black mb-2">
+                    Estimated delivery (days)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={sellerEstimate.days}
+                    onChange={(e) => setSellerEstimate(prev => ({ ...prev, days: e.target.value }))}
+                    placeholder="e.g., 10"
+                    className="input w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
