@@ -66,7 +66,6 @@ type FormData = {
   // Logistics compliance (L12 — S32)
   incoterm: 'EXW' | 'FOB' | 'DAP' | 'DDP'
   hsCode: string
-  requireLogisticsQuote: boolean
   // Status
   status: 'draft' | 'active' | 'inactive'
   visibility: 'public' | 'private' | 'unlisted'
@@ -118,7 +117,6 @@ const INITIAL_FORM_DATA: FormData = {
   },
   incoterm: 'DAP',
   hsCode: '',
-  requireLogisticsQuote: false,
   status: 'draft',
   visibility: 'public'
 }
@@ -160,7 +158,6 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
         logistics: product.logistics,
         incoterm: product.incoterm || 'DAP',
         hsCode: product.hsCode || '',
-        requireLogisticsQuote: product.requireLogisticsQuote || false,
         status: product.status,
         visibility: product.visibility
       }) 
@@ -227,6 +224,23 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
       return
     }
 
+    // R21 (S39): client-side pre-check of the publish gate. DAP/DDP means
+    // the seller arranges main freight, so publishing needs a shipping
+    // quote. In create mode the only quote that can exist yet is the
+    // seller's own estimate — require it here before hitting the server.
+    if (
+      saveAs === 'active' &&
+      mode === 'create' &&
+      user.identity?.type === 'kyc' &&
+      (formData.incoterm === 'DAP' || formData.incoterm === 'DDP') &&
+      !(Number(sellerEstimate.price) > 0)
+    ) {
+      alert(
+        `This product is sold ${formData.incoterm}, so it needs a shipping price before it can go live. Enter your shipping estimate below, or save as draft and publish after you accept a logistics provider's quote.`
+      )
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -264,21 +278,56 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
       }
 
       let publishedProductId: string | null = null
+      // R21 (S39): the server always creates products as draft. Publishing
+      // is a separate, gated status change made at the end of this flow,
+      // after the seller estimate has been saved — so the gate can see it.
+      let activationError: string | null = null
 
       if (mode === 'create') {
         const result = await sdk.catalog.create(productData)
         publishedProductId = result.productId
-        alert('Product created successfully!')
       } else if (mode === 'edit' && product) {
         await sdk.catalog.update(product.id, productData)
         publishedProductId = product.id
-        alert('Product updated successfully!')
+      }
+
+      // D24 (S38): seller self-declared shipping estimate. Fires whenever the
+      // seller entered a price, draft or publish — they typed it, we keep it.
+      // R21 (S39): DAP/DDP only (seller arranges main freight), and runs
+      // BEFORE activation so the publish gate finds it.
+      if (
+        mode === 'create' &&
+        user.identity.type === 'kyc' &&
+        publishedProductId &&
+        (formData.incoterm === 'DAP' || formData.incoterm === 'DDP') &&
+        Number(sellerEstimate.price) > 0
+      ) {
+        try {
+          await sdk.logistics.submitSellerEstimate({
+            product_id: publishedProductId,
+            price_fiat: Number(sellerEstimate.price),
+            estimated_days:
+              Number(sellerEstimate.days) > 0 ? Number(sellerEstimate.days) : undefined
+          })
+        } catch (estimateError: any) {
+          console.error('Failed to save seller shipping estimate:', estimateError)
+          alert(
+            'Your shipping estimate could not be saved: ' +
+            (estimateError?.message || 'unknown error')
+          )
+        }
       }
 
       // L12 (S32): KYC sellers publishing (not saving as draft) auto-broadcast
       // an RFQ so logistics providers can start quoting. Best-effort — a
-      // broadcast failure shouldn't block the product from being published.
-      if (saveAs === 'active' && user.identity.type === 'kyc' && publishedProductId) {
+      // broadcast failure shouldn't block publishing. R21 (S39): DAP/DDP only —
+      // for EXW/FOB the buyer arranges main freight, nothing to quote.
+      if (
+        saveAs === 'active' &&
+        user.identity.type === 'kyc' &&
+        publishedProductId &&
+        (formData.incoterm === 'DAP' || formData.incoterm === 'DDP')
+      ) {
         try {
           await sdk.logistics.requestQuote({
             product_id: publishedProductId,
@@ -297,30 +346,28 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
         }
       }
 
-      // D24 (S38): seller self-declared shipping estimate. Fires whenever the
-      // seller entered a price, draft or publish — they typed it, we keep it.
-      // Unlike the RFQ broadcast, failure is surfaced: the seller expects
-      // this number to stick.
-      if (
-        mode === 'create' &&
-        user.identity.type === 'kyc' &&
-        publishedProductId &&
-        Number(sellerEstimate.price) > 0
-      ) {
+      // R21 (S39): the actual publish — a gated status change. The server
+      // refuses to activate a KYC seller's DAP/DDP product without an
+      // accepted standing quote (provider firm quote or seller estimate).
+      if (mode === 'create' && saveAs === 'active' && publishedProductId) {
         try {
-          await sdk.logistics.submitSellerEstimate({
-            product_id: publishedProductId,
-            price_fiat: Number(sellerEstimate.price),
-            estimated_days:
-              Number(sellerEstimate.days) > 0 ? Number(sellerEstimate.days) : undefined
-          })
-        } catch (estimateError: any) {
-          console.error('Failed to save seller shipping estimate:', estimateError)
-          alert(
-            'Product saved, but your shipping estimate could not be saved: ' +
-            (estimateError?.message || 'unknown error')
-          )
+          await sdk.catalog.update(publishedProductId, { status: 'active' })
+        } catch (publishError: any) {
+          activationError = publishError?.message || 'unknown error'
+          console.error('Product saved as draft, publish blocked:', publishError)
         }
+      }
+
+      if (mode === 'create') {
+        if (saveAs === 'draft') {
+          alert('Draft saved.')
+        } else if (activationError) {
+          alert('Product saved as a draft, but could not be published: ' + activationError)
+        } else {
+          alert('Product published!')
+        }
+      } else {
+        alert('Product updated successfully!')
       }
 
       router.push('/vendor/products')
@@ -821,37 +868,24 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
             </div>
           </div>
 
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formData.requireLogisticsQuote}
-              onChange={(e) => setFormData(prev => ({
-                ...prev,
-                requireLogisticsQuote: e.target.checked
-              }))}
-              className="w-4 h-4 mt-0.5"
-            />
-            <div>
-              <p className="text-sm font-medium text-soft-black">Require buyers to select a logistics quote at checkout</p>
-              <p className="text-xs text-warm-gray">
-                Turn this on once you have logistics quotes attached to this product. Buyers won't be able to check out without picking one or explicitly arranging their own shipping.
-              </p>
-            </div>
-          </label>
-
-          {/* D24 (S38): seller self-declared shipping estimate — create mode, KYC only */}
-          {mode === 'create' && user?.identity?.type === 'kyc' && (
+          {/* D24 (S38): seller self-declared shipping estimate — create mode, KYC only.
+              R21 (S39): DAP/DDP only — the seller arranges main freight, so a
+              shipping quote (this estimate, or a provider quote) is required to publish. */}
+          {mode === 'create' && user?.identity?.type === 'kyc' &&
+            (formData.incoterm === 'DAP' || formData.incoterm === 'DDP') && (
             <div className="border border-barely-beige rounded p-4 bg-cream/30">
               <p className="text-sm font-medium text-soft-black mb-1">
-                Your own shipping estimate (optional)
+                Your shipping estimate
               </p>
               <p className="text-xs text-warm-gray mb-3">
-                The best option is a real quote from a logistics provider — your product
-                is broadcast to the pool when you publish, and quotes usually follow.
-                If you'd like a shipping price shown to buyers in the meantime, you can
-                enter your own estimate. It's shown as "estimated", and if the real
-                shipping cost turns out higher, the difference is on you. A provider
-                quote you accept later replaces this automatically.
+                Sold {formData.incoterm}, this product needs a shipping price before it
+                can go live. The best option is a real quote from a logistics provider —
+                your product is broadcast to the pool when you publish, and quotes usually
+                follow. To publish right away, enter your own estimate here; or save as
+                draft and publish once you've accepted a provider quote. Your estimate is
+                shown to buyers as "estimated", and if the real shipping cost turns out
+                higher, the difference is on you. A provider quote you accept later
+                replaces it automatically.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -882,6 +916,16 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* R21 (S39): EXW/FOB — buyer arranges main freight, nothing to quote */}
+          {(formData.incoterm === 'EXW' || formData.incoterm === 'FOB') && (
+            <div className="border border-barely-beige rounded p-4 bg-cream/30">
+              <p className="text-sm text-warm-gray">
+                Sold {formData.incoterm}, the buyer arranges the main freight — no
+                shipping quote is needed to publish this product.
+              </p>
             </div>
           )}
         </div>

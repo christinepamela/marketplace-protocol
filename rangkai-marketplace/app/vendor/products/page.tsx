@@ -57,9 +57,11 @@ export default function VendorProductsPage() {
       setProducts(prev => 
         prev.map(p => p.id === productId ? { ...p, status: newStatus } : p)
       )
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update product status:', error)
-      alert('Failed to update product status')
+      // R21 (S39): surface the server's reason — e.g. the publish gate
+      // refusing to activate a DAP/DDP product without a shipping quote.
+      alert(error?.message || 'Failed to update product status')
     }
   }
 

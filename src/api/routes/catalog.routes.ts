@@ -120,7 +120,6 @@ const createProductSchema = z.object({
   visibility: z.enum(['public', 'private', 'unlisted']).optional(),
   incoterm: z.enum(['EXW', 'FOB', 'DAP', 'DDP']).optional(),
   hsCode: z.string().optional(),
-  requireLogisticsQuote: z.boolean().optional(),
 });
 
 // Update product schema
@@ -139,7 +138,6 @@ const updateProductSchema = z.object({
   visibility: z.enum(['public', 'private', 'unlisted']).optional(),
   incoterm: z.enum(['EXW', 'FOB', 'DAP', 'DDP']).optional(),
   hsCode: z.string().optional(),
-  requireLogisticsQuote: z.boolean().optional(),
 });
 
 // Search query schema
@@ -288,10 +286,39 @@ router.put(
       mergedUpdates.hsCode = req.body.hsCode;
     }
 
-    if (req.body.requireLogisticsQuote !== undefined) {
-      mergedUpdates.requireLogisticsQuote = req.body.requireLogisticsQuote;
+    // R21 (S39): require_logistics_quote is derived from the Incoterm, never
+    // seller-toggled. DAP/DDP = seller arranges main freight = quote required.
+    if (req.body.incoterm) {
+      mergedUpdates.requireLogisticsQuote =
+        req.body.incoterm === 'DAP' || req.body.incoterm === 'DDP';
     }
     
+    // R21 (S39): hard publish gate. A KYC seller's product sold DAP/DDP
+    // (seller arranges main freight) cannot become active without at least
+    // one accepted standing quote — a provider's firm quote or the seller's
+    // own estimate. Transition-only: already-active products are never
+    // re-checked. Anon sellers are exempt (no pool access), EXW/FOB are
+    // exempt (buyer arranges main freight).
+    if (mergedUpdates.status === 'active' && product.status !== 'active') {
+      const effectiveIncoterm = mergedUpdates.incoterm || product.incoterm || 'DAP';
+      const sellerArrangesFreight = effectiveIncoterm === 'DAP' || effectiveIncoterm === 'DDP';
+      if (req.user?.type === 'kyc' && sellerArrangesFreight) {
+        const { data: standingQuotes, error: quoteCheckError } = await supabase
+          .from('shipping_quotes')
+          .select('id')
+          .eq('product_id', id)
+          .eq('status', 'accepted')
+          .eq('context', 'seller_standing')
+          .limit(1);
+        if (quoteCheckError) throw quoteCheckError;
+        if (!standingQuotes || standingQuotes.length === 0) {
+          throw new ValidationError(
+            `This product is sold ${effectiveIncoterm}, which means you arrange the shipping — it needs a shipping quote before it can go live. Add your own shipping estimate or accept a logistics provider's quote, then publish.`
+          );
+        }
+      }
+    }
+
     // Update product
     const updateRequest: UpdateProductRequest = {
       productId: id,

@@ -48,7 +48,9 @@ export class ProductService {
       visibility: request.visibility || 'public',
       incoterm: request.incoterm || 'DAP',
       hsCode: request.hsCode,
-      requireLogisticsQuote: request.requireLogisticsQuote || false,
+      // R21 (S39): derived from the Incoterm, never seller-toggled.
+      requireLogisticsQuote:
+        (request.incoterm || 'DAP') === 'DAP' || request.incoterm === 'DDP',
       createdAt: new Date(),
       updatedAt: new Date(),
       stats: {

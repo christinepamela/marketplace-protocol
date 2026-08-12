@@ -1,6 +1,6 @@
 # Tech Debt
 
-**Last updated:** 2026-08-10 (Session 388)
+**Last updated:** 2026-08-11 (Session 39)
 **Maintained by:** the team, updated each session
 **Companion docs:** `LOGISTICS_ARCHITECTURE.md`
 
@@ -470,6 +470,23 @@ each session's handover are the ones worth keeping — label them by session.
 **Where:** `src/core/layer3-logistics/quote.service.ts` `acceptQuote()` (three inference sites: guard, finalContext, reject-competing).
 **Fix:** Stop inferring. Link quotes to their originating request: add nullable `quote_request_id` to `shipping_quotes`, set at submit time when the quote answers an RFQ. Context at accept time = `buyer_rfq` iff `quote_request_id` points to a buyer-created request, else `seller_standing`. Schema change — batch with next migration round.
 **Priority:** Medium-High. Same class of bug as D35 and will keep silently mislabeling quotes (and hiding standing-quote display) any time a product has mixed RFQ history — which is every real product eventually.
+### D41. Estimate-priced orders: no confirmation step, final payment not updated by a later real quote
+**What:** A buyer can check out and pay against a seller estimate (L15a wires the estimated price into the order total). No flow exists for the buyer to request a real quote on an estimate-priced order, for the seller/pool to produce one, or for the final payment to be updated to the real amount — and the product page's "seller will confirm before fulfillment" line refers to a confirmation step that doesn't exist in code. Who bears an estimate-vs-actual difference is undefined behaviour. Design intent (Pam, S39): buyer requests the real shipment quote, seller produces it, and it overwrites the final payment.
+**Where:** checkout/order flow (`order.service.ts`, `checkout/page.tsx`), quote flow (`quote.service.ts`), product page copy (`app/products/[id]/page.tsx`).
+**Fix:** Design session needed — order state for "paid on estimate, awaiting firm quote", the quote-request trigger, and the payment adjustment mechanics (escrow implications included).
+**Priority:** Medium-High. Real-money correctness gap; becomes live the first time a real buyer pays an estimated price.
+
+### D42. Buyer reminder to request a real quote when ordering against a seller estimate
+**What:** When a buyer orders (or is about to order) against a seller estimate, they should be nudged to request an actual quote from the pool. Transport idea (Pam, S39): Nostr messaging. Depends on D41's flow existing (something to nudge *into*) and relates to D23 (no notification system exists yet — same missing plumbing).
+**Where:** TBD — no notification/messaging layer in the codebase yet (see D23).
+**Fix:** After D41 defines the request-real-quote flow, add the nudge at order placement (and possibly in the cart when an estimated price is shown). Decide channel: in-app note vs Nostr DM vs both.
+**Priority:** Medium. Pairs with D41; don't build separately.
+
+### D43. No dedup on RFQ broadcasts — repeated publishes or pool-button presses create duplicate quote_requests
+**What:** `POST /logistics/quote-requests` creates a new open row every call. The ProductForm fires it on every publish of a DAP/DDP product, and R21's "Request quotes from the logistics pool" button fires it on demand — so re-publishing or re-pressing creates duplicate open RFQs for the same product, which show as duplicate opportunities to providers.
+**Where:** `src/api/routes/logistics.routes.ts` (quote-requests creation), `ProductForm.tsx` (both call sites).
+**Fix:** Before insert, check for an existing open `quote_requests` row for the same product + requester (and no target provider) — reuse/refresh it instead of inserting.
+**Priority:** Low-Medium. Noise for providers, no data corruption.
 
 ---
 
@@ -568,6 +585,7 @@ Originally proposed S28. Rejected in favour of single KYC-mandatory tier. Docume
 **What:** S32 chose Option A for L12 (collect Incoterm/HS code, seller manually toggles `requireLogisticsQuote`). Option B is stricter: KYC sellers genuinely cannot publish until at least one quote (firm or estimated) exists for the product — turning "Publish" into a multi-step flow (draft → request quotes → wait/select → goes active). Deferred because it depends on L13 (quote review UI) existing first; building the hard gate before there's a UI to review quotes would strand sellers with drafts they can't act on.
 **Fix:** Revisit once L13 ships. Decide then whether to enforce.
 **Priority:** v1.1, after L13.
+**Status:** ✅ Core fixed S39. Gate is Incoterm-aware: KYC seller + DAP/DDP → server refuses draft→active without an accepted seller_standing quote (provider firm or seller estimate); EXW/FOB and anon sellers exempt. Enforced in catalog.routes.ts PUT at status transition only (grandfathered actives untouched). `require_logistics_quote` now derived from incoterm (DAP/DDP→true), toggle removed from form and API schemas; migration applied. ProductForm: draft-first publish (create draft → estimate → gated activate), estimate block DAP/DDP-only, EXW/FOB "buyer arranges freight" note, client-side pre-check, eye-icon toggle surfaces the server's gate message. Tested e2e S39 (curl T1–T5 + UI tests 1–4). **Remaining, designed S39 for S40 (edits drafted in-session, not applied, not tested):** two-door shipping-price UI — explicit "Request quotes from the logistics pool" button (saves draft, broadcasts RFQ, lands on the product's Quotes page) alongside the estimate fields; both doors shown in create mode AND when editing a draft (today the estimate field is create-only, dead-ending returning drafters); seller waiting on pool quotes can interim-add an estimate and publish; block-message copy points to both doors; DAP dropdown annotation gains "(most common — what buyers usually expect)"; shortened estimate copy "Shown to buyers as an estimate — final shipping is confirmed by a real provider quote". Open debate for S40: pool broadcast manual-only (button) vs auto-fire on estimate-publish — Pam leaning automate.
 
 ### R22. Buyer product-detail page "Add to Cart" button is a non-functional placeholder
 **What:** Hardcoded `Add to Cart (Coming Soon)` with no click handler on `app/products/[id]/page.tsx`. The listing page's Add to Cart buttons are a separate, working code path. Surfaced S33 during L14 testing — not caused by tonight's work.
@@ -586,6 +604,11 @@ Originally proposed S28. Rejected in favour of single KYC-mandatory tier. Docume
 
 **Where:** New backend — order/cart-level RFQ broadcast (variant of L12's `POST /logistics/quote-requests`, currently product-scoped only, needs a bundle-scoped sibling). New frontend — checkout note, request action, purchase-block state tied to request status.
 **Priority:** Deferred. Real second feature, scope properly after L15 v1 ships.
+
+### R24. Buyer picks from multiple shipping quotes (sea/air, price vs speed)
+**What:** Per Pam (S39): instead of one accepted quote per product, show buyers up to ~5 accepted logistics options (e.g. sea freight cheap/slow vs air fast/expensive) to pick from at product/cart level. Directly conflicts with the current single-accepted-standing-quote model — D29's partial unique index enforces exactly one by design, and product page/cart display assume one. Real architecture change: quote display model, checkout selection, D29 index rescope, provider competition dynamics.
+**Fix:** Own design session with Pam before any code. Relates to D35 (context model), D40 (quote_request linkage), and the mode/routes fields on logistics_providers (D2/L4).
+**Priority:** v1.5/v2. Genuinely valuable — do not bolt onto v1.
 
 ---
 
