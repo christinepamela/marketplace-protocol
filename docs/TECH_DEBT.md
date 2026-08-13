@@ -1,6 +1,6 @@
 # Tech Debt
 
-**Last updated:** 2026-08-11 (Session 39)
+**Last updated:** 2026-08-13 (Session 40)
 **Maintained by:** the team, updated each session
 **Companion docs:** `LOGISTICS_ARCHITECTURE.md`
 
@@ -185,6 +185,46 @@ before redirecting.
 the next.
 **Status:** ✅ Fixed S36. `logout()` in `AuthContext.tsx` now calls `clearCart()` before clearing auth storage.
 
+### B20. RFQ matcher penalises providers who declare their capabilities — blank profiles match everything
+**What:** The `/logistics/opportunities` handler computes `hasRoutes` and `hasIncoterms` as graceful-degradation guards: a provider with empty `routes` or `incoterms_supported` has that filter skipped entirely and sees every open RFQ. Combined with B21 (registration never collects those fields), this means every real provider is blank, every blank provider matches everything, and **the filter is inert in production**. Worse, the incentive is inverted — a provider who takes the trouble to declare capabilities becomes the only kind that can be filtered *out*. SatsFleet, the only properly configured provider in the system, is the only one that can miss an opportunity.
+
+Weight has no degradation guard at all: `weight_min_kg` / `weight_max_kg` apply unconditionally whenever non-null. SatsFleet's 0.1 kg floor silently drops any RFQ where weight arrived as 0 — which is exactly what the unit-conversion bug (fixed S40) and the missing-MOQ gap (D46) were producing.
+
+**This invalidates D21's S34 confirmation.** D21 was closed on the basis that BitHaul saw Bitshop's null-destination broadcasts. BitHaul saw them because it has no capability data and bypasses the filter — not because origin-only matching works. The test confirmed nothing about the matching logic. See D21.
+**Where:** `src/api/routes/logistics.routes.ts` ~641–700 (the `/opportunities` handler).
+**Fix:** Decide the intended semantics for a blank profile — "match nothing until you declare" is the honest reading, but it strands existing providers, so it has to land together with B21. Add a degradation guard for weight, or make the bounds NOT NULL with sensible defaults at registration. Then re-run D21's confirmation against a provider that actually has routes.
+**Priority:** High. The smart pool does not currently filter anything.
+
+### B21. Provider registration collects no canonical capability fields
+**What:** The registration Zod schema requires `service_regions` and `shipping_methods` with `.min(1)` and does not collect `routes`, `modes`, `incoterms_supported`, `door_pickup`, `door_delivery`, `weight_min_kg` or `weight_max_kg` at all. Every provider who self-registers is capability-blank. BitHaul is not a stale row — it is what registration produces today. SatsFleet only has capability data because S30 hand-wrote an UPDATE for it in SQL.
+
+This is the residual of D2, which fixed the schema layer in S30 and explicitly noted "Registration UI update ... still needed." Logged as its own item because the behavioural consequence (B20) is more serious than "UI not updated yet" suggests.
+**Where:** `src/api/routes/logistics.routes.ts` 37–38 (registration schema), `src/core/layer3-logistics/provider.service.ts` ~38–54, `logistics-marketplace/app/auth/register/page.tsx`.
+**Fix:** Collect the canonical fields at registration, in operator language rather than jargon — "which countries do you collect from and deliver to?", "can you clear import customs and advance duty?" (that last one is what `incoterms_supported` actually means, see note in D47). Backfill existing providers.
+**Priority:** High. Blocks B20 and any capability-filtered browse page (D44).
+
+### B22. Two live vocabularies for provider capability, read inconsistently by different code paths
+**What:** `types.ts` marks `service_regions` deprecated in favour of `routes`, and `shipping_methods` deprecated in favour of `modes`. Both deprecated columns are still `NOT NULL`; all the canonical ones are nullable. Two code paths disagree on which to read:
+- RFQ matching (`logistics.routes.ts` ~636) selects `routes, incoterms_supported, modes, weight_min_kg, weight_max_kg` — canonical.
+- Provider search (`provider.service.ts` 95, 100) filters on `service_regions` and `shipping_methods` — deprecated.
+
+Direct consequence for D44: a seller browsing the pool via `searchProviders` would see a list built from one vocabulary while their broadcast is matched against a different one. **The providers visible in the pool would not be the providers who receive the RFQ.**
+
+Data-level symptom already present: SatsFleet's `service_regions` (MY, SG, US, CA, GB) and its `routes` (which include DE and AU) disagree, with no way to tell which is intended.
+**Where:** `src/core/layer3-logistics/types.ts` 27–28, 46–47; `provider.service.ts` 95, 100, 206–207; `logistics.routes.ts` 37–38, 309–310, 636.
+**Fix:** Pick canonical (`routes`/`modes`), migrate `searchProviders` onto it, derive or drop the deprecated columns. Do this before any capability filtering is built on top.
+**Priority:** High if D44 is built, Medium otherwise.
+
+### B23. `rangkai-marketplace` has never typechecked clean — 15 errors, build only green because Next skips typecheck
+**What:** `npx tsc --noEmit` in `rangkai-marketplace` reports 15 errors. Three are in `ProductForm.tsx` (144, 145, 161) — pre-existing S38-era mismatches between the SDK `Product` type and the local `FormData` type: `Category` not assignable to the inline category shape, `basic` having optional `shortDescription`/`sku`/`brand` where `FormData` requires them, `ProductStatus` wider than `'draft' | 'active' | 'inactive'`. The other 12 are elsewhere in the app.
+
+Discovered because S39 left a reference to a `formData.requireLogisticsQuote` field that does not exist on the type (removed S40). That line could only have survived a commit because Next dev transpiles via SWC without typechecking.
+
+Distinct from B18, which was the same class of problem in `packages/` and was fixed S33. B18's own closing note flagged that a `postinstall`/CI check was never set up — this is the consequence.
+**Where:** `rangkai-marketplace/components/vendor/ProductForm.tsx` 144, 145, 161, plus 12 others (run `npx tsc --noEmit > tsc.txt 2>&1` for the full list).
+**Fix:** Clear the 15, then add `tsc --noEmit` to a pre-commit or CI step across all three packages so it cannot silently recur.
+**Priority:** Medium. Nothing is broken at runtime today, but a project that does not typecheck cannot tell you when you have broken it.
+
 ---
 
 ## 🟡 Deferred / partial
@@ -199,7 +239,7 @@ the next.
 **What:** Provider declares `service_regions`, `shipping_methods`, `insurance_available` but doesn't capture routes, modes, Incoterms supported, HS categories, weight brackets, insurance caps.
 **Fix:** Add new columns/tables. Migrate existing providers with sensible defaults. Update registration UI.
 **Priority:** Medium — works for now, blocks the "smart pool" matching.
-**Status:** ✅ Fixed S30 (schema layer). `routes`, `modes`, `incoterms_supported`, `door_pickup`, `door_delivery`, `weight_min_kg`, `weight_max_kg` added to `logistics_providers`. Old `service_regions` and `shipping_methods` fields kept for backwards compatibility, now deprecated. Registration UI update and buyer-language translation layer (Tier 3) still needed — see B1 L14.
+**Status:** ✅ Fixed S30 (schema layer). `routes`, `modes`, `incoterms_supported`, `door_pickup`, `door_delivery`, `weight_min_kg`, `weight_max_kg` added to `logistics_providers`. Old `service_regions` and `shipping_methods` fields kept for backwards compatibility, now deprecated. Registration UI update and buyer-language translation layer (Tier 3) still needed — see B1 L14. Registration UI update still outstanding as of S40 — now tracked as its own item, B21, because the behavioural consequence (B20: blank profiles match every RFQ) is more serious than a pending UI change.
 
 ### D3. Opportunities surface raw orders
 **What:** `getOpportunities()` returns raw orders. Should return RFQs filtered by logistics profile.
@@ -322,7 +362,8 @@ the next.
 ### D21. L12's opportunities-matching (null destination) not empirically confirmed
 **What:** The destination-optional RFQ fix (L12, S32) was verified by tracing the matching logic against known data (BitHaul's route MY→SG, a null-destination quote_request from MY, confirming origin-only matching should apply) rather than by observing it live in the UI — the opportunities page crash (see B[above]) blocked direct visual confirmation, and BitHaul's auth token couldn't be located to test the endpoint directly via curl.
 **Fix:** Once L16 rebuilds the opportunities page, confirm as a first sanity check that a null-destination quote_request actually appears for a provider whose routes specify a different destination than the request. If it doesn't, the bug is in the matching logic added this session (`src/api/routes/logistics.routes.ts`, the `/opportunities` route handler), not in the L16 rebuild itself.
-**Priority:** ✅ Confirmed S34 during L16 testing. Null-destination quote_requests (Bitshop's L12 global broadcasts) appeared correctly for BitHaul alongside destination-specific requests. L15c end-to-end also confirmed same session. Both items closed.
+**Priority:** ✅ Confirmed S34 during L16 testing. Null-destination quote_requests (Bitshop's L12 global broadcasts) appeared correctly for BitHaul alongside destination-specific requests. L15c end-to-end also confirmed same session. Both items closed. 
+**⚠️ Reopened S40 — the S34 confirmation does not hold.** BitHaul saw the null-destination broadcasts because it has empty `routes` and `incoterms_supported`, which the `/opportunities` handler treats as "skip this filter" (see B20). The test confirmed that a blank provider sees everything, not that origin-only matching works. Re-confirm against a provider with populated routes — SatsFleet is the only one, and it is API-only (no `password_hash`), so this must be tested via curl rather than the UI.
 
 ### D22. SDK has two differently-named methods for "get one product" — one didn't exist
 **What:** `getById(productId)` is the real method on `CatalogModule` (`packages/sdk/src/modules/catalog.ts`). `getProduct(id)`, called from `rangkai-marketplace/lib/api/products.ts`, did not exist on the module at all — not an alias, a broken call. Confirmed live S33: buyer (Bitty Bit) hit `TypeError: sdk.catalog.getProduct is not a function` on every product-detail load, blocking checkout entirely.
@@ -487,6 +528,66 @@ each session's handover are the ones worth keeping — label them by session.
 **Where:** `src/api/routes/logistics.routes.ts` (quote-requests creation), `ProductForm.tsx` (both call sites).
 **Fix:** Before insert, check for an existing open `quote_requests` row for the same product + requester (and no target provider) — reuse/refresh it instead of inserting.
 **Priority:** Low-Medium. Noise for providers, no data corruption.
+**Status S40 — confirmed with data, not yet fixed.** Product `bad3b0e0-5b97-413a-8c5c-cfd3812a51bd` (Bitshop's `custom`, DDP, active, created 2026-07-06 10:23) has four broadcast RFQs, two still open, at 07-06 11:05, 07-06 11:25, 07-09 02:45, 07-09 07:21, plus two targeted rows. **None coincides with product creation** — all four postdate it by 40+ minutes, the signature of edit-and-republish rather than repeated creation. The client-side source was closed S40 (edits now only re-broadcast when a logistics-material field changed); the protocol-level fix is still open.
+
+**Refined fix:** on finding an existing open row, **UPDATE the payload fields** (`weight_kg`, `dimensions_cm`, `incoterm`, `hs_code`, `origin_country`, and `moq` once D46 lands) **and** refresh `expires_at`, then return that row — not merely refresh the expiry. A seller who corrects weight from 0.7 to 2.4 kg must not leave providers quoting the old figure.
+
+Two things this buys beyond dedup: the D44 manual button becomes idempotent, so mashing it is harmless and no defensive UI state is needed; and pressing the button then later publishing with an interim estimate refreshes one RFQ rather than creating a second — the returning-drafter journey.
+
+**Also check the buyer path** at `logistics.routes.ts` 861 (`POST /quote-requests/buyer`). There are two insert paths into `quote_requests` and the buyer path scopes `requester_did` differently (a buyer requesting quotes on someone else's product), so the uniqueness key may need to differ. Read it before writing the check.
+
+Re-verify duplicates with:
+​```sql
+SELECT product_id, count(*) AS rfq_count,
+       count(*) FILTER (WHERE status = 'open') AS open_count,
+       min(created_at) AS first, max(created_at) AS last
+FROM quote_requests
+WHERE target_provider_id IS NULL
+GROUP BY product_id
+HAVING count(*) > 1;
+​```
+
+### D44. Seller-side pool control — browse providers, direct-request, opt out of broadcast
+**What:** Auto-broadcast on publish is currently the only route from a seller to the logistics pool. A seller has no way to (a) decline to broadcast at all, (b) browse the pool and choose, or (c) approach a specific provider directly — including one they already work with who has signed up.
+
+Decision taken S40, recorded so it is not re-litigated: **auto-broadcast stays the default**, because logistics deserves the chance to pitch and the seller has final say on who ships. But the seller must have all three controls above. The "for now" in "keep broadcast as default for now" is doing real work — the default should be revisited once the pool has real depth.
+
+Framing correction from the same discussion: auto-fire was already the status quo (S39's ProductForm fired it on every DAP/DDP publish), so "manual-only" would have meant *removing* working L12 behaviour, not declining to add something. Also revised: the empty-pool argument for a manual button is weak — an RFQ into an empty pool costs nothing, it just sits open. The button's real value is control and sequencing: a seller who wants real quotes *before* committing to a price gets to ask without publishing first. That justification survives once the pool fills.
+**Where:** `rangkai-marketplace/components/vendor/ProductForm.tsx` (opt-out checkbox, manual request button), new seller-facing pool browse page, `GET /api/v1/logistics/providers` (exists, returns routes/modes/incoterms/door flags/weight bounds/service_regions — everything a filter needs), `quote_requests.target_provider_id` (exists, already renders an amber "direct request" badge on the opportunities page from L15d).
+**Fix:** Opt-out as an unpersisted create-mode checkbox is ~10 lines; persisting the preference across edits needs a column on `products` and a migration. Browse is mostly a page plus a button setting `target_provider_id` — **but it must not be built until B22 is resolved**, or the browsable list and the matched list will be built from different vocabularies.
+**Priority:** Medium. Blocked on B22 for the browse half.
+
+### D45. Quotes do not snapshot the declared basis they were quoted against
+**What:** Carriers re-measure at the sort hub or CFS, not at pickup, and issue post-shipment adjustments where declared and measured differ ("dimensional adjustment", "reweigh charge"). Tolerances exist but are carrier-specific and not consistently published. Accurate declarations mean nothing fires — exposure is proportional to how sloppy the declaration is.
+
+Today a quote stores a price with no record of the weight, dimensions, quantity or chargeable weight it was calculated from, so when an adjustment lands there is no way to attribute the variance.
+**Where:** `shipping_quotes` / quote creation path.
+**Fix:** Snapshot the declared basis (weight, dims, MOQ, chargeable weight) onto the quote at creation. Same shape as D24's rule that a seller bears the difference when real cost exceeds their estimate.
+**Priority:** Medium. Becomes important the first time a real shipment is re-measured.
+
+### D46. RFQ payload is insufficient for a provider to actually quote a shipment
+**What:** The broadcast carries `product_id`, `origin_country`, `destination_country` (null for global broadcast), `weight_kg`, `dimensions_cm`, `incoterm`, `hs_code`, `insurance_required`, `target_provider_id`. Missing, in priority order:
+
+1. **MOQ / quantity.** Logistics quotes a shipment, not a unit. `formData.pricing.moq` already exists in the form and is simply not forwarded. A 0.7 kg product at MOQ 35 is a 24.5 kg shipment — different mode, different rate per kg, possibly a different provider.
+2. **Carton spec and chargeable weight.** Chargeable weight = max(actual, volumetric). Volumetric = (L×W×H cm) ÷ divisor: 5000 courier express, 6000 air freight (IATA), sea LCL prices 1 CBM ≈ 1000 kg. Worked on the real product row (0.7 kg, 30×20×20 cm, MOQ 35): actual 24.5 kg, volume 0.42 CBM, volumetric at /5000 = **84 kg** — 3.4× actual. We currently broadcast the 0.7 and nothing else, i.e. the one number that most understates the job.
+3. **Origin city.** Country alone cannot price door pickup — segment A is unquotable.
+4. **Declared value.** Drives insurance and customs.
+5. **Plain-language category** (fragile, perishable, battery, hazmat). HS technically encodes it, but no provider wants to decode HS to discover they cannot legally carry the goods.
+
+**Explicitly do not build a packing optimiser.** Bin-packing is genuinely hard and a confident wrong answer is worse than none — the seller packs to our plan, the provider re-measures at the depot, the quote breaks. Instead collect the carton spec every manufacturer with an MOQ already has (units per carton, carton dimensions, carton gross weight) and compute cartons, CBM, actual, volumetric and chargeable weight from it. Arithmetic, not optimisation.
+**Where:** `quote_requests` (needs `moq` and carton columns), `POST /logistics/quote-requests`, SDK `requestQuote` type, `ProductForm.tsx` broadcast payload, provider opportunities UI.
+**Fix:** MOQ first as a vertical slice — column, route, SDK type, then one line in ProductForm. Note the client edit will not compile until the SDK type lands. Carton spec is a larger form change.
+**Priority:** High for MOQ. Providers are currently quoting blind on the single most important variable.
+
+### D47. Logistics capability model gaps: no warehousing, no `updated_at`, and Incoterm asked in the wrong language
+**What:** Three small things on `logistics_providers`:
+- No warehousing / bonded-storage capability field. Pam's land/port/air/storage distinction is otherwise well covered by `modes`, `door_pickup`, `door_delivery` and `routes`, but storage has no representation.
+- No `updated_at`, so there is no way to tell when capability data was last touched — which made it impossible to distinguish "stale row" from "registration never collected this" when diagnosing B21.
+- `incoterms_supported` is correct as a capability field and should not be removed. Incoterm defines where the logistics job starts and stops and who clears customs: DDP means the carrier clears import customs and fronts duty; DAP means they stop at the door with duty unpaid; FOB means origin-side only. Same two cities, three different jobs, three prices — and DDP requires an importer-of-record capability many carriers lack in the destination country. What is wrong is the *presentation*: it should be asked in operator language ("can you clear import customs and advance duty?") not as a bare Incoterm multi-select. Fold into B21's registration rework.
+
+Also noted, cosmetic: the codebase uses `logistics_providers`, `provider_id`, `ProviderContext` where principle 7 says "logistics", not "provider". Same class as the `/app/vendor/...` migration already flagged under The Four Types of Users.
+**Where:** `logistics_providers` schema, `logistics-marketplace/app/auth/register/page.tsx`.
+**Priority:** Low-Medium.
 
 ---
 
@@ -508,7 +609,8 @@ Real-time duty/tax estimates via DHL, FedEx, or Easyship API. Becomes critical o
 For international shipments, formatted per destination country requirements.
 
 ### R6. HS code auto-suggest
-From product description. ML or rule-based. Becomes important at scale.
+From product description. ML or rule-based. Becomes important at scale. 
+**S40 note:** HS entry is currently unassisted free text on the product form and optional, so the two most recent broadcasts carry `hs_code: null` while older ones carry `6403.99`. Providers are receiving RFQs with no customs classification at all. Pam flagged customs as a genuine pain point for both sides. Interim step short of the ML/rule-based auto-suggest: a category-driven shortlist (footwear → 6403.x) with the full code editable.
 
 ### R7. Two-tier provider system
 Considered and rejected for v1. Single KYC-mandatory tier with 0.5% fee. Documented here so we don't re-derive.
