@@ -210,6 +210,42 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
     return Object.keys(newErrors).length === 0
   }
 
+  // S40: fields that change the shipping job. Editing colour or description
+  // doesn't affect what a provider would quote — these do. Decides whether
+  // an edit re-broadcasts to the logistics pool.
+  const logisticsMaterialFieldsChanged = (): boolean => {
+    if (mode !== 'edit' || !product) return false
+    const shape = (l: any, p: any, incoterm: any, hs: any) => ({
+      weight: Number(l?.weight?.value) || 0,
+      weightUnit: l?.weight?.unit || 'kg',
+      length: Number(l?.dimensions?.length) || 0,
+      width: Number(l?.dimensions?.width) || 0,
+      height: Number(l?.dimensions?.height) || 0,
+      dimUnit: l?.dimensions?.unit || 'cm',
+      origin: l?.originCountry || '',
+      moq: Number(p?.moq) || 0,
+      incoterm: incoterm || '',
+      hsCode: hs || ''
+    })
+    const before = shape(product.logistics, product.pricing, product.incoterm, product.hsCode)
+    const after = shape(formData.logistics, formData.pricing, formData.incoterm, formData.hsCode)
+    return (Object.keys(before) as (keyof typeof before)[]).some(k => before[k] !== after[k])
+  }
+
+  // S40: the form lets sellers pick kg/lb/g and cm/in, but quote_requests
+  // stores weight_kg and dimensions_cm. Normalise at the RFQ boundary —
+  // without this, "3 lb" is broadcast to providers as 3 kg.
+  const toKg = (value: number, unit: 'kg' | 'lb' | 'g'): number => {
+    const v = Number(value) || 0
+    if (unit === 'lb') return v * 0.45359237
+    if (unit === 'g') return v / 1000
+    return v
+  }
+  const toCm = (value: number, unit: 'cm' | 'in'): number => {
+    const v = Number(value) || 0
+    return unit === 'in' ? v * 2.54 : v
+  }
+
   const handleSubmit = async (e: React.FormEvent, saveAs: 'draft' | 'active') => {
     e.preventDefault()
 
@@ -272,7 +308,6 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
         },
         incoterm: formData.incoterm,
         hsCode: formData.hsCode || undefined,
-        requireLogisticsQuote: formData.requireLogisticsQuote,
         status: saveAs,
         visibility: formData.visibility
       }
@@ -318,34 +353,6 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
         }
       }
 
-      // L12 (S32): KYC sellers publishing (not saving as draft) auto-broadcast
-      // an RFQ so logistics providers can start quoting. Best-effort — a
-      // broadcast failure shouldn't block publishing. R21 (S39): DAP/DDP only —
-      // for EXW/FOB the buyer arranges main freight, nothing to quote.
-      if (
-        saveAs === 'active' &&
-        user.identity.type === 'kyc' &&
-        publishedProductId &&
-        (formData.incoterm === 'DAP' || formData.incoterm === 'DDP')
-      ) {
-        try {
-          await sdk.logistics.requestQuote({
-            product_id: publishedProductId,
-            origin_country: formData.logistics.originCountry,
-            weight_kg: Number(formData.logistics.weight.value) || 0,
-            dimensions_cm: {
-              length: Number(formData.logistics.dimensions.length) || 0,
-              width: Number(formData.logistics.dimensions.width) || 0,
-              height: Number(formData.logistics.dimensions.height) || 0
-            },
-            incoterm: formData.incoterm,
-            hs_code: formData.hsCode || undefined
-          })
-        } catch (rfqError) {
-          console.error('Failed to broadcast logistics RFQ:', rfqError)
-        }
-      }
-
       // R21 (S39): the actual publish — a gated status change. The server
       // refuses to activate a KYC seller's DAP/DDP product without an
       // accepted standing quote (provider firm quote or seller estimate).
@@ -355,6 +362,44 @@ export default function ProductForm({ product, mode }: ProductFormProps) {
         } catch (publishError: any) {
           activationError = publishError?.message || 'unknown error'
           console.error('Product saved as draft, publish blocked:', publishError)
+        }
+      }
+
+      // L12 (S32): KYC sellers publishing auto-broadcast an RFQ so logistics
+      // providers can start quoting. Best-effort — a broadcast failure
+      // shouldn't block publishing. R21 (S39): DAP/DDP only — for EXW/FOB the
+      // buyer arranges main freight, nothing to quote.
+      // S40: moved to run AFTER the publish gate. Previously this fired before
+      // activation, so a blocked publish still broadcast an RFQ for a product
+      // that stayed a draft. Note !activationError only bites in create mode —
+      // in edit mode a gate rejection throws out of catalog.update into the
+      // outer catch and never reaches here.
+      // S40: edits only re-broadcast when a logistics-material field changed.
+      if (
+        saveAs === 'active' &&
+        user.identity.type === 'kyc' &&
+        publishedProductId &&
+        !activationError &&
+        (formData.incoterm === 'DAP' || formData.incoterm === 'DDP') &&
+        (mode === 'create' || logisticsMaterialFieldsChanged())
+      ) {
+        try {
+          await sdk.logistics.requestQuote({
+            product_id: publishedProductId,
+            origin_country: formData.logistics.originCountry,
+            weight_kg: Number(
+              toKg(formData.logistics.weight.value, formData.logistics.weight.unit).toFixed(2)
+            ),
+            dimensions_cm: {
+              length: Number(toCm(formData.logistics.dimensions.length, formData.logistics.dimensions.unit).toFixed(1)),
+              width: Number(toCm(formData.logistics.dimensions.width, formData.logistics.dimensions.unit).toFixed(1)),
+              height: Number(toCm(formData.logistics.dimensions.height, formData.logistics.dimensions.unit).toFixed(1))
+            },
+            incoterm: formData.incoterm,
+            hs_code: formData.hsCode || undefined
+          })
+        } catch (rfqError) {
+          console.error('Failed to broadcast logistics RFQ:', rfqError)
         }
       }
 
