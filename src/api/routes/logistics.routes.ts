@@ -755,33 +755,71 @@ router.post(
         throw new ApiError(ErrorCode.FORBIDDEN, 'You can only request quotes for your own products');
       }
 
-      // Create the quote request
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30); // 30-day validity
 
-      const { data: quoteRequest, error: insertError } = await req.supabase
+      // D43 (S41): dedup broadcast RFQs. Re-publishing a product, or correcting a
+      // logistics-material field, must REFRESH the existing open RFQ rather than add
+      // a second one. Refreshing the payload matters as much as the expiry: a weight
+      // corrected from 0.7 to 2.4 kg must not leave providers quoting the old figure.
+      // Key: product + requester + broadcast (no target provider) + still open.
+      // This path never sets target_provider_id, so broadcasts are always null-target.
+      const { data: openRfqs, error: lookupError } = await req.supabase
         .from('quote_requests')
-        .insert({
-          requester_did: userDid,
-          product_id: req.body.product_id,
-          origin_country: req.body.origin_country,
-          destination_country: req.body.destination_country || null,
-          weight_kg: req.body.weight_kg,
-          dimensions_cm: req.body.dimensions_cm,
-          incoterm: req.body.incoterm,
-          hs_code: req.body.hs_code || null,
-          insurance_required: req.body.insurance_required || false,
-          status: 'open',
-          expires_at: expiresAt.toISOString()
-        })
-        .select()
-        .single();
+        .select('id')
+        .eq('product_id', req.body.product_id)
+        .eq('requester_did', userDid)
+        .is('target_provider_id', null)
+        .eq('status', 'open')
+        .order('created_at', { ascending: true })
+        .limit(1);
 
-      if (insertError) throw insertError;
+      if (lookupError) throw lookupError;
+
+      const rfqPayload = {
+        origin_country: req.body.origin_country,
+        destination_country: req.body.destination_country || null,
+        weight_kg: req.body.weight_kg,
+        dimensions_cm: req.body.dimensions_cm,
+        incoterm: req.body.incoterm,
+        hs_code: req.body.hs_code || null,
+        insurance_required: req.body.insurance_required || false,
+        expires_at: expiresAt.toISOString()
+      };
+
+      const reused = Boolean(openRfqs && openRfqs.length > 0);
+      let quoteRequest;
+
+      if (reused) {
+        const { data: refreshed, error: updateError } = await req.supabase
+          .from('quote_requests')
+          .update(rfqPayload)
+          .eq('id', openRfqs![0].id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        quoteRequest = refreshed;
+      } else {
+        const { data: created, error: insertError } = await req.supabase
+          .from('quote_requests')
+          .insert({
+            requester_did: userDid,
+            product_id: req.body.product_id,
+            status: 'open',
+            ...rfqPayload
+          })
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        quoteRequest = created;
+      }
 
       res.status(201).json({
         success: true,
-        data: quoteRequest
+        data: quoteRequest,
+        reused
       });
     } catch (error) {
       next(error);
@@ -910,30 +948,74 @@ router.post(
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
 
-      const { data: quoteRequest, error: insertError } = await req.supabase
+      // D43 (S41): dedup, buyer path. The key differs from the seller path because
+      // this path DOES set target_provider_id (L15d direct requests): a buyer asking
+      // two different providers should get two rows, but asking the same provider
+      // twice must refresh one. destination_country stays in the payload, not the
+      // key, so a buyer who changes their shipping address updates their existing
+      // RFQ instead of spawning a second one.
+      const rfqLookupBase = req.supabase
         .from('quote_requests')
-        .insert({
-          requester_did: userDid,
-          product_id: req.body.product_id,
-          origin_country,
-          destination_country: req.body.destination_country,
-          weight_kg,
-          dimensions_cm,
-          incoterm,
-          hs_code,
-          insurance_required: false,
-          status: 'open',
-          expires_at: expiresAt.toISOString(),
-          target_provider_id: req.body.target_provider_id || null,
-        })
-        .select()
-        .single();
+        .select('id')
+        .eq('product_id', req.body.product_id)
+        .eq('requester_did', userDid)
+        .eq('status', 'open');
 
-      if (insertError) throw insertError;
+      const rfqLookup = req.body.target_provider_id
+        ? rfqLookupBase.eq('target_provider_id', req.body.target_provider_id)
+        : rfqLookupBase.is('target_provider_id', null);
+
+      const { data: openRfqs, error: lookupError } = await rfqLookup
+        .order('created_at', { ascending: true })
+        .limit(1);
+
+      if (lookupError) throw lookupError;
+
+      const rfqPayload = {
+        origin_country,
+        destination_country: req.body.destination_country,
+        weight_kg,
+        dimensions_cm,
+        incoterm,
+        hs_code,
+        insurance_required: false,
+        expires_at: expiresAt.toISOString(),
+      };
+
+      const reused = Boolean(openRfqs && openRfqs.length > 0);
+      let quoteRequest;
+
+      if (reused) {
+        const { data: refreshed, error: updateError } = await req.supabase
+          .from('quote_requests')
+          .update(rfqPayload)
+          .eq('id', openRfqs![0].id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        quoteRequest = refreshed;
+      } else {
+        const { data: created, error: insertError } = await req.supabase
+          .from('quote_requests')
+          .insert({
+            requester_did: userDid,
+            product_id: req.body.product_id,
+            status: 'open',
+            target_provider_id: req.body.target_provider_id || null,
+            ...rfqPayload,
+          })
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        quoteRequest = created;
+      }
 
       res.status(201).json({
         success: true,
         data: quoteRequest,
+        reused,
       });
     } catch (error) {
       next(error);
