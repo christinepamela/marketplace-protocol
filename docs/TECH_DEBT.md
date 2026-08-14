@@ -1,8 +1,8 @@
 # Tech Debt
 
-**Last updated:** 2026-08-13 (Session 40)
+**Last updated:** 2026-08-14 (Session 41)
 **Maintained by:** the team, updated each session
-**Companion docs:** `LOGISTICS_ARCHITECTURE.md`
+**Companion docs:** `OPERATIONS.md`, `TROUBLESHOOTING.md`, `SESSION_TEMPLATE.md`, `specs/logistics-pool/LOGISTICS_ARCHITECTURE.md`
 
 ---
 
@@ -224,6 +224,32 @@ Distinct from B18, which was the same class of problem in `packages/` and was fi
 **Where:** `rangkai-marketplace/components/vendor/ProductForm.tsx` 144, 145, 161, plus 12 others (run `npx tsc --noEmit > tsc.txt 2>&1` for the full list).
 **Fix:** Clear the 15, then add `tsc --noEmit` to a pre-commit or CI step across all three packages so it cannot silently recur.
 **Priority:** Medium. Nothing is broken at runtime today, but a project that does not typecheck cannot tell you when you have broken it.
+
+---
+
+### B24. Buyer RFQ path converts weight units but not dimensions, and fabricates missing values
+**What:** `POST /logistics/quote-requests/buyer` derives shipment data server-side from the product row. It handles weight units correctly (kg/lb/g branches), but reads dimensions raw with no unit check at all — `logistics.dimensions?.length || 1`. Products store the seller's chosen display unit, so a seller who entered inches has those numbers filed as centimetres. A 12×8×6 in carton becomes 12×8×6 cm: an 84 kg volumetric shipment quoted as 0.1 kg.
+
+Same block fabricates data rather than failing: `|| 1` on each dimension and `|| 1` on weight mean a product with missing logistics data silently produces a 1 kg 1×1×1 cm RFQ. A provider cannot tell that apart from a real tiny parcel.
+
+This is the latent half of the S40 unit-conversion fix. S40 fixed the seller broadcast path in `ProductForm.tsx` with `toKg()`/`toCm()` helpers and flagged the buyer path as the likely second site. Confirmed by reading the code in S41. **Not yet observed in data** — the one product tested (`6652da96`) stores `unit: cm`, so the bug did not fire. It needs a product saved in inches to demonstrate.
+
+Interacts with B20: weight bounds are the one matcher filter with no graceful-degradation guard, so a fabricated or mis-scaled weight silently drops RFQs out of providers' pools with no error anywhere.
+**Where:** `src/api/routes/logistics.routes.ts` ~899–903 (dimensions), ~890–897 (weight fallback).
+**Fix:** Port the `toKg()`/`toCm()` conversion server-side and share it between both paths — the conversion belongs at the protocol, not in each marketplace's form (principle 9). Replace the `|| 1` fallbacks with an explicit error when a product has no usable logistics data.
+**Priority:** High. Silent wrong numbers reaching providers is worse than a visible failure.
+
+---
+
+### B25. `expires_at` is written on every RFQ and never enforced anywhere
+**What:** Both quote-request paths set a 30-day `expires_at`. Nothing reads it. The opportunities matcher filters on `status` and `target_provider_id` only, so an expired RFQ stays visible to providers indefinitely and no job ever moves `status` off `open`.
+
+Live example: `d4cc2d30` on *handmade leather boots* expired **2026-08-01** and was still being served on 2026-08-14. It also still carries `weight_kg: 1.50` while the product now says 0.5 kg — a stale row quoting a stale weight.
+
+Two consequences worth separating. Providers see dead requests as live ones, which degrades pool quality as volume grows. And D43's expiry refresh is currently a no-op in terms of what providers actually see — correct to do, but it buys nothing until expiry is enforced.
+**Where:** `src/api/routes/logistics.routes.ts` ~650–659 (`/opportunities` query).
+**Fix:** Add `.gt('expires_at', new Date().toISOString())` to the opportunities query. Separately decide whether a scheduled job should transition expired rows to a terminal status, or whether filtering at read time is enough — read-time filtering is simpler and has no job to fail silently.
+**Priority:** Medium. Not wrong today at test volume; becomes wrong as the pool fills.
 
 ---
 
@@ -588,6 +614,16 @@ Today a quote stores a price with no record of the weight, dimensions, quantity 
 Also noted, cosmetic: the codebase uses `logistics_providers`, `provider_id`, `ProviderContext` where principle 7 says "logistics", not "provider". Same class as the `/app/vendor/...` migration already flagged under The Four Types of Users.
 **Where:** `logistics_providers` schema, `logistics-marketplace/app/auth/register/page.tsx`.
 **Priority:** Low-Medium.
+
+---
+
+### D48. SDK discards response envelope metadata, so the protocol cannot tell a marketplace anything about a request
+**What:** `HttpClient.request()` ends with `return (data.data !== undefined ? data.data : data) as T`. Every endpoint's envelope is unwrapped to its `data` field and everything else is thrown away. A marketplace can receive rows; it cannot receive facts *about* the call.
+
+Surfaced by D43, which returns `reused: true|false` alongside `data` to say whether an RFQ was created or refreshed. Visible to curl, invisible to any SDK consumer. Harmless today because the `ProductForm` call site discards the return value entirely — but D44's manual broadcast button needs exactly this to say "we refreshed your existing request" instead of "sent", and the alternative is folding meta into the row shape, which would leave consumers unable to distinguish row fields from metadata.
+**Where:** `packages/sdk/src/client.ts`, `request()` return.
+**Fix:** Return the envelope, or add a `requestWithMeta()` that does, so existing call sites keep working. Whichever way, it is a shared SDK change and needs a rebuild plus a check of every consuming call site — not a drive-by.
+**Priority:** Medium. Blocks D44's button copy; nothing broken until then.
 
 ---
 
