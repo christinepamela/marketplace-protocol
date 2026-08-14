@@ -201,20 +201,39 @@ door flags via SQL. **No self-registered provider gets them.**
 
 ## Test data
 
-### Products — last verified end of S39, not re-verified in S40
+### Products — verified S41 against the database
 
-Treat as a starting point, not ground truth. Re-run the ownership query in T13 before relying on it.
+Ownership, status and incoterm confirmed by direct query. S39's record was accurate, including
+the S38 ownership correction. Re-run the query in T13 rather than trusting this table blind —
+it is a snapshot, and S41's own testing changed RFQ state on two of these products.
 
-| Product | Owner | Status | Incoterm | Notes |
+| Product | ID | Owner | Status | Incoterm |
 |---|---|---|---|---|
-| test incoterm | Bitshop | active | DAP | has a seller estimate; publishing fired a real RFQ |
-| test incoterm without estimate | Bitshop | draft | DAP | created via the Save-as-Draft escape hatch — reference "returning drafter" |
-| test incoterm FOB | Bitshop | active | FOB | — |
-| r21 gate test (`4983c879-d91a-4d63-85d9-295482bdf636`) | Bitshop | draft | DAP | curl test subject, cycled DAP→FOB→DAP |
-| estimate test boots (`305c3803-9c78-44b0-a1a6-fd2703ef54d8`) | **Hash Heel** | active | DAP | seller estimate $14 / 8 days. *S38 recorded this as Bitshop — wrong, see T13* |
-| brazilian leather sandals | **Hash Heel** | active | DAP | *S38 recorded this as Bitshop — wrong* |
-| custom (`bad3b0e0-5b97-413a-8c5c-cfd3812a51bd`) | Bitshop | active | **DDP** | BitHaul standing quote `8a54f596` ($15, estimated) + order-referenced `d09ea582` ($17). **D43 duplicate evidence lives here** — 4 broadcast RFQs, 2 open |
-| handmade leather boots (`6652da96…`) | Bitshop | active | DAP | BitHaul accepted standing quote `f0287518` ($16, firm until 2026-09-09) |
+| test incoterm FOB | `54b33fc2-022a-43db-b646-b82fa2cff071` | Bitshop | active | FOB |
+| test incoterm without estimate | `2ad8bcda-f581-43d2-8497-20c66474e640` | Bitshop | draft | DAP |
+| test incoterm | `4fbbea3f-0f2e-4a85-98d2-99faa1a4fa20` | Bitshop | active | DAP |
+| r21 gate test | `4983c879-d91a-4d63-85d9-295482bdf636` | Bitshop | draft | DAP |
+| estimate test boots | `305c3803-9c78-44b0-a1a6-fd2703ef54d8` | **Hash Heel** | active | DAP |
+| brazilian leather sandals | `f4e8a3d2-9c1b-4a67-8e42-3d7f91a25b60` | **Hash Heel** | active | DAP |
+| custom | `bad3b0e0-5b97-413a-8c5c-cfd3812a51bd` | Bitshop | active | **DDP** |
+| handmade leather boots | `6652da96-3bad-4932-8a12-e56659bc0881` | Bitshop | active | DAP |
+
+**Open RFQs after S41's D43 testing:**
+
+| RFQ | Product | Requester | Target | Note |
+|---|---|---|---|---|
+| `abc27f8b` | custom | Bitshop | broadcast | refreshed in testing — weight now 2.4 kg |
+| `de018eae` | custom | Bitshop | broadcast | **pre-existing duplicate**, not collapsed by D43 |
+| `aa052543` | estimate test boots | Hash Heel | broadcast | — |
+| `c6eb839c` | test incoterm | Bitshop | broadcast | — |
+| `d4cc2d30` | handmade leather boots | Bitshop | broadcast | **expired 2026-08-01, still served** (B25); carries stale 1.5 kg |
+| `cc2f9c9b` | r21 gate test | Bitshop | broadcast | created by S41 Test 3 |
+| `c5d3f94c` | handmade leather boots | Bitty Buy | broadcast | created by S41 Test 5a, destination now MY |
+| `deb26013` | handmade leather boots | Bitty Buy | BitHaul | created by S41 Test 5d — direct request |
+
+`de018eae` is worth understanding before cleaning it up. D43 stops new duplicates; it does not
+collapse existing ones, because the oldest open row is the one it refreshes and the rest are
+left alone. Confirm nothing references `quote_requests` before deleting — the T8 lesson.
 
 ### Test-data rules
 - **Never DELETE from `shipping_quotes`** without excluding order-referenced rows — see T8.
