@@ -235,6 +235,21 @@ accumulated ~116 untitled ones that are effectively unfindable (D38).
 `S40 — D43 duplicate product identity`, `S40 — logistics_providers schema`.
 *Source: S39. Related: D38.*
 
+### T24. An RFQ shows a weight or destination that doesn't match the product
+**Symptom:** a provider is quoting against figures that disagree with what the product page says.
+**Cause:** `quote_requests` snapshots the shipment payload at creation time. It is only rewritten
+when the requester broadcasts again — which, since D43 (S41), refreshes the existing open row
+rather than adding a new one. A seller who edits a product without re-publishing leaves the old
+RFQ carrying the old numbers, and because `expires_at` is not enforced (B25), that row can stay
+visible indefinitely.
+**Example:** `d4cc2d30` on *handmade leather boots* carries `weight_kg: 1.50` from 2026-07-02
+while the product row now says 0.5 kg. It also expired 2026-08-01 and was still being served on
+the 14th.
+**Fix:** re-broadcast to refresh the row, or check the product's `logistics` blob directly for
+ground truth. Not the same as B24 — that is a unit-conversion bug at write time; this is a stale
+snapshot. Both can produce a wrong weight, so check the timestamp before assuming which.
+*Source: S41. Related: B25, B24, D43.*
+
 ---
 
 ## Build and tooling
