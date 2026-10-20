@@ -250,6 +250,8 @@ Two consequences worth separating. Providers see dead requests as live ones, whi
 **Where:** `src/api/routes/logistics.routes.ts` ~650–659 (`/opportunities` query).
 **Fix:** Add `.gt('expires_at', new Date().toISOString())` to the opportunities query. Separately decide whether a scheduled job should transition expired rows to a terminal status, or whether filtering at read time is enough — read-time filtering is simpler and has no job to fail silently.
 **Priority:** Medium. Not wrong today at test volume; becomes wrong as the pool fills.
+**Status S42 — ✅ Fixed S42** for the provider-facing opportunities query: expired RFQs are filtered in the query, so they cannot crowd live rows out of the 50-row limit. Verified as BitHaul: 6 expired rows before, 1 live row after a D43 refresh. Read-time filtering was chosen over a scheduled job, which has nothing to fail silently.
+**Still open:** the buyer pending endpoint (`/quote-requests/buyer/pending`, ~line 1042) still shows a buyer their expired RFQs in checkout. Left alone deliberately, because filtering it could strand a buyer mid-checkout. It needs a decision on what a buyer sees when their RFQ has expired.
 
 ---
 
