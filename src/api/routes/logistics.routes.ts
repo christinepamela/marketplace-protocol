@@ -655,6 +655,11 @@ router.get(
         `)
         .eq('status', 'open')
         .or(`target_provider_id.is.null,target_provider_id.eq.${provider.id}`)
+        // B25 (S42): expired RFQs must not be served. A null expires_at is kept (legacy
+        // rows) rather than silently dropped; every row written since S30 carries one.
+        // Filtered in the query rather than after it, so dead rows cannot crowd live
+        // ones out of the 50-row limit below.
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .order('created_at', { ascending: false })
         .limit(50);
 
