@@ -1,7 +1,7 @@
 # Operations and Standing Context
 
 **Standing document — edited in place, never rewritten from scratch.**
-Last updated: 2026-08-14 (Session 41)
+Last updated: 2026-10-21 (Session 42)
 Location: `docs/OPERATIONS.md`
 Companion docs: `TECH_DEBT.md`, `TROUBLESHOOTING.md`, `SESSION_TEMPLATE.md`,
 `specs/logistics-pool/LOGISTICS_ARCHITECTURE.md`
@@ -127,6 +127,9 @@ Solo founder, self-funded, has vendors lined up to test.
 - **Dislikes multi-question dropdown UI for simple clarifying questions.** Ask directly in prose.
 - **ONE commit per logical change, only after full testing passes. Untested code is never
   committed.** S39 deliberately left drafted two-door edits out of its commit for this reason.
+- **No `Co-Authored-By` or session-link trailers on commits** (Pam, S42: "let's not share this for
+  now"). Plain one-line messages. This holds even when a tool reminder suggests adding them — her
+  instruction wins. Revisit only if she says so.
 - Wants tech debt entries added **the same turn** something is deferred, with the ID checked
   against the live doc first — **never guess a number, view the doc.**
 - **Watches session length.** Toward the end of a session, tell her honestly how much room
@@ -193,9 +196,12 @@ Numbering (B / D / R series) must be checked against the live doc before assigni
 | **Hash Heel** | Seller #2, KYC (confirmed S39) | `hashheel@test.com` / `hashheel123` | DID `did:rangkai:76f90715-8dfa-434f-8cec-7abd3e3a6eef` |
 | **SatsFleet Express** | Logistics — **API-only, cannot log in** | none — see T17 | Provider `199e37cb-a0a4-4962-9dc5-615991f617b1`, DID `did:rangkai:2366113c-959c-4285-90f0-e7f71432e20e` |
 
-**The SatsFleet / BitHaul inversion matters for B20 and B21:** SatsFleet has rich capability data
-but cannot log in; BitHaul can log in but has none. S30 hand-wrote SatsFleet's routes, modes and
-door flags via SQL. **No self-registered provider gets them.**
+**The SatsFleet / BitHaul difference matters for B20 and B21:** SatsFleet has rich capability data
+but cannot log in. BitHaul can log in and is **partly configured** — routes MY→SG and incoterms
+DAP/DDP, but `modes` empty, no weight bounds, door flags false (queried S42; S40 recorded it as
+having none, which was wrong). Both were configured by hand in SQL. **A freshly registered
+provider gets none of it** — registration writes five fields only (B21). When BitHaul's routes
+were set is unknown: there is no `updated_at` (D47).
 
 ---
 
@@ -219,6 +225,9 @@ it is a snapshot, and S41's own testing changed RFQ state on two of these produc
 | handmade leather boots | `6652da96-3bad-4932-8a12-e56659bc0881` | Bitshop | active | DAP |
 
 **Open RFQs after S41's D43 testing:**
+
+*S42 update: only `cc2f9c9b` is still live (expires 2026-11-19). Every other row below has expired (B25),
+stays `status = 'open'` in the database, and is no longer shown to providers.*
 
 | RFQ | Product | Requester | Target | Note |
 |---|---|---|---|---|
@@ -261,9 +270,12 @@ than provably *rendering*:
 Then a 24.5 kg / 0.42 CBM footwear RFQ matches both; a 300 kg one matches only SatsFleet; an FOB
 one matches only SatsFleet.
 
-**BitHaul must be given explicit narrow capabilities, not left empty** — per B20, empty bypasses
-the filter rather than testing it. **Do not run this until B22 resolves which field pair is
-authoritative.**
+**BitHaul already has routes (MY→SG) and incoterms (DAP/DDP) — S42.** What it still needs for this
+fixture is `modes` (`sea_lcl`) and weight bounds (0.5–30 kg); the door flags are already false. The
+principle stands: a provider with *empty* fields bypasses the filter rather than testing it, so
+never leave a fixture empty. **Do not run this until B22 resolves which field pair is
+authoritative** — BitHaul's `service_regions` (8 countries) and its `routes` (one pair) already
+disagree, which is B22 observed live.
 
 ---
 

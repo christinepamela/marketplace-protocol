@@ -1,7 +1,7 @@
 # Troubleshooting Reference
 
 **Standing document — cumulative, never rewritten.**
-Last updated: 2026-08-14 (Session 41)
+Last updated: 2026-10-21 (Session 42)
 Location: `docs/TROUBLESHOOTING.md`
 Companion docs: `OPERATIONS.md`, `TECH_DEBT.md`, `SESSION_TEMPLATE.md`,
 `specs/logistics-pool/LOGISTICS_ARCHITECTURE.md`
@@ -30,9 +30,9 @@ doc in S41 is what stops the next handover losing them.
 
 ## Index
 
-**Environment and servers** — T1, T14, T17
+**Environment and servers** — T1, T14, T17, T26
 **Publish, quotes and the gate** — T2, T3, T4, T5, T6, T7, T9
-**RFQ pool and matching** — T18, T19, T20, T22
+**RFQ pool and matching** — T18, T19, T20, T22, T25
 **Database and test data** — T8, T13, T21
 **Build and tooling** — T11, T12, T10, T23
 **Working-session mechanics** — T15, T16
@@ -76,6 +76,24 @@ API-only fixture and do all logistics UI testing as BitHaul.**
 Provider `199e37cb-a0a4-4962-9dc5-615991f617b1`, identity
 `did:rangkai:2366113c-959c-4285-90f0-e7f71432e20e`.
 *Source: S40. Related: B5, B13.*
+
+### T26. Coming back after weeks away — what has silently changed
+**Symptom:** after a gap, things are empty, rejected or oddly different. S42 returned after two
+months.
+**What changes on its own, and what to do:**
+- **Supabase paused** (~1 week of inactivity). Resume it at supabase.com/dashboard, then prove it
+  with the login curl in T1 — `/health` will say fine either way.
+- **Tokens expired.** Access tokens last 36 hours. Log in again; never reuse a token from an earlier
+  session.
+- **Every open RFQ has expired.** They are valid 30 days, and since B25 (S42) expired RFQs vanish
+  from providers' opportunities. Re-broadcast to bring one back — D43 returns the *same id* with a
+  new `expires_at`.
+- **Dependencies.** After a reinstall, rebuild the SDK (T11), then run `npx tsc --noEmit` in
+  `rangkai-marketplace`. **The baseline is 15 errors (B23).** More means something was broken;
+  fewer means B23 was fixed.
+**Order:** `git status` and `git log --oneline -5` → resume Supabase → start the API → login curl →
+SDK build and `tsc` → re-broadcast any RFQ you need live.
+*Source: S42.*
 
 ---
 
@@ -149,14 +167,15 @@ risk) is still open.
 ### T18. A logistics provider sees every open RFQ regardless of its capabilities
 **Symptom:** the "smart pool" appears to match, but a provider with nothing in common with the
 shipment still sees it.
+**⚠️ Corrected S42:** the Cause below overstates this. It is true only of a provider whose `routes` / `incoterms_supported` are *empty*. BitHaul has routes MY→SG and incoterms DAP/DDP and **is** filtered — on 2026-10-21 it correctly did not see MY→MY or MY→DE requests. Check the provider's row before deciding which case you are in (T25).
 **Cause:** **the matcher does not currently filter anything in production.** Two facts combine:
 registration collects no capability data (B21), so every self-registered provider is blank; and
 `hasRoutes` / `hasIncoterms` in the `/opportunities` handler are graceful-degradation guards, so
 blank means the filter is skipped entirely (B20). The incentive is inverted — a provider that
 declares its capabilities is the only kind that can be filtered *out*.
 **Fix:** open. B20 + B21 must land together. **Do not read a provider seeing an RFQ as evidence
-that matching works** — that is the mistake that produced D21's invalid S34 confirmation.
-*Source: S40. Related: B20, B21, D21 (reopened).*
+that matching works for a *blank* provider — but a provider with declared routes IS filtered (BitHaul, S42). Query the provider row before concluding either way.
+*Source: S40, corrected S42. Related: B20, B21, D21 (reopening withdrawn S42).*
 
 ### T19. An RFQ silently never reaches a provider that should match it
 **Symptom:** a correctly configured provider does not see an opportunity, with no error anywhere.
@@ -248,7 +267,44 @@ the 14th.
 **Fix:** re-broadcast to refresh the row, or check the product's `logistics` blob directly for
 ground truth. Not the same as B24 — that is a unit-conversion bug at write time; this is a stale
 snapshot. Both can produce a wrong weight, so check the timestamp before assuming which.
+*Update S42: B25 is fixed — an expired RFQ is no longer served, so a stale snapshot drops out of providers' pools at expiry instead of lingering. The snapshot itself stays stale until the requester re-broadcasts.*
 *Source: S41. Related: B25, B24, D43.*
+
+### T25. A provider doesn't see an RFQ it expected
+**Symptom:** an open RFQ for a route the provider arguably serves does not appear in its
+opportunities list, with no error anywhere.
+**Cause — check in this order:**
+1. **Destination.** An RFQ that *names* a destination needs an exact origin+destination match in
+   the provider's `routes`. A provider with MY→SG will not see MY→MY or MY→DE. An RFQ with a *null*
+   destination matches any route from that origin.
+2. **Incoterm.** If the provider declares `incoterms_supported`, the RFQ's incoterm must be in it.
+3. **Weight bounds.** No degradation guard — see T19.
+4. **Expired.** Since B25 (S42), an RFQ past `expires_at` is hidden. It still has `status = 'open'`.
+5. **Limit.** The query returns the newest 50 only.
+6. **Blank provider.** Empty `routes` / `incoterms_supported` skips those filters entirely (B20), so
+   a blank provider sees *everything* — the opposite symptom.
+**Fix:** look at the provider row and the RFQ row side by side.
+```sql
+SELECT business_name, routes, modes, incoterms_supported, door_pickup, door_delivery,
+       weight_min_kg, weight_max_kg, service_regions
+FROM logistics_providers
+WHERE id = '4ac9c4ca-8022-4b9d-b12e-ce5200f39af1';
+```
+```sql
+SELECT id, origin_country, destination_country, weight_kg, incoterm, expires_at, status
+FROM quote_requests
+WHERE id::text LIKE '<first 8 characters of the RFQ id>%';
+```
+To see exactly what a provider sees, log in as BitHaul and call the endpoint (cmd, one line):
+```
+node -e "(async()=>{const L=await fetch('http://localhost:3000/api/v1/identity/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'BitHaul@123.com',password:'BitHaul123'})}).then(r=>r.json());if(!L.data){console.log(JSON.stringify(L));return}const O=await fetch('http://localhost:3000/api/v1/logistics/opportunities',{headers:{Authorization:'Bearer '+L.data.token}}).then(r=>r.json());if(!O.data){console.log(JSON.stringify(O));return}console.log('count',O.data.length);O.data.forEach(x=>console.log(x.id.slice(0,8),x.target_provider_id?'direct':'broadcast','expires',x.expires_at))})()"
+```
+It prints a count, then one line per RFQ: short id, direct or broadcast, expiry. Needs Node with
+built-in `fetch` (the SDK already requires it). If it prints a JSON error object instead of a list,
+that is the API's response — paste it, don't guess.
+**Example (S42):** BitHaul saw 6 of 8 open RFQs. `c5d3f94c` (MY→MY) and `d4cc2d30` (MY→DE) were
+withheld — cause 1 — because BitHaul's only route is MY→SG.
+*Source: S42. Related: B20, B21, B22, B25, T18, T19.*
 
 ---
 
