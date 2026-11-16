@@ -1,30 +1,13 @@
 # Troubleshooting Reference
 
-**Standing document — cumulative, never rewritten.**
-Last updated: 2026-10-21 (Session 42)
-Location: `docs/TROUBLESHOOTING.md`
-Companion docs: `OPERATIONS.md`, `TECH_DEBT.md`, `SESSION_TEMPLATE.md`,
-`specs/logistics-pool/LOGISTICS_ARCHITECTURE.md`
+**Last updated:** 2026-11-11 (Session 43)
+Companion docs: `OPERATIONS.md`, `TECH_DEBT.md`, `TECH_DEBT_ARCHIVE.md`, `SESSION_TEMPLATE.md`, `specs/logistics-pool/LOGISTICS_ARCHITECTURE.md`
 
 ---
 
 ## How to use this doc
 
-Symptom → cause → fix, for things that have actually bitten us at least once. If you hit
-something confusing, look here **before** diagnosing from scratch — roughly half of these
-were diagnosed twice before they were written down.
-
-**This doc grows and is never pruned by a session handover.** Entries are numbered; when a
-cause is genuinely fixed, mark the entry `✅ Fixed S<N>` and leave it in place — the symptom
-can recur from a different cause and the history is the useful part.
-
-Add an entry the same turn you diagnose something non-obvious. Same discipline as
-`TECH_DEBT.md`.
-
-**Origin:** entries T1–T13 were carried in the Session 39 handover's "Troubleshooting
-Reference" section and were dropped when the Session 40 handover was written. T14–T23 were
-diagnosed in S40 and lived only in that handover's prose. Extracting both into this standing
-doc in S41 is what stops the next handover losing them.
+Symptom, cause, fix, for things that have bitten us before. Look here before diagnosing from scratch. Add an entry the same turn you diagnose something non-obvious. When a cause is fixed, mark the entry `✅ Fixed S<N>` and leave it; the same symptom can come back from a different cause. (T1–T13 came from the S39 handover, T14–T23 from S40; they were pulled into this file in S41 so a handover can never drop them again.)
 
 ---
 
@@ -33,7 +16,7 @@ doc in S41 is what stops the next handover losing them.
 **Environment and servers** — T1, T14, T17, T26
 **Publish, quotes and the gate** — T2, T3, T4, T5, T6, T7, T9
 **RFQ pool and matching** — T18, T19, T20, T22, T25
-**Database and test data** — T8, T13, T21
+**Database and test data** — T8, T13, T21, T24
 **Build and tooling** — T11, T12, T10, T23
 **Working-session mechanics** — T15, T16
 
@@ -77,22 +60,10 @@ Provider `199e37cb-a0a4-4962-9dc5-615991f617b1`, identity
 `did:rangkai:2366113c-959c-4285-90f0-e7f71432e20e`.
 *Source: S40. Related: B5, B13.*
 
-### T26. Coming back after weeks away — what has silently changed
-**Symptom:** after a gap, things are empty, rejected or oddly different. S42 returned after two
-months.
-**What changes on its own, and what to do:**
-- **Supabase paused** (~1 week of inactivity). Resume it at supabase.com/dashboard, then prove it
-  with the login curl in T1 — `/health` will say fine either way.
-- **Tokens expired.** Access tokens last 36 hours. Log in again; never reuse a token from an earlier
-  session.
-- **Every open RFQ has expired.** They are valid 30 days, and since B25 (S42) expired RFQs vanish
-  from providers' opportunities. Re-broadcast to bring one back — D43 returns the *same id* with a
-  new `expires_at`.
-- **Dependencies.** After a reinstall, rebuild the SDK (T11), then run `npx tsc --noEmit` in
-  `rangkai-marketplace`. **The baseline is 15 errors (B23).** More means something was broken;
-  fewer means B23 was fixed.
-**Order:** `git status` and `git log --oneline -5` → resume Supabase → start the API → login curl →
-SDK build and `tsc` → re-broadcast any RFQ you need live.
+### T26. Coming back after weeks away
+**Symptom:** after a gap, things are empty, rejected or oddly different.
+**Cause:** Supabase pauses after about a week; access tokens last 36 hours; every open RFQ expires after 30 days and (since B25) vanishes from logistics' opportunities.
+**Fix:** follow "Starting a session" in `OPERATIONS.md`. Re-broadcasting an expired RFQ returns the same id with a new `expires_at` (D43).
 *Source: S42.*
 
 ---
@@ -164,18 +135,11 @@ risk) is still open.
 
 ## RFQ pool and matching
 
-### T18. A logistics provider sees every open RFQ regardless of its capabilities
-**Symptom:** the "smart pool" appears to match, but a provider with nothing in common with the
-shipment still sees it.
-**⚠️ Corrected S42:** the Cause below overstates this. It is true only of a provider whose `routes` / `incoterms_supported` are *empty*. BitHaul has routes MY→SG and incoterms DAP/DDP and **is** filtered — on 2026-10-21 it correctly did not see MY→MY or MY→DE requests. Check the provider's row before deciding which case you are in (T25).
-**Cause:** **the matcher does not currently filter anything in production.** Two facts combine:
-registration collects no capability data (B21), so every self-registered provider is blank; and
-`hasRoutes` / `hasIncoterms` in the `/opportunities` handler are graceful-degradation guards, so
-blank means the filter is skipped entirely (B20). The incentive is inverted — a provider that
-declares its capabilities is the only kind that can be filtered *out*.
-**Fix:** open. B20 + B21 must land together. **Do not read a provider seeing an RFQ as evidence
-that matching works for a *blank* provider — but a provider with declared routes IS filtered (BitHaul, S42). Query the provider row before concluding either way.
-*Source: S40, corrected S42. Related: B20, B21, D21 (reopening withdrawn S42).*
+### T18. A logistics provider sees RFQs it does not match
+**Symptom:** a provider sees an open RFQ that has nothing to do with it.
+**Cause:** the matcher skips a filter when the provider has declared nothing for it. A provider with empty `routes` or `incoterms_supported` sees every RFQ (B20), and every provider who registers through the UI starts blank (B21). The incentive is inverted: a provider who declares its capabilities is the only kind that can be filtered out. A provider with declared capabilities **is** filtered: BitHaul (routes MY→SG, incoterms DAP/DDP) correctly did not see MY→MY or MY→DE requests on 2026-10-21.
+**Fix:** open (B20 + B21 together). Do not read "a provider saw it" as proof that matching works. Query the provider row first (T25). The S40 claim that BitHaul was blank, and the D21 reopening built on it, were wrong and were withdrawn S42 (archive).
+*Source: S40, corrected S42.*
 
 ### T19. An RFQ silently never reaches a provider that should match it
 **Symptom:** a correctly configured provider does not see an opportunity, with no error anywhere.
@@ -190,10 +154,8 @@ unit-conversion bug fires (T22) or when MOQ is missing (D46) — a 0.7 kg unit a
 
 ### T20. Duplicate open `quote_requests` rows for one product
 **Symptom:** providers see the same opportunity two or more times.
-**Cause:** `POST /logistics/quote-requests` creates a new open row on every call, with no dedup
-(D43). The client-side source was narrowed in S40 — edits now only re-broadcast when a
-logistics-material field changed — but the protocol-level fix is still open.
-**Fix:** open (D43). Confirm duplicates with:
+**Cause:** before S41, each call to either RFQ endpoint inserted a new row (D43).
+**Fix:** ✅ Fixed S41 (`1b247e6`). Both paths now refresh the existing open request and return `reused: true`. Duplicates created before S41 are not collapsed; `de018eae` is one. Find any with:
 ```sql
 SELECT product_id, count(*) AS rfq_count,
        count(*) FILTER (WHERE status = 'open') AS open_count,
@@ -203,19 +165,13 @@ WHERE target_provider_id IS NULL
 GROUP BY product_id
 HAVING count(*) > 1;
 ```
-Note there are **two** insert paths — the seller path and the buyer path
-(`POST /quote-requests/buyer`) — and the buyer path scopes `requester_did` differently.
-*Source: S39 (logged), S40 (confirmed with data). Related: D43.*
+*Source: S39, S40. Fixed S41.*
 
 ### T22. Shipping weight or dimensions are wrong by a unit factor
-**Symptom:** a seller enters 3 lb and providers quote against 3 kg.
-**Cause:** the form offers kg/lb/g and cm/in, and the product record **deliberately stores the
-seller's chosen unit for display.** Any consumer that reads `product.logistics` and forwards the
-raw number has this bug.
-**Fix:** fixed at the ProductForm RFQ boundary in S40 (`toKg()` / `toCm()` helpers, rounded to
-2dp and 1dp to match column precision). **Still latent everywhere else** — the buyer-side RFQ
-path from L15 is the obvious candidate. Check it, don't assume.
-*Source: S40. Partially ✅ Fixed S40 (seller broadcast path only).*
+**Symptom:** a seller enters 3 lb or 12 inches and providers quote against 3 kg or 12 cm.
+**Cause:** the product record deliberately stores the seller's chosen unit for display, so anything that forwards the raw number has this bug.
+**Status:** the seller broadcast path is fixed (S40: `toKg()` / `toCm()` in `ProductForm`). **The buyer RFQ path still has it for dimensions** and also invents a 1 kg or 1 cm value when data is missing (B24). It has never been observed in data, because the one product tested stores centimetres. To reproduce, create a product in lb and inches (FOB or EXW, so it skips the publish gate) and request quotes as a buyer.
+*Source: S40, S41. Related: B24.*
 
 ---
 
@@ -254,21 +210,11 @@ accumulated ~116 untitled ones that are effectively unfindable (D38).
 `S40 — D43 duplicate product identity`, `S40 — logistics_providers schema`.
 *Source: S39. Related: D38.*
 
-### T24. An RFQ shows a weight or destination that doesn't match the product
-**Symptom:** a provider is quoting against figures that disagree with what the product page says.
-**Cause:** `quote_requests` snapshots the shipment payload at creation time. It is only rewritten
-when the requester broadcasts again — which, since D43 (S41), refreshes the existing open row
-rather than adding a new one. A seller who edits a product without re-publishing leaves the old
-RFQ carrying the old numbers, and because `expires_at` is not enforced (B25), that row can stay
-visible indefinitely.
-**Example:** `d4cc2d30` on *handmade leather boots* carries `weight_kg: 1.50` from 2026-07-02
-while the product row now says 0.5 kg. It also expired 2026-08-01 and was still being served on
-the 14th.
-**Fix:** re-broadcast to refresh the row, or check the product's `logistics` blob directly for
-ground truth. Not the same as B24 — that is a unit-conversion bug at write time; this is a stale
-snapshot. Both can produce a wrong weight, so check the timestamp before assuming which.
-*Update S42: B25 is fixed — an expired RFQ is no longer served, so a stale snapshot drops out of providers' pools at expiry instead of lingering. The snapshot itself stays stale until the requester re-broadcasts.*
-*Source: S41. Related: B25, B24, D43.*
+### T24. An RFQ shows a weight or destination that does not match the product
+**Symptom:** a provider is quoting against figures that disagree with the product page.
+**Cause:** `quote_requests` snapshots the shipment details when it is created or re-broadcast. A seller who edits a product without re-publishing leaves the old RFQ carrying the old numbers. Since S42 an expired RFQ is hidden from providers, so a stale one drops out at expiry instead of lingering, but it stays stale until the requester re-broadcasts. Example: `d4cc2d30` carries `weight_kg: 1.50` from 2026-07-02 while the product now says 0.5 kg.
+**Fix:** re-broadcast to refresh the row, or read the product's `logistics` blob for ground truth. This is not B24 (a unit bug at write time). Both can produce a wrong weight, so check the RFQ's timestamp first.
+*Source: S41, S42. Related: B24, B25, D43.*
 
 ### T25. A provider doesn't see an RFQ it expected
 **Symptom:** an open RFQ for a route the provider arguably serves does not appear in its
