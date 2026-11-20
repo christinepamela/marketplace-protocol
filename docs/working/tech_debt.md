@@ -1,15 +1,15 @@
 # Tech Debt: open items
 
-**Last updated:** 2026-11-11 (Session 43)
-**Closed items:** `TECH_DEBT_ARCHIVE.md`  |  **Companion docs:** `OPERATIONS.md`, `TROUBLESHOOTING.md`
+**Last updated:** 2026-11-18 (Session 44)
+**Closed items:** `../archive/tech_debt_archive.md`  |  **Companion docs:** `operations.md`, `troubleshooting.md`
 
 ---
 
 ## How to use this doc
 
-This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B25, D49, R25**).
+This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B37, D65, R27**).
 
-When an item is fixed, copy its block to `TECH_DEBT_ARCHIVE.md` with `✅ Fixed S<N>` and remove it here.
+When an item is fixed, copy its block to `../archive/tech_debt_archive.md` with `✅ Fixed S<N>` and remove it here.
 
 Format for a new item:
 
@@ -38,6 +38,18 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B23 | `rangkai-marketplace` has never typechecked clean (15 errors) | Medium |
 | B24 | Buyer RFQ path converts weight units but not dimensions, and fabricates missing values | High |
 | B25 | Buyer pending endpoint still shows a buyer their expired RFQs | Medium |
+| B26 | Stripe payout pays the seller the whole order total | High |
+| B27 | Governance fee changes have no effect; limits contradict the fee principle | High |
+| B28 | Marketplace fee is calculated but never collected | High |
+| B29 | Search loads every match, has no database ranking, cannot scale | High, launch blocker |
+| B30 | Search text is placed directly in the filter string | Medium-High |
+| B31 | Payout routes need only a login and take the destination from the request | High, before real funds |
+| B32 | Release, completion and dispute resolution move no money | High |
+| B33 | Auto-release can pay the seller inside the dispute window | Medium-High |
+| B34 | Arbitration cannot be resolved; seller 48-hour deadline not enforced | High |
+| B35 | Governance actions are records only; votes not cryptographically verified | Medium-High |
+| B36 | A rating caps the reputation score at 100, though the maximum is 500 | Medium-High |
+| B37 | One-sided ratings are never revealed | Medium |
 | D5 | No HS code on products | Medium-High |
 | D6 | Currency layer absent | Medium |
 | D7 | Provider rating field exists but isn't populated | Medium |
@@ -53,7 +65,6 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | D20 | Nostr data load management | Cross-cutting |
 | D23 | Seller notification: firm quote expired → auto-converted to estimated, seller bears price risk | Low-Medium |
 | D26 | Backend package's `tsc` output lands at repo root, not inside `packages/` | Low |
-| D27 | Master architecture docs are ~10 months stale, predate the Nostr decision | Medium |
 | D28 | `ownLogistics` is one checkbox for the whole cart — breaks with 2+ vendors | Low |
 | D30 | Cart items carry a hardcoded "Vendor" placeholder name, never populated | Medium |
 | D32 | `keys/` folder at repo root contains generated PEM key pair from early identity setup | Low |
@@ -71,6 +82,22 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | D47 | Logistics capability model gaps: no warehousing, no `updated_at`, and Incoterm asked in the ... | Low-Medium |
 | D48 | SDK discards response envelope metadata, so the protocol cannot tell a marketplace anything ... | Medium |
 | D49 | Quotes carry no destination, and the buyer pending list is scoped by product only | High |
+| D50 | Marketplace registry (fee, limit, free-period end) | High |
+| D51 | Fee ledger and live protocol and marketplace statistics | High |
+| D52 | Search: ships-to country and Incoterm filter | High |
+| D53 | Stripe Connect not set up, card payouts not live | Medium-High |
+| D54 | Search: later steps (typo tolerance, multilingual, cache) | Medium |
+| D55 | Anonymous users not blocked from logistics pool; no prohibited-goods list | Medium-High |
+| D56 | A buyer cannot dispute an order that never arrives | Medium-High |
+| D57 | Order status changes logged as "system", not the person | Medium |
+| D58 | Identity has drifted from Principle 3 (passwords, cryptographic identity) | Medium |
+| D59 | KYC verification is a stub | Medium-High |
+| D60 | Rebuild disputes to the confirmed model | High |
+| D61 | Sample approval record linked to bulk orders | Medium-High |
+| D62 | Freeze model | Medium-High |
+| D63 | Seller-set advance (deposit) | Low, later |
+| D64 | Product visibility states differ from the spec | Low-Medium |
+| D65 | Reference client: clean-up and marketplace-entrepreneur tools | Medium |
 | R1 | Provider pitches sellers (Scenario 4) | Roadmap |
 | R2 | Multi-vendor logistics consolidation | Roadmap |
 | R3 | Reverse logistics financial flow | Roadmap |
@@ -92,6 +119,8 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | R23 | Consolidated order-level RFQ for multi-product carts (bulk logistics quote) | Deferred |
 | R24 | Buyer picks from multiple shipping quotes (sea/air, price vs speed) | v1.5/v2 |
 | R25 | Destination and provider choice are single-valued where the flow needs several | Roadmap |
+| R26 | Nostr communications build (relay, rooms, media, audit log) | Roadmap |
+| R27 | Returns: replacement, credit, partial refund, optional physical return | Roadmap |
 
 ---
 
@@ -100,8 +129,8 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 ### B1. Logistics payment: two pieces remain
 **What:** Buyer pays product + logistics at checkout and the order stores `logistics_quote_id` and `logistics_cost` (L1–L16, all done; full history in the archive). Two pieces are left:
 - **L10 split payout is untested end to end.** `executeSplitPayoutBTC()` and `POST /api/v1/bitcoin/split-payout` exist; testing needs a delivered order with confirmed BTC.
-- **L17 spec corrections.** `LOGISTICS_ARCHITECTURE.md` section 3 still shows the 0.5% as a checkout line, which contradicts the fee model, and its "Architecture doc additions" block at the bottom was never merged. Handled in the S43 docs cleanup.
-**Where:** `src/core/layer2-transaction/bitcoin.service.ts`, `docs/specs/logistics-pool/LOGISTICS_ARCHITECTURE.md`
+- **L17 spec corrections.** `LOGISTICS_ARCHITECTURE.md` section 3 still shows the 0.5% as a checkout line, which contradicts the fee model, and its "Architecture doc additions" block at the bottom was never merged. Resolved in S44: the logistics architecture is folded into `docs/architecture/logistics.md`.
+**Where:** `src/core/layer2-transaction/bitcoin.service.ts`, `docs/architecture/logistics.md`
 **Priority:** Medium.
 
 ### B4. Tracking number not shown in buyer shipment UI
@@ -176,6 +205,80 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Where:** `src/api/routes/logistics.routes.ts` (~1038–1099).
 **Priority:** Medium. Related: D35, D49.
 
+### B26. Stripe payout pays the seller the whole order total
+**What:** `executeVendorPayout` passes `order.total` (product plus logistics) to the seller with 0.5% off. Logistics gets nothing and the second 0.5% is never taken. The Bitcoin path splits correctly. Decision (S44): Stripe must follow the Bitcoin payout.
+**Where:** `src/core/layer2-transaction/payment-router.service.ts` (line 135), `src/infrastructure/payment/stripe.adapter.ts` (line 157).
+**Fix:** Pay seller and logistics separately, 0.5% off each, using the same split rules as `executeSplitPayoutBTC`. Needs D53 first for live payouts.
+**Priority:** High.
+
+### B27. Governance fee changes have no effect, and their limits contradict the fee principle
+**What:** `update_protocol_fee` and `update_client_fee` write to `protocol_parameters`. Nothing in `src` reads that table. Orders use `DEFAULT_FEE_CONFIG` (0 and 0). The 0.5% is a hard-coded number in four places. Governance allows a protocol fee of 0 to 10%. Decision (S44): 0.5% and never higher.
+**Where:** `src/core/layer6-governance/execution.service.ts` (lines 143 to 200), `layer2-transaction/types.ts`, `order.service.ts`, `bitcoin.service.ts` (lines 334, 510), `payment-router.service.ts`, `stripe.adapter.ts`.
+**Fix:** One fee setting read by every payout path. Cap the protocol fee at 0.5% in governance. Decide whether the action is kept (lower only) or removed.
+**Priority:** High.
+
+### B28. Marketplace fee is calculated but never collected
+**What:** `calculateFees` computes and stores the marketplace fee on the order. No payout deducts it, and `fee.service.ts`, which would distribute it, is a mock that no route calls. Decision (S44): it must be collected.
+**Where:** `order.service.ts` (line 450), `fee.service.ts`, payout code.
+**Fix:** Deduct at payout, record in the ledger (D51). Needs D50.
+**Priority:** High.
+
+### B29. Search loads every match, has no database ranking, and cannot scale
+**What:** Matching is `ILIKE '%text%'`. `search()` fetches all matches, runs three more queries per row, scores in JavaScript and paginates last. Search is a launch requirement (S44: Postgres full-text search with proper ranking).
+**Where:** `src/core/layer1-catalog/search.service.ts` (lines 25 to 64, 197, 276 to 372); the `product_index` table and its trigger `trigger_sync_product_to_index`.
+**Fix:** A `tsvector` column with GIN index, `websearch_to_tsquery` with `ts_rank` and field weights, filtering, vendor join and pagination in one database function. Keep the response shape. Facts checked in the live database (S44): no `search_vector` column; the only text index is on `name` with the English dictionary; the index holds no full description, Incoterm, ships-to or seller country. The trigger `trigger_sync_product_to_index` must be extended too. Use a non-English-specific dictionary.
+**Priority:** High, launch blocker.
+
+### B30. Search text is placed directly in the filter string
+**What:** `.or('name.ilike.%${query}%, ...')` puts user input in the filter. A comma or bracket may break or alter it. Not tested.
+**Where:** `search.service.ts` (line 211), and `getSuggestions`.
+**Fix:** Escape, or replace with the database function from B29. Test with commas and brackets first.
+**Priority:** Medium-High.
+
+### B31. Payout routes need only a login, and take the destination from the request
+**What:** `POST /api/v1/bitcoin/vendor-payout` and `/split-payout` use `requireAuth`, which accepts any valid token. They take the destination address (and, for split, the amounts) from the request body and check only that the order is `delivered` or `completed`. Neither service function checks that the caller is the seller or that the address belongs to the seller. Not tested. Sandbox and testnet today, so it matters before real funds.
+**Where:** `src/api/routes/bitcoin.routes.ts` (lines 205 to 262, 290 to 345), `bitcoin.service.ts` (`executeVendorPayoutBTC`, `executeSplitPayoutBTC`).
+**Fix:** Do not expose payout as a route. Run it inside the release step (B32), with the destination taken from the seller's and provider's stored payout details.
+**Priority:** High, before any real funds.
+
+### B32. Release, completion and dispute resolution move no money
+**What:** `releaseEscrow`, `refundEscrow`, order completion and `executeResolution` only change statuses. Nothing calls `executeVendorPayout`, `executeSplitPayoutBTC` or a refund. Payout happens only if someone calls the routes in B31 by hand.
+**Where:** `escrow.service.ts`, `order.routes.ts` (line 505), `dispute.service.ts` (`executeResolution`), `payment-router.service.ts`.
+**Fix:** One release step: status change, then split payout, fees (B26, B28), ledger (D51). One refund step per rail. Partial refunds need split logic.
+**Priority:** High. Related: B26, B28, B31.
+
+### B33. Auto-release can pay the seller inside the dispute window
+**What:** Release time is payment plus 7 days, and the only other condition is `delivered`. Delivered on day 6 means release on day 7, 24 hours into the 72-hour dispute window. The default escrow rules say a 7-day dispute window, the service hard-codes 72 hours, and governance's `update_dispute_window` is read by nothing.
+**Where:** `escrow.service.ts` (lines 151 to 180, 206), `layer2-transaction/types.ts` (line 255), `dispute.service.ts` (line 41).
+**Fix:** Release at the later of the hold time and delivery plus the dispute window. One dispute-window setting read by both.
+**Priority:** Medium-High.
+
+### B34. Disputes needing arbitration cannot be resolved, and the seller deadline is not enforced
+**What:** `escalateToArbitration` sets status `arbitration`. `resolveDispute` is called only from auto-resolution, and no route exposes it, so an escalated dispute stays open with the escrow frozen. `vendor_response_due_at` is saved and never read, and no scheduler job checks it.
+**Where:** `src/core/layer4-trust/dispute.service.ts`, `src/api/routes/dispute.routes.ts`, `src/api/scheduler.ts`.
+**Fix:** An arbitrator route (operator in v1) and a job for the 48-hour deadline. Needs Pam's decisions in `docs/architecture/payments_and_fees.md`.
+**Priority:** High.
+
+### B35. Governance actions are records only, and votes are not cryptographically verified
+**What:** An emergency pause sets `emergency_pause_enabled` and nothing reads it. Treasury withdrawal records an approved movement and makes no transaction. `update_escrow_duration` and `update_dispute_window` write settings nothing reads (see also B27, B33). A vote's `signature` is stored and never checked. A signer is any logged-in account on the council list, so "2 of 3" means two logged-in accounts.
+**Where:** `src/core/layer6-governance/execution.service.ts` (lines 143 to 260), `proposal.service.ts` (`submitApproval`), `multisig.service.ts` (`verifySigner`), `src/api/routes/governance.routes.ts`.
+**Fix:** Make each action change real behaviour: pause stops order creation, payouts and releases. Verify a signature per vote. Needed for the protocol freeze model.
+**Priority:** Medium-High. High once real funds flow.
+**Note (S44):** the council threshold stays 2 of 3, signers not yet named, number may grow later. Needed for D62. Until signers are named, Pam is the interim holder of the emergency pause (single point of control, accepted for now). The pause flag must also be read by the order and payout code, which it is not today.
+
+### B36. A rating caps the reputation score at 100, though the maximum is 500
+**What:** `updateReputationFromRating` adds or subtracts a few points and then clamps to 0 to 100. The reputation formula has a maximum of 500. A seller at 300 falls to about 100 after one rating. It also writes the score directly, bypassing the formula. Unverified: it looks the record up by `did`, while search looks it up by `vendor_did`.
+**Where:** `src/core/layer4-trust/rating.service.ts` (lines 250 to 290), `layer0-identity/types.ts` (`DEFAULT_REPUTATION_PARAMS`).
+**Fix:** Record the rating as a reputation event and recalculate with the formula. Check the column name.
+**Priority:** Medium-High.
+**Note (S44):** blocks D63. A reputation threshold for seller advances is meaningless until ratings stop corrupting the score. Pam: ratings matter for this.
+
+### B37. One-sided ratings are never revealed
+**What:** `autoRevealExpiredRatings` reveals a rating after 7 days when only one party has rated. Nothing calls it and no scheduler job runs it.
+**Where:** `rating.service.ts` (line 202), `src/api/scheduler.ts`.
+**Fix:** Add a scheduler job.
+**Priority:** Medium.
+
 ---
 
 ## 🟡 Deferred or partial
@@ -203,6 +306,7 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 
 ### D10. Lightning untested
 **What:** Lightning is in the architecture but no flow has been built or tested.
+**Update S44:** Lightning goes through BTCPay and needs a node. Parked until Pam's hardware allows.
 **Priority:** Low until BTC on-chain is solid. See R9.
 
 ### D12. No quote refresh / expiry handling
@@ -223,7 +327,7 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 
 ### D15. Trust and compliance: later pieces
 **What:** The core is done (S37): sanctions endpoints, seeded sanctions list, automatic screening at KYC registration (full text in the archive). Still open: **D15d** operator dashboard for flagged identities (post-v1), **D15e** compliance events for real-time wiring (v1.5), **D15f** public sanctions-list transparency page (v1.5).
-**Where:** `src/api/routes/trust.routes.ts`, `src/core/layer4-trust/compliance.service.ts`, `docs/specs/LAYER4_TRUST_AND_COMPLIANCE.md`
+**Where:** `src/api/routes/trust.routes.ts`, `src/core/layer4-trust/compliance.service.ts`, `docs/architecture/layers.md` (Layer 4)
 **Priority:** Low until v1 ships.
 
 ### D16. v2 search federation needs architectural decision (HIGH PRIORITY)
@@ -268,16 +372,11 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Fix:** Set `outDir` to a path scoped inside `packages/` (e.g. `packages/dist`) so build artifacts don't leak into the repo root, where they could accidentally get committed or confused with `packages/sdk`'s separate `dist/`.
 **Priority:** Low. Cosmetic/organizational, not causing any functional issue currently.
 
-### D27. Master architecture docs are ~10 months stale, predate the Nostr decision
-**What:** `docs/ARCHITECTURE.md`, `docs/whitepaper/WHITEPAPER.md`, and the `docs/specs/LAYER0–6` files haven't been updated in ~10 months — since before the decision to use Nostr as transport (see `docs/NOSTR_ARCHITECTURE_RATIONALE.md`, which *is* current, S29). They don't reflect the actual current schema, terminology (still say "vendor" in places, not "seller"), fee model, or any of L1–L16's real implementation. Pam: "we get smarter as we go" — these docs describe an earlier, less-informed version of the design.
-**Where:** `docs/ARCHITECTURE.md`, `docs/whitepaper/WHITEPAPER.md`, `docs/specs/LAYER0_IDENTITY_AND_REPUTATION.md` through `LAYER6_GOVERNANCE.md`, `docs/specs/REF_CLIENT.md`, `docs/PROJECT_STRUCTURE.md`, `docs/diagrams/protocol-architecture.mmd`, `docs/diagrams/transaction-flow.mmd`.
-**Fix:** Not yet scoped — open question whether this becomes one consolidated whitepaper + architecture doc (specs folded in) or stays as separate whitepaper/architecture/specs. Deliberately not decided tonight, per Pam (S33), to avoid scope creep mid-L15. Revisit as its own session once L15/L16 ship — same "explicitly deferred" pattern as L17's `LOGISTICS_ARCHITECTURE.md` consolidation was for L16.
-**Priority:** Medium. Not blocking any current build work, but the drift is compounding — every session since S29 has been adding real decisions (fee model, terminology, Nostr rationale, this session's consolidation-vs-hub principle) that these master docs don't capture.
-
 ### D28. `ownLogistics` is one checkbox for the whole cart — breaks with 2+ vendors
 **What:** `checkout/page.tsx`'s "I'll arrange my own logistics" checkbox is single, cart-wide state. Checkout creates one order per vendor, so a buyer with 2+ vendors in cart has no way to choose seller-shipping for one and own-logistics for another — it's all-or-nothing across every order the checkout submits.
 **Where:** `rangkai-marketplace/app/checkout/page.tsx` (single `ownLogistics` state), `lib/api/cart.ts` (`createOrdersFromCart` passes the same `ownLogistics` value to every vendor's order).
 **Fix:** Per-vendor `ownLogistics` state (e.g. a `Record<vendorDid, boolean>` instead of a single boolean), checkbox rendered per vendor group in checkout, passed through individually in `createOrderFromCart()` per vendor.
+**Note (S44):** the multi-vendor logistics rule is in `logistics.md`: separate by default; one buyer may ask a provider to consolidate orders at the same port (R2).
 **Priority:** Low today (all test data is single-vendor), but will silently misbehave the moment real multi-vendor carts are tested — worth fixing before then.
 
 ### D30. Cart items carry a hardcoded "Vendor" placeholder name, never populated
@@ -405,6 +504,95 @@ D40 (link a quote to the RFQ it answers with `quote_request_id`) fixes the first
 **Fix:** Reproduce first with two buyers on one product. Then add `destination_country` to quotes (required on submit, or inherited from the RFQ it answers), scope the buyer pending query by RFQ (D40), and show a standing quote only to buyers whose country it covers. Seller-set destination lists (R25) depend on this.
 **Priority:** High.
 
+### D50. Marketplace registry
+**What:** No table records each marketplace with its fee, cap and free-period end date. Needed for B28. Proposed minimum registry fields are in `docs/architecture/actors_and_trust.md`, "Registering a marketplace" (public registry only; legal documents stay with the entrepreneur). Open: track record only, or also a refundable bond.
+**Fix:** A registry table and API. Decided (Pam, S44): default marketplace fee 2%, limit stays 0 to 5% as in code. Proposal, not agreed: free for the first few months, as a per-marketplace end date. The 8% cap idea is withdrawn.
+**Priority:** High.
+
+### D51. Fee ledger and live protocol statistics
+**What:** Protocol fee income is not recorded. On Bitcoin it stays in the escrow address. Decision (S44): track income, and how many orders, sellers, buyers and marketplaces the protocol serves, in real time.
+**Where:** `bitcoin.service.ts`, new ledger table, existing WebSocket server on `/ws`.
+**Fix:** A ledger row for every fee taken (protocol and marketplace, per order, per rail). Live counts pushed over the WebSocket. Each marketplace gets the same live view of its own income and orders (Pam, S44). Sweep fee income out of escrow addresses.
+**Priority:** High.
+
+### D52. Search: "ships to" country and Incoterm filter
+**What:** Only origin country can be filtered. No filter by delivery country or Incoterm.
+**Where:** `search.service.ts` (line 227), `product_index`.
+**Priority:** High, part of the launch search.
+
+### D53. Stripe Connect not set up, so card payouts are not live
+**What:** The adapter's transfer uses the seller's DID where a Stripe Connect account ID belongs. Failures fall back to a manual payout flag. Also check whether Stripe offers Cash App Pay on the account.
+**Where:** `stripe.adapter.ts` (lines 139 to 213).
+**Priority:** Medium-High.
+
+### D54. Search: later steps
+**What:** Typo tolerance (`pg_trgm`). Multilingual or semantic matching, possibly Supabase `pgvector` with an open-source multilingual model, after a short evaluation of free options. Wire in the Redis cache (`search-cache.service.ts` is written, nothing imports it) if load needs it.
+**Priority:** Medium. Real cross-deployment federation stays under D16.
+
+### D55. Anonymous users are not blocked from the logistics pool, and no prohibited-goods list exists
+**What:** Rules (S44): logistics is KYC only, and anonymous users arrange their own. Anonymous users follow a published list of dos and don'ts. The code enforces neither.
+**Where:** `src/core/layer3-logistics`, `src/api/routes/logistics.routes.ts`, `layer0-identity`.
+**Fix:** Check identity type at pool entry. Publish the list and show it at sign-up.
+**Priority:** Medium-High.
+
+### D56. A buyer cannot dispute an order that never arrives
+**What:** `openDispute` requires status `delivered`. The state machine allows disputes from `confirmed`, `shipped` and others. Non-receipt disputes are therefore only possible on orders marked delivered.
+**Where:** `dispute.service.ts` (line 34), `VALID_STATE_TRANSITIONS`.
+**Fix:** Pam to decide the pre-delivery path and the window after delivery.
+**Priority:** Medium-High.
+
+### D57. Order status changes are logged as "system", not the person
+**What:** `updateStatus` always records `changedBy: 'system'` (the code comment says it should be the user's DID).
+**Where:** `order.service.ts` (line 214).
+**Fix:** Pass the caller's DID through. Matters for dispute evidence.
+**Priority:** Medium.
+
+### D58. Identity has drifted from Principle 3
+**What:** `operations.md` Principle 3 says identity is cryptographic (secp256k1) and the protocol never holds passwords. The code stores a bcrypt hash of each KYC user's password, identities are UUID-based DIDs, and a Nostr identity cannot authenticate with its key. KYC identities also store personal data in the protocol database (business name, registration number, owner name, address, phone, email, tax ID, document references), which conflicts with "the protocol never holds KYC documents" and with the position that courts deal with the marketplace.
+**Where:** `layer0-identity/identity.service.ts` (lines 45 to 70, 235), `src/api/routes/identity.routes.ts`.
+**Decision (Pam, S44):** the protocol should not store KYC personal data or password hashes. This is what the Session 28 design intended (marketplace stores the hash and verified business info and calls the protocol with the DID); the code put it in the protocol as a v1 shortcut because there is one marketplace.
+**Fix:** The marketplace verifies the password and its own KYC, then signs a short attestation or token. The protocol stores the DID, identity type, public key and a signed "verified by marketplace X" flag. Remove `password_hash` and the KYC personal fields from `identities` (migrate the existing rows to the marketplace). Login for Nostr and anonymous users by key signature (R26). Until then v1 keeps the shortcut, documented. Provider business profiles (address, contacts, insurance) stay, because quotes need them.
+**Priority:** Medium.
+
+### D59. KYC verification is a stub
+**What:** `verification.service.ts` is empty. `POST /identity/:did/verify` returns "initiated" and changes nothing. Marketplaces have no way to mark an identity verified, though they do KYC under their own country's rules.
+**Where:** `layer0-identity/verification.service.ts`, `src/api/routes/identity.routes.ts` (line 433).
+**Fix:** An endpoint a marketplace calls to set a verification status and level.
+**Priority:** Medium-High.
+
+### D60. Rebuild disputes to the confirmed model
+**What:** Build the dispute model in `docs/architecture/payments_and_fees.md` (confirmed S44): a closed list of grounds (not shipped, not delivered, not as agreed, wrong quantity, damaged in transit); a seller-chosen window of 7, 14 or 30 days after delivery (default 7) saved on the order at checkout; objective grounds decided automatically from tracking; subjective grounds ruled by the marketplace; a 5-day seller response time; a marketplace may not rule on its own orders; each ruling saved with its reason; automatic payout (split, fees taken) after a 24-hour hold (a setting); a public ruling log and a track record per marketplace.
+**Where:** `src/core/layer4-trust/dispute.service.ts`, `src/api/routes/dispute.routes.ts`, `escrow.service.ts`, `layer2-transaction/types.ts`, `src/api/scheduler.ts`.
+**Fix:** In stages after B31 to B34, which it builds on. It includes D56 (disputes before delivery for non-performance). Also decided (S44): rulings that are large (order of USD 5,000 or more, a governance setting) or overridden by the protocol wait 24 hours before payout, smaller ones release at once; the grace period for "not shipped" and "not delivered" is automatic 3 days, and the seller can request an extension that the buyer must approve extensions are capped at 30 days in total. Anonymous parties: automatic rules only, no person rules. Long-term aim: 99% of disputes automatic, with rules extended from recorded rulings and changed only through governance.
+**Priority:** High.
+
+### D61. Sample approval record linked to bulk orders
+**What:** `OrderType` has `sample` and products have a sample option, but nothing links an approved sample to a later bulk order. Decision (S44): keep a record of the approved sample (photos, specification, date) as the benchmark for "not as agreed" disputes.
+**Where:** `layer2-transaction/types.ts` (`OrderType`), `layer1-catalog/types.ts` (sample pricing), order and dispute services.
+**Priority:** Medium-High. Pam to decide whether v1 or later.
+
+### D62. Freeze model
+**What:** Funds can be frozen by the dispute itself (automatic), by a marketplace on its own orders (reason recorded, time-limited), and by the protocol, which may also override a marketplace. The protocol may act only for five justifications: sanctions match, payment fraud, technical emergency (council pause), a marketplace that has not ruled within about 30 days, and a ruling that breaks the rules. Court orders are deliberately not a justification (Pam, S44). A freeze never moves money to the protocol or a third party. Every freeze goes in a public log.
+**Where:** `escrow.service.ts`, `dispute.service.ts`, `layer6-governance`, `layer4-trust/compliance.service.ts`.
+**Fix:** Justifications 1, 2, 4 and 5 must be automatic rules (the protocol has no people behind it). Needs B35 first.
+**Priority:** Medium-High.
+
+### D63. Seller-set advance (deposit)
+**What:** A seller-set advance of up to about 30%, released when the seller confirms the order, and only for sellers above a reputation threshold. Confirmed S44 as later, and kept simple.
+**Fix:** Needs B36 fixed first, because the threshold uses the reputation score.
+**Priority:** Low. Later.
+
+### D64. Product visibility states differ from the spec
+**What:** The Layer 1 spec has four states (public, restricted, private, paused). The code has `ProductVisibility = 'public' | 'private' | 'unlisted'`, and the index trigger copies only `public` products. Decide the states, then match code, trigger and docs.
+**Where:** `layer1-catalog/types.ts`, trigger `trigger_sync_product_to_index`.
+**Priority:** Low-Medium.
+
+### D65. Reference client: clean-up and marketplace-entrepreneur tools
+**What:** `docs/architecture/ref_client.md` lists the gaps. Marketplace entrepreneurs have no screens for dispute rulings, fee income or categories. The client has dead files (`bitcoin-payment-route.ts`, `bitcoin-status-route.ts`), two API URL variables (`NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_PROTOCOL_URL`), and a Supabase key in `.env.local.example` that a marketplace should not need. Sign-up must be simple, phone-first and light (Pam, S44).
+**Where:** `rangkai-marketplace/app/api/orders/[id]/`, `.env.local.example`, `app/auth/register/page.tsx`.
+**Fix:** Remove the dead files, use one variable, simplify sign-up, then add the entrepreneur screens after D50, D51 and D60.
+**Priority:** Medium.
+
 ---
 
 ## 🟢 Roadmap, not v1
@@ -511,6 +699,17 @@ US eliminating $800 de minimis for some corridors. Surface "expect duties" warni
 ### R25. Destination and provider choice are single-valued where the flow needs several
 **What:** Per Pam (S43). Seller side: set a few destinations, or go global and let logistics respond for the destinations they serve (today: one destination or null). Buyer side: pick a fresh logistics quote when the place is covered, or ask the seller for a quote (nothing exists for this), or find their own logistics: aim at one provider, a few, or broadcast (`target_provider_id` takes one today).
 **Fix:** Own design session after D49. Pam narrates the buyer flow first.
+**Priority:** Roadmap.
+
+### R26. Nostr communications build
+**What:** Pam, S44: yes, we build this. Reference: Buzz (`block/buzz`), Apache-2.0. Take: a centralised relay, group rooms for orders and disputes, media storage, search over messages that respects who may read them, a hash-chained audit log for dispute evidence. Buzz has no commerce events, so Rangkai defines its own event kinds for orders, quotes and disputes. Postgres stays the source of truth for v1; Nostr carries identity and communication.
+**Where:** `docs/architecture/comms_and_nostr.md` (the S29 rationale is merged into it). Nothing in `src` uses Nostr beyond the identity type.
+**Fix:** Break into sub-items after the comms doc is written. Constraints: D17 (public channels), D20 (data load).
+**Priority:** Roadmap.
+
+### R27. Returns: replacement, credit, partial refund, optional physical return
+**What:** B2B norm is replacement, credit or partial refund, with a physical return only for higher-value goods and with the seller's agreement. A ruling should be able to order any of these. See `docs/architecture/logistics.md` (Returns). Return freight and who pays it are not decided.
+**Where:** Not built. Part of D60.
 **Priority:** Roadmap.
 
 **END OF OPEN TECH DEBT**

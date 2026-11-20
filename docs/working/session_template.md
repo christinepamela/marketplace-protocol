@@ -1,6 +1,6 @@
 # Session Handover Template
 
-Copy this to `docs/session-handovers/<N>.md` at the end of a session.
+Copy this to `docs/working/<N>.md` at the end of a session, and move the previous handover to `docs/archive/session-handovers/`.
 
 ---
 
@@ -12,9 +12,9 @@ Everything durable goes in a standing doc **the same turn it is discovered**, no
 
 | If it is... | It goes in... |
 |---|---|
-| A known problem, deferred or broken | `TECH_DEBT.md`, with an ID checked against the live file. When fixed, it moves to `TECH_DEBT_ARCHIVE.md`. |
-| A symptom you had to diagnose | `TROUBLESHOOTING.md`, as a new `T<N>` entry |
-| A working rule, credential, principle, design rule or test data | `OPERATIONS.md` |
+| A known problem, deferred or broken | `tech_debt.md`, with an ID checked against the live file. When fixed, it moves to `../archive/tech_debt_archive.md`. |
+| A symptom you had to diagnose | `troubleshooting.md`, as a new `T<N>` entry |
+| A working rule, credential, principle, design rule or test data | `operations.md` |
 | What you did today | this handover |
 
 Do not re-type standing content into the handover; link to it. Before declaring standing knowledge nonexistent, check the most recent handover, not an older one.
@@ -28,7 +28,7 @@ Do not re-type standing content into the handover; link to it. Before declaring 
 
 Date: <date> | Sessions completed: 1–<N> | Handover for: Session <N+1>
 
-Standing context is not repeated here. Read first: `docs/OPERATIONS.md`, `docs/TROUBLESHOOTING.md`, `docs/TECH_DEBT.md`.
+Standing context is not repeated here. Read first: `docs/working/operations.md`, `docs/working/troubleshooting.md`, `docs/working/tech_debt.md`, `docs/architecture/readme.md`.
 
 ## Read this first
 
@@ -57,7 +57,7 @@ Top commit should be `<hash> <message>`. Confirm with `git log --oneline -5`. If
 
 ## Database state
 
-Schema changes, data changes, saved snippets added. Product and account changes go in `OPERATIONS.md`.
+Schema changes, data changes, saved snippets added. Product and account changes go in `operations.md`.
 
 ## Open decisions for <N+1>
 
@@ -77,7 +77,7 @@ Two blocks per session, not seven. Order by what can actually finish. Stop at 80
 - [ ] Everything durable found this session is already in a standing doc
 - [ ] New tech debt IDs were checked against the live file
 - [ ] Every new symptom diagnosed has a `T<N>` entry
-- [ ] Credential, test-data and design-rule changes are in `OPERATIONS.md`
+- [ ] Credential, test-data and design-rule changes are in `operations.md`
 - [ ] Items not completed are recorded as not completed, not dropped
 - [ ] The handover copies nothing from a standing doc
 - [ ] Work is committed and pushed, and the top commit hash is in the handover

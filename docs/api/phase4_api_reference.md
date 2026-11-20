@@ -292,7 +292,7 @@ curl -X POST http://localhost:3000/api/v1/orders \
 
 ## 📚 Related Documentation
 
-- Layer 2 Spec: `docs/specs/LAYER2_TRANSACTION.md`
+- Layer 2 Spec: `docs/architecture/payments_and_fees.md`
 - Order Types: `src/core/layer2-transaction/types.ts`
 - Order Service: `src/core/layer2-transaction/order.service.ts`
 - Escrow Service: `src/core/layer2-transaction/escrow.service.ts`

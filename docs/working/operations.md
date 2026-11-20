@@ -1,7 +1,7 @@
 # Operations and Standing Context
 
 **Last updated:** 2026-11-11 (Session 43)
-**Docs:** `TECH_DEBT.md` (open items), `TECH_DEBT_ARCHIVE.md` (closed), `TROUBLESHOOTING.md`, `SESSION_TEMPLATE.md`, `session-handovers/<N>.md`, `specs/`
+**Docs:** `tech_debt.md` (open items), `../archive/tech_debt_archive.md` (closed), `troubleshooting.md`, `session_template.md`, `project_structure.md`, the latest handover `<N>.md` (all in this folder), `../architecture/`
 
 This file is what every session needs to know before starting. A handover links here and does not restate it. If something here changes, edit this file in the same commit.
 
@@ -63,11 +63,11 @@ Put anything durable in the right doc **the same turn** you find it, not at hand
 
 | Doc | Job |
 |---|---|
-| `TECH_DEBT.md` | Open problems only, numbered B / D / R. Check the highest ID before adding one. Fixed items move to `TECH_DEBT_ARCHIVE.md`. |
-| `TROUBLESHOOTING.md` | Symptom, cause, fix, for things that have bitten twice. |
-| `OPERATIONS.md` | This file. |
-| `session-handovers/<N>.md` | What happened in session N. Format in `SESSION_TEMPLATE.md`. |
-| `specs/` | Design specs. `LOGISTICS_ARCHITECTURE.md` has two known gaps (B1, L17). The master architecture docs are stale (D27). |
+| `tech_debt.md` | Open problems only, numbered B / D / R. Check the highest ID before adding one. Fixed items move to `../archive/tech_debt_archive.md`. |
+| `troubleshooting.md` | Symptom, cause, fix, for things that have bitten twice. |
+| `operations.md` | This file. |
+| `<N>.md` (latest, in this folder) | What happened in session N. Format in `session_template.md`. The previous one is moved to `../archive/session-handovers/`. |
+| `../architecture/` | Current architecture, written from the code in S44. Where a doc and the code disagree, the code wins. |
 
 ---
 

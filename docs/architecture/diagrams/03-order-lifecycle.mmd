@@ -1,0 +1,53 @@
+%% Order lifecycle. Draft S44. States are the 12 in layer2-transaction/types.ts.
+%% Notes show where the money sits. Dispute and payout rules are the confirmed model, not yet all built.
+stateDiagram-v2
+  direction TB
+  [*] --> draft
+  draft --> payment_pending: buyer checks out
+  payment_pending --> paid: payment seen
+  payment_pending --> payment_failed
+  payment_failed --> payment_pending: retry
+  paid --> confirmed: seller confirms
+  confirmed --> processing
+  processing --> shipped: tracking added
+  confirmed --> shipped
+  shipped --> delivered: tracking says delivered
+  delivered --> completed: window ends or buyer accepts
+  completed --> [*]
+
+  draft --> cancelled
+  payment_pending --> cancelled
+  paid --> cancelled: refund
+  confirmed --> cancelled
+  paid --> refunded
+  cancelled --> [*]
+  refunded --> [*]
+
+  confirmed --> disputed
+  processing --> disputed
+  shipped --> disputed
+  delivered --> disputed: inside window (7, 14 or 30 days)
+  completed --> disputed
+  disputed --> completed: marketplace rules for seller
+  disputed --> refunded: marketplace rules for buyer
+  disputed --> cancelled
+
+  note right of draft
+    Money: with the buyer
+  end note
+  note right of paid
+    Money: in escrow (held by the protocol)
+    Not yet: split into seller, logistics and fees
+  end note
+  note right of delivered
+    Money: still in escrow until the dispute window ends
+  end note
+  note right of completed
+    Money: paid out. Seller and logistics paid separately.
+    Protocol fee 0.5 percent of each payout.
+    Marketplace fee (default 2 percent) taken at payout.
+  end note
+  note right of disputed
+    Money: frozen. Released automatically after the marketplace rules.
+    Large or overridden rulings wait 24 hours.
+  end note

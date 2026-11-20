@@ -478,3 +478,10 @@ Once a month, or at the start of any session planning a sprint:
 ### When something is fixed
 
 Move it under the same number with `**Status:** ✅ Fixed S<session number>.` and a one-line summary. Don't delete — the history is useful.
+
+### D27. Master architecture docs are ~10 months stale, predate the Nostr decision
+**What:** `docs/ARCHITECTURE.md`, `docs/whitepaper/WHITEPAPER.md`, and the `docs/specs/LAYER0–6` files haven't been updated in ~10 months — since before the decision to use Nostr as transport (see `docs/NOSTR_ARCHITECTURE_RATIONALE.md`, which *is* current, S29). They don't reflect the actual current schema, terminology (still say "vendor" in places, not "seller"), fee model, or any of L1–L16's real implementation. Pam: "we get smarter as we go" — these docs describe an earlier, less-informed version of the design.
+**Where:** `docs/ARCHITECTURE.md`, `docs/whitepaper/WHITEPAPER.md`, `docs/specs/LAYER0_IDENTITY_AND_REPUTATION.md` through `LAYER6_GOVERNANCE.md`, `docs/specs/REF_CLIENT.md`, `docs/PROJECT_STRUCTURE.md`, `docs/diagrams/protocol-architecture.mmd`, `docs/diagrams/transaction-flow.mmd`.
+**Status:** ✅ Fixed S44. Replaced by `docs/architecture/` (README, LAYERS, PAYMENTS_AND_FEES, ACTORS_AND_TRUST, LOGISTICS, COMMS_AND_NOSTR, REF_CLIENT, diagrams), a redrafted `docs/whitepaper/WHITEPAPER.md` and a rewritten `PROJECT_STRUCTURE.md`. The old `ARCHITECTURE.md`, `NOSTR_ARCHITECTURE_RATIONALE.md`, `diagrams/*.mmd` and `specs/` were removed or superseded.
+**Fix:** Not yet scoped — open question whether this becomes one consolidated whitepaper + architecture doc (specs folded in) or stays as separate whitepaper/architecture/specs. Deliberately not decided tonight, per Pam (S33), to avoid scope creep mid-L15. Revisit as its own session once L15/L16 ship — same "explicitly deferred" pattern as L17's `LOGISTICS_ARCHITECTURE.md` consolidation was for L16.
+**Priority:** Medium. Not blocking any current build work, but the drift is compounding — every session since S29 has been adding real decisions (fee model, terminology, Nostr rationale, this session's consolidation-vs-hub principle) that these master docs don't capture.

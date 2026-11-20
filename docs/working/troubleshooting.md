@@ -1,7 +1,7 @@
 # Troubleshooting Reference
 
 **Last updated:** 2026-11-11 (Session 43)
-Companion docs: `OPERATIONS.md`, `TECH_DEBT.md`, `TECH_DEBT_ARCHIVE.md`, `SESSION_TEMPLATE.md`, `specs/logistics-pool/LOGISTICS_ARCHITECTURE.md`
+Companion docs: `operations.md`, `tech_debt.md`, `../archive/tech_debt_archive.md`, `session_template.md`, `../architecture/logistics.md`
 
 ---
 
@@ -63,7 +63,7 @@ Provider `199e37cb-a0a4-4962-9dc5-615991f617b1`, identity
 ### T26. Coming back after weeks away
 **Symptom:** after a gap, things are empty, rejected or oddly different.
 **Cause:** Supabase pauses after about a week; access tokens last 36 hours; every open RFQ expires after 30 days and (since B25) vanishes from logistics' opportunities.
-**Fix:** follow "Starting a session" in `OPERATIONS.md`. Re-broadcasting an expired RFQ returns the same id with a new `expires_at` (D43).
+**Fix:** follow "Starting a session" in `operations.md`. Re-broadcasting an expired RFQ returns the same id with a new `expires_at` (D43).
 *Source: S42.*
 
 ---

@@ -1,0 +1,69 @@
+%% Rangkai functional diagram. Draft S44, from the code at 958364a.
+%% Solid = built. Dashed = planned or not wired.
+flowchart TB
+  subgraph people["People"]
+    S["Sellers"]
+    B["Buyers"]
+    L["Logistics providers (KYC only)"]
+    E["Marketplace entrepreneurs"]
+  end
+
+  subgraph clients["Marketplaces (one per industry or country)"]
+    M1["Marketplace A"]
+    M2["Marketplace B"]
+    M3["Logistics marketplace"]
+  end
+
+  subgraph protocol["Protocol (one system, no people behind it)"]
+    ID["Identity and reputation (L0)"]
+    CAT["Catalog and search (L1)"]
+    TX["Orders, escrow, fees (L2)"]
+    LOG["Logistics pool and quotes (L3)"]
+    TR["Disputes, ratings, sanctions (L4)"]
+    API["API and SDK (L5)"]
+    GOV["Governance council, 2 of 3 (L6)"]
+    SCH["Scheduler: payment monitor, escrow release, vote expiry"]
+  end
+
+  subgraph infra["Infrastructure"]
+    DB[("Postgres (Supabase)")]
+    BTC["Bitcoin: BTCPay and server wallet"]
+    STR["Stripe"]
+    NOS["Nostr relay (planned)"]
+  end
+
+  S --> M1
+  S --> M2
+  B --> M1
+  B --> M2
+  L --> M3
+  E -. "runs" .-> M1
+  E -. "runs" .-> M2
+  E -. "runs" .-> M3
+
+  M1 --> API
+  M2 --> API
+  M3 --> API
+
+  API --> ID
+  API --> CAT
+  API --> TX
+  API --> LOG
+  API --> TR
+
+  TX --> TR
+  TX --> LOG
+  GOV -. "pause, settings" .-> TX
+  SCH --> TX
+  SCH --> GOV
+
+  ID --> DB
+  CAT --> DB
+  TX --> DB
+  LOG --> DB
+  TR --> DB
+  GOV --> DB
+  TX --> BTC
+  TX --> STR
+  API -. "events, chat" .-> NOS
+  NOS -. "planned" .-> M1
