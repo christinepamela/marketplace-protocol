@@ -12,6 +12,83 @@ import type {
   Product
 } from './types';
 
+// ============================================================================
+// FREE-TEXT SEARCH FILTER (B30)
+// ============================================================================
+//
+// PostgREST's `or=` argument is a string grammar, not a bound parameter:
+// `,` ends a clause, `.` separates column from operator, and `{...}` is a
+// Postgres array literal. Free text typed into a search box must therefore be
+// quoted for the filter grammar, or a comma moves the match to another column
+// and a brace silently changes the array. These helpers are pure and exported
+// so the filter string can be asserted on without a database.
+
+/** Longest search text accepted. Truncated rather than rejected: a search box
+ *  should degrade quietly. */
+const MAX_SEARCH_TEXT_LENGTH = 200;
+
+/** Drop control characters, collapse whitespace, trim, cap the length. */
+function normaliseSearchText(raw: string): string {
+  return raw
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_SEARCH_TEXT_LENGTH);
+}
+
+/** How PostgREST escapes a filter value: wrap in double quotes, backslash any
+ *  backslash or quote inside. */
+function quoteFilterValue(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/** Escape LIKE metacharacters so the term matches literally: `100%` is the
+ *  text "100%", not "100" followed by anything. */
+function escapeLikeTerm(value: string): string {
+  return value.replace(/[\\%_]/g, (m) => `\\${m}`);
+}
+
+/** One keyword array element. PostgREST splits `or=` on commas before Postgres
+ *  ever parses the array literal, so an element cannot contain a comma or a
+ *  brace: strip them and let whitespace stand in, which is what a keyword
+ *  search means anyway. */
+function keywordArrayElement(value: string): string {
+  return value.replace(/["\\{},()]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Build the PostgREST `or=` filter for free-text search.
+ *
+ * Returns null when there is no usable text, in which case the caller searches
+ * by filters alone.
+ *
+ * Note: keyword matching here is a whole-term `cs` (array contains) on
+ * `product_index.keywords`. B29 replaces this whole path with Postgres
+ * full-text search; this function only makes the existing one safe.
+ */
+export function buildTextSearchFilter(
+  raw: string | undefined | null
+): string | null {
+  if (!raw) return null;
+
+  const text = normaliseSearchText(raw);
+  if (text.length === 0) return null;
+
+  const pattern = quoteFilterValue(`%${escapeLikeTerm(text)}%`);
+
+  const clauses = [
+    `name.ilike.${pattern}`,
+    `short_description.ilike.${pattern}`
+  ];
+
+  const keyword = keywordArrayElement(text);
+  if (keyword.length > 0) {
+    clauses.push(`keywords.cs.{${keyword}}`);
+  }
+
+  return clauses.join(',');
+}
+
 export class SearchService {
   private dbClient: any; // Supabase client
   
@@ -177,7 +254,7 @@ export class SearchService {
     const { data, error } = await this.dbClient
       .from('product_index')
       .select('name')
-      .ilike('name', `%${partialQuery}%`)
+      .ilike('name', `%${escapeLikeTerm(normaliseSearchText(partialQuery))}%`)
       .eq('status', 'active')
       .eq('visibility', 'public')
       .limit(limit);
@@ -206,11 +283,11 @@ export class SearchService {
       dbQuery = dbQuery.in('client_id', query.clientIds);
     }
     
-    // Text search
-    if (query.query) {
-      dbQuery = dbQuery.or(
-        `name.ilike.%${query.query}%,short_description.ilike.%${query.query}%,keywords.cs.{${query.query}}`
-      );
+    // Text search. The text is user input: buildTextSearchFilter quotes it for
+    // the PostgREST filter grammar (B30).
+    const textFilter = buildTextSearchFilter(query.query);
+    if (textFilter) {
+      dbQuery = dbQuery.or(textFilter);
     }
     
     // Apply filters
