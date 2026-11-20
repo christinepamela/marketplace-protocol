@@ -99,7 +99,11 @@ Today the code uses UUID-based DIDs with email and password for KYC users. Key l
 3. **Federation** (D16). A shared index, peer queries, or product events on Nostr plus a Rangkai-owned index. Still undecided. A central relay makes the first and third easier.
 4. **Data load** (D20). Scoped subscriptions only, server-side aggregation, small kind definitions.
 5. **Key recovery** for non-technical users. Frostr 2-of-3 is deferred (D18).
-6. **Who runs the relay** and what happens to rooms if it goes down.
+6. **What happens to rooms if the relay goes down.** Orders and money are safe because Postgres is the record. Rooms and their history are not, unless backed up.
+
+## Who runs the relay (Pam, S44, 20 Nov)
+
+For now **the protocol runs the relay**. Marketplaces may later run **their own small relays** for their own users, with the protocol relay as the default and the fallback. This is possible because Nostr clients can use several relays at once. To decide when it is built: how a marketplace relay and the protocol relay share an order room, who keeps the audit log, and whether the protocol must be able to read a marketplace relay for disputes (see the encryption question). Recorded in R26.
 
 ---
 

@@ -1,120 +1,128 @@
-README.MD
-
 # Rangkai Protocol
 
-A lightweight, open protocol for decentralised marketplaces, enabling small businesses to trade globally without relying on large platforms.
+An open protocol for small-business trade across borders. Anyone can build a marketplace for their own industry or country on it, and every marketplace trades with the others through shared identity, search, escrow, logistics and dispute rules.
+
+Open source (MIT). No token. Bitcoin and card payments.
+
+![Global trade map](docs/architecture/diagrams/01-global-trade-map.svg)
 
 ---
 
-## Overview
+## Why
 
-Globalising small businesses is hard. Most marketplaces are optimised for scale and capital, leaving millions of unique vendors invisible beyond their local markets.  
+Around 90% of businesses in most countries are small, and almost none can sell abroad. Large platforms own the buyer, the payment, the shipping and the data. Rangkai separates the rules of trade from the marketplace:
 
-**Rangkai** is a protocol-first, platform-optional marketplace infrastructure that:  
-- Lowers barriers for small vendors to trade globally  
-- Decentralises payments, logistics, and reputation  
-- Supports Bitcoin + fiat payments  
-- Remains open-source and tokenless  
-- Allows multiple client marketplaces to plug in  
+- The **protocol** holds what every marketplace needs and none should own: identity, catalog and search, escrow, logistics, disputes.
+- A **marketplace** is the face of it: a brand, a community, a country's rules. Marketplace entrepreneurs are responsible for compliance in their own country and rule on disputes.
+- The protocol is designed to have **no people behind it, only rules**.
 
-The protocol is the brain. Client marketplaces like Rangkai are the face, delivering local experiences, compliance, and onboarding. For now, both protocol and client are called Rangkai, with Rangkai-client serving as the pilot. Builders can create their own clients.
+Read the short version in the [white paper](docs/whitepaper/whitepaper.md).
 
-Option 2 (even simpler):
 ---
 
-## Architecture Layers
+## How it works
 
-**Protocol Core**
+| Who | What they do |
+|---|---|
+| Marketplace entrepreneurs | Run a marketplace, earn the marketplace fee (0 to 5%), rule on disputes |
+| Sellers | List products, confirm orders, ship, get paid |
+| Buyers | Search across marketplaces, pay into escrow, track, rate |
+| Logistics providers | KYC only. Quote, ship, update tracking, get paid |
+
+Sellers and buyers can use a **KYC**, **Nostr** or **anonymous** identity. Anonymous users arrange their own shipping.
+
+**Money:** the buyer pays once. The money is held in escrow, then paid out to the seller and the logistics provider separately. The protocol takes 0.5% of the seller's payout and 0.5% of the logistics payout. It is never added to the buyer's price.
+
+---
+
+## The seven layers
 
 | Layer | Purpose |
-|-------|--------|
-| 0     | Identity & Reputation – Portable IDs, KYC optional, rating history |
-| 1     | Discovery & Catalog – Standardized product schema, federated search |
-| 2     | Transaction & Settlement – Escrow-first flow, Bitcoin & fiat |
-| 3     | Logistics – Open courier registry, vendor-selected providers |
-| 4     | Trust & Compliance – Ratings, disputes, advisory, tax tagging |
-| 5     | Developer SDK – APIs, webhooks, plugins, Shopify/WooCommerce |
-| 6     | Governance – Multisig, upgrade paths, gradual decentralisation |
+|---|---|
+| 0 | Identity and reputation |
+| 1 | Discovery and catalog, search |
+| 2 | Transaction and settlement: escrow, fees, payouts |
+| 3 | Logistics: an open pool of KYC providers |
+| 4 | Trust and compliance: disputes, ratings, sanctions screening |
+| 5 | Developer SDK and API |
+| 6 | Governance: a council of 3 signers, 2 of 3 needed |
 
-
-
-**Client Layer**  
-- Handles local UX, compliance, payment integrations, and vendor support  
-- Can enforce jurisdiction-specific rules (e.g., KYC, tax)  
-- Rangkai client supports MYR + BTC, Malaysia-specific logistics, and bilingual interface.   Similarly other clients can select logistics, language and currency preferences. 
-
-**Infrastructure Layer**  
-- Payment Rails: BTCPay Server, Stripe, optional PayPal, Visa, Mastercard
-- Database: Supabase PostgreSQL  
-- File Storage: S3 / Cloudflare R2  
-- Messaging / Notifications: Nostr, SendGrid, Twilio  
+Details and the real status of each layer are in [docs/architecture/layers.md](docs/architecture/layers.md).
 
 ---
 
-## User Journeys
+## What is in this repository
 
-**Vendors**  
-- Register → Create product listings → Get discovered globally → Receive orders → Select logistics → Ship → Get paid → Build reputation  
-
-**Buyers**  
-- Browse → Federated search → Place order → Pay (BTC/fiat) → Track shipment → Confirm delivery → Rate vendor & courier  
-
-**Logistics Providers**  
-- Register → Browse shipments → Submit quotes → Get selected → Pick up → Update tracking → Deliver → Get paid  
-
----
-
-## Key Principles
-
-- **Protocol Neutrality** – No custody of funds, no enforcement of sanctions, no central control  
-- **Client Autonomy** – Clients can customise UX, compliance, and fees  
-- **Vendor Portability** – Identity and reputation follow vendors across clients  
-- **Transparent Data Flows** – Protocol stores only metadata, reputations, and order states  
+| Folder | What |
+|---|---|
+| `src/` | The protocol API (port 3000) and the core of layers 0, 1, 2, 3, 4 and 6 |
+| `packages/sdk/` | `@rangkai/sdk`, the TypeScript client (layer 5) |
+| `rangkai-marketplace/` | Reference marketplace for sellers and buyers (port 3001) |
+| `logistics-marketplace/` | Marketplace for logistics providers (port 3002) |
+| `scripts/` | Key generators, OpenAPI generator, test data |
+| `docs/` | Architecture, white paper, API reference, working notes |
 
 ---
 
-## Federated Marketplace
+## Status
 
-- Clients query the protocol for listings from all marketplaces  
-- Vendors can be discovered globally without leaving their local client  
-- Escrow, payments, and logistics operate seamlessly across clients  
+The protocol and a pilot marketplace run today, with Bitcoin on-chain and card escrow, a logistics marketplace, ratings and a governance council. This is pre-release software. Known gaps are listed in the open, in [docs/working/tech_debt.md](docs/working/tech_debt.md). The main ones:
 
----
-
-## Why Rangkai is Different
-
-Alibaba: Large-scale B2B platform; Rangkai lets vendors sell without minimum order volumes, choose their own logistics, and operate on an open protocol.
-
-
-Etsy: Focused on handmade/niche B2C; Rangkai supports B2B, multi-client federation, and seamless cross-border commerce.
-
-
-Shopify: Tied to a single platform ecosystem; Rangkai allows vendor portability, protocol-level escrow, and federated discovery across multiple marketplaces.
-
+- Search is simple text matching. Ranked full-text search is next.
+- The marketplace fee is not yet collected at payout.
+- Disputes are being rebuilt to the model in [payments_and_fees.md](docs/architecture/payments_and_fees.md).
+- Identity uses email and password for KYC users. Key-based identity, Nostr login and chat are planned.
+- Lightning is not yet supported.
 
 ---
 
-## Getting Started
+## Run it locally
 
-1. Connect your client to the Rangkai protocol via SDK/API  
-2. Register vendors, buyers, and logistics providers  
-3. Create product listings and enable federated search  
-4. Enable escrow & payment rails (BTC/fiat)  
-5. Start processing orders and tracking shipments  
+Requirements: Node.js, a Supabase project, and an `.env` file (start from `.env.example`).
 
-For full technical details, architecture diagrams, and transaction flows, see the [White Paper](link-to-whitepaper.pdf) and [Transaction Flow](transaction-flow.mmd).
+```
+npm install
+npm run dev:api
+```
+
+The API listens on port 3000. Then, in other terminals:
+
+```
+cd packages/sdk
+npm install
+npm run build
+
+cd ../../rangkai-marketplace
+npm install
+npm run dev
+```
+
+The marketplace runs on port 3001. `logistics-marketplace` is the same, on port 3002. To build your own marketplace, start from [docs/architecture/ref_client.md](docs/architecture/ref_client.md).
 
 ---
 
-## Tooling Recommendations (MVP)
+## Documentation
 
-- Messaging: Nostr (anonymous), Twilio (verified)  
-- Storage & Database: Supabase + Cloudflare R2  
-- Notifications: Resend, SendGrid  
-- KYC: Manual → Onfido/Jumio for scaling  
-- Helpdesk: AI + Intercom  
-- Translation: Optional, client-controlled  
+| Read | For |
+|---|---|
+| [docs/architecture/readme.md](docs/architecture/readme.md) | Start here: what is built, how it fits |
+| [docs/architecture/payments_and_fees.md](docs/architecture/payments_and_fees.md) | Fees, escrow, order states, disputes |
+| [docs/architecture/actors_and_trust.md](docs/architecture/actors_and_trust.md) | Who can do what, identity types, rules |
+| [docs/architecture/logistics.md](docs/architecture/logistics.md) | The logistics pool |
+| [docs/architecture/comms_and_nostr.md](docs/architecture/comms_and_nostr.md) | Messaging and Nostr |
+| [docs/api/](docs/api/) | OpenAPI files and API references |
+| [docs/working/](docs/working/) | Tech debt, operations notes, the latest session handover |
 
 ---
 
-**Rangkai Protocol** empowers small businesses to trade globally on their own terms while remaining neutral, flexible, and open-source.
+## How it compares
+
+- **Alibaba** is a large B2B platform that owns the relationship between buyer and seller. On Rangkai, many independent marketplaces share one protocol, and a seller's identity and reputation travel with them.
+- **Etsy** is built for handmade B2C goods on one platform. Rangkai is built for B2B trade between businesses, across marketplaces.
+- **Shopify** ties a merchant to one platform. On Rangkai, a seller can be found through any marketplace on the protocol, and escrow and discovery are shared.
+
+---
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).

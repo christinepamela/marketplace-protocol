@@ -40,7 +40,7 @@ Three identity types exist in code and all three stay (Pam, S44): **KYC**, **Nos
 
 ### Where the code and the principles differ
 
-- **Passwords.** `operations.md` Principle 3 says the protocol never holds passwords. The code stores a bcrypt hash of each KYC user's password in the protocol database. Session 28 designed it the other way (the marketplace stores the hash and calls the protocol with the DID); the code kept it in the protocol as a v1 shortcut, with one marketplace. Pam, S44: it should move to the marketplaces. (D58)
+- **Passwords. To be corrected before v1 (Pam, S44, 20 Nov: this is a shortcut).** `operations.md` Principle 3 says the protocol never holds passwords. The code stores a bcrypt hash of each KYC user's password in the protocol database. Session 28 designed it the other way (the marketplace stores the hash and calls the protocol with the DID); the code kept it in the protocol as a v1 shortcut, with one marketplace. Pam, S44: it should move to the marketplaces. (D58)
 - **Cryptographic identity.** The same principle says identity is cryptographic (secp256k1). The code's identity is a UUID-based DID with email and password. Nostr would give this, and is the point of R26. (D58)
 - **Personal data in the protocol database.** A KYC identity stores business name, registration number, owner name, address, phone, email, tax ID and document references. The principle says the protocol never holds KYC documents. (D58)
 - **Who verifies KYC.** The principle is that marketplaces do KYC under their own country's rules. The code has no way for a marketplace to mark an identity verified. (D59)

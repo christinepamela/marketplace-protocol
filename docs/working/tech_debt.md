@@ -505,7 +505,7 @@ D40 (link a quote to the RFQ it answers with `quote_request_id`) fixes the first
 **Priority:** High.
 
 ### D50. Marketplace registry
-**What:** No table records each marketplace with its fee, cap and free-period end date. Needed for B28. Proposed minimum registry fields are in `docs/architecture/actors_and_trust.md`, "Registering a marketplace" (public registry only; legal documents stay with the entrepreneur). Open: track record only, or also a refundable bond.
+**What:** No table records each marketplace with its fee, cap and free-period end date. Needed for B28. Proposed minimum registry fields are in `docs/architecture/actors_and_trust.md`, "Registering a marketplace" (public registry only; legal documents stay with the entrepreneur). Decided (Pam, S44, 20 Nov): public track record only, no bond; anonymous and Nostr operators may open marketplaces, shown by operator type; the registry holds no legal details.
 **Fix:** A registry table and API. Decided (Pam, S44): default marketplace fee 2%, limit stays 0 to 5% as in code. Proposal, not agreed: free for the first few months, as a per-marketplace end date. The 8% cap idea is withdrawn.
 **Priority:** High.
 
@@ -552,12 +552,13 @@ D40 (link a quote to the RFQ it answers with `quote_request_id`) fixes the first
 **Where:** `layer0-identity/identity.service.ts` (lines 45 to 70, 235), `src/api/routes/identity.routes.ts`.
 **Decision (Pam, S44):** the protocol should not store KYC personal data or password hashes. This is what the Session 28 design intended (marketplace stores the hash and verified business info and calls the protocol with the DID); the code put it in the protocol as a v1 shortcut because there is one marketplace.
 **Fix:** The marketplace verifies the password and its own KYC, then signs a short attestation or token. The protocol stores the DID, identity type, public key and a signed "verified by marketplace X" flag. Remove `password_hash` and the KYC personal fields from `identities` (migrate the existing rows to the marketplace). Login for Nostr and anonymous users by key signature (R26). Until then v1 keeps the shortcut, documented. Provider business profiles (address, contacts, insurance) stay, because quotes need them.
-**Priority:** Medium.
+**Before v1:** Pam, S44 (20 Nov): the password and KYC storage in the protocol database is a shortcut and must be corrected before v1. A v1 release is blocked until this is done.
+**Priority:** Medium, and required before v1.
 
 ### D59. KYC verification is a stub
 **What:** `verification.service.ts` is empty. `POST /identity/:did/verify` returns "initiated" and changes nothing. Marketplaces have no way to mark an identity verified, though they do KYC under their own country's rules.
 **Where:** `layer0-identity/verification.service.ts`, `src/api/routes/identity.routes.ts` (line 433).
-**Fix:** An endpoint a marketplace calls to set a verification status and level.
+**Fix:** An endpoint a marketplace calls to set a verification status and level. Decided (Pam, S44, 20 Nov): until there are about five marketplaces, the people running the protocol check each marketplace owner by hand (onboard, verify, mark verified). Signed attestations between established marketplaces can take over after that.
 **Priority:** Medium-High.
 
 ### D60. Rebuild disputes to the confirmed model
@@ -704,11 +705,11 @@ US eliminating $800 de minimis for some corridors. Surface "expect duties" warni
 ### R26. Nostr communications build
 **What:** Pam, S44: yes, we build this. Reference: Buzz (`block/buzz`), Apache-2.0. Take: a centralised relay, group rooms for orders and disputes, media storage, search over messages that respects who may read them, a hash-chained audit log for dispute evidence. Buzz has no commerce events, so Rangkai defines its own event kinds for orders, quotes and disputes. Postgres stays the source of truth for v1; Nostr carries identity and communication.
 **Where:** `docs/architecture/comms_and_nostr.md` (the S29 rationale is merged into it). Nothing in `src` uses Nostr beyond the identity type.
-**Fix:** Break into sub-items after the comms doc is written. Constraints: D17 (public channels), D20 (data load).
+**Fix:** Break into sub-items after the comms doc is written. Constraints: D17 (public channels), D20 (data load). Decided (Pam, S44, 20 Nov): the protocol runs the relay for now; marketplaces may later run their own small relays.
 **Priority:** Roadmap.
 
 ### R27. Returns: replacement, credit, partial refund, optional physical return
-**What:** B2B norm is replacement, credit or partial refund, with a physical return only for higher-value goods and with the seller's agreement. A ruling should be able to order any of these. See `docs/architecture/logistics.md` (Returns). Return freight and who pays it are not decided.
+**What:** B2B norm is replacement, credit or partial refund, with a physical return only for higher-value goods and with the seller's agreement. A ruling should be able to order any of these. See `docs/architecture/logistics.md` (Returns). Criteria decided in outline (Pam, S44, 20 Nov): confirm it is a real problem, find whose fault, the party at fault bears the cost (carrier for shipment faults, seller for seller faults, buyer for buyer faults). See `docs/architecture/payments_and_fees.md`, "Returns and who pays". Open: recovering money from a carrier already paid.
 **Where:** Not built. Part of D60.
 **Priority:** Roadmap.
 

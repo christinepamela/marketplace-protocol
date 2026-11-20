@@ -244,12 +244,35 @@ Because the protocol has no people behind it, justifications 1, 2, 4 and 5 must 
 
 Each freeze goes in a public log with its justification (names may be hidden). Governance changes and the emergency pause need 2 of the 3 council signers. The signers are not named yet. The threshold holds as the number of signers grows, like Bitcoin's.
 
+### Returns and who pays (Proposal, built on Pam's S44 rule, 20 Nov)
+
+Pam's rule: **find out whether it is a real problem, then whose fault it is. The party at fault bears the cost.** A shipment fault is paid by the shipment side, a seller fault by the seller.
+
+**Step 1. Is it a real problem?** All of these must hold.
+- The reason is on the closed list of grounds (not shipped, not delivered, not as agreed, wrong quantity, damaged in transit).
+- It is raised inside the window (7, 14 or 30 days after delivery).
+- There is evidence: tracking, delivery paperwork, photos or video of the goods and packaging, the agreed specification or approved sample. Missing evidence is not proof of fault, and the claim fails.
+- It is not a change of mind. That is never a ground.
+
+**Step 2. Whose fault?**
+
+| Cause | Evidence points to | Who bears the cost |
+|---|---|---|
+| Not as agreed, wrong quantity, defect, poor packing | The seller | **Seller** |
+| Damaged or lost in transit, delay beyond the quote | The carrier | **Logistics provider**, through their insurance |
+| Wrong address or order details, or buyer unavailable | The buyer | **Buyer** |
+| No fault can be shown | Nobody | The party who bore the loss; no refund |
+
+**Step 3. Remedy.** The ruling picks the lightest one that fixes the loss: replacement, credit, partial refund, or full refund. A physical return happens only for high-value goods and only if the seller agrees. **Return freight is paid by the party at fault.** If nobody is at fault there is no return.
+
+**Step 4. Paying it.** The seller's share comes out of the seller's payout, held in escrow. The carrier's share is the hard part: the carrier is normally paid at delivery, before a damage claim. Proposal: hold back from the carrier payout only an amount covering a claim that is open, and otherwise settle with the carrier's insurance outside the protocol. Not decided.
+
 ### Still open
 
 1. Whether the sample approval record is in v1 or later.
 2. The automatic rule for judgement grounds when a party is anonymous (proposal above).
 3. Pam as the only holder of the emergency pause is a single point of control. It is acceptable until signers are named, and is recorded in B35.
-4. Returns: the norm in B2B is credit, replacement or partial refund rather than a physical return, see `logistics.md`. How that maps to the rulings above is not decided (R27).
+4. Returns: the criteria are below (Proposal). Open inside them: how the protocol recovers money from a carrier that has already been paid (R27).
 
 ---
 

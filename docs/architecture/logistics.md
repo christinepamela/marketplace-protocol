@@ -127,12 +127,13 @@ Provider pitches sellers (R1); several sellers' goods consolidated into one ship
 
 ## Returns (R27, open)
 
-A return is mostly a dispute question (`payments_and_fees.md`). What the norm is:
-- **B2C:** the seller usually handles it, often with a prepaid return label.
-- **B2B:** a physical return is costly and rare. Common outcomes are a **replacement shipment** (default for shortages and freight damage, documented with photos and the delivery paperwork), a **credit** against the next order, a **partial refund** for change-of-mind minus a restocking fee, or **keep the goods** with a partial credit for low-value items. A physical return is kept for higher-value goods and needs the seller's agreement first.
-- Return freight is usually the deciding factor, and can cost more than the goods.
+A return is a dispute question, so the criteria sit in `payments_and_fees.md` ("Returns and who pays"). For logistics, the rule from Pam (S44, 20 Nov) is: **first decide whether it is a real problem, then whose fault. If the shipment is at fault, the logistics provider bears the cost; if the seller is at fault, the seller does.**
 
-Proposal for Rangkai: the ruling in a dispute may order a full refund, a partial refund, or a replacement. A physical return is allowed only if the seller agrees and each side's cost is stated. It is not a protocol feature in v1.
+What the norm is, for reference:
+- **B2C:** the seller usually handles it, often with a prepaid return label.
+- **B2B:** a physical return is costly and rare. Common outcomes are a replacement shipment, a credit against the next order, a partial refund, with return freight decided by fault. Return freight can cost more than the goods.
+
+For a logistics provider this means: damage or loss in transit is their cost, covered by their insurance, so every provider's insurance limit matters. Open: how the protocol recovers from a carrier that has already been paid.
 
 Sources: [ShipAid, B2B bulk return resolution](https://www.shipaid.com/blogs/ecommerce-tips/return-resolution-flowchart-b2b-bulk-orders).
 
