@@ -2,6 +2,7 @@
 // Path: src/core/layer4-trust/rating.service.ts
 
 import { SupabaseClient } from '@supabase/supabase-js';
+import { DEFAULT_REPUTATION_PARAMS } from '../layer0-identity/types';
 import {
   Rating,
   SubmitRatingInput,
@@ -275,7 +276,12 @@ export class RatingService {
       scoreChange = -2; // Negative impact
     }
 
-    const newScore = Math.max(0, Math.min(100, reputation.score + scoreChange));
+    // The cap is the reputation formula's own maximum, not 100: Layer 0
+    // scores run to DEFAULT_REPUTATION_PARAMS.maxScore (500). B36.
+    const newScore = Math.max(
+      0,
+      Math.min(DEFAULT_REPUTATION_PARAMS.maxScore, reputation.score + scoreChange)
+    );
 
     await this.supabase
       .from('reputations')
