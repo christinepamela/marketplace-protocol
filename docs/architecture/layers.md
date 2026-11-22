@@ -138,7 +138,7 @@ See `logistics.md`: the pool, provider categories, quote and shipment flow, KYC-
 | Prohibited-goods list | **Not built** | See D55. |
 
 Faults found in ratings:
-1. The rating step adds or subtracts a few points and then **limits the reputation score to 0 to 100**. The reputation formula's maximum is 500. A seller with a score of 300 drops to about 100 on their next rating. (B36)
+1. The rating step adds or subtracts a few points and then **limited the reputation score to 0 to 100**, though the reputation formula's maximum is 500, so a seller with a score of 300 dropped to about 100 on their next rating. **Fixed S46** (B36): the cap is now `DEFAULT_REPUTATION_PARAMS.maxScore`. The score is still written directly rather than recalculated, and the row lookup (B41) and the average-rating write (B42) in the same path are open.
 2. The job that reveals one-sided ratings after 7 days exists, and **nothing calls it**, so those ratings stay hidden. (B37)
 
 ---

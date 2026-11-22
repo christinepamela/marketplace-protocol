@@ -1,13 +1,13 @@
 # Tech Debt: open items
 
-**Last updated:** 2026-11-22 (Session 45)
+**Last updated:** 2026-11-22 (Session 46)
 **Closed items:** `../archive/tech_debt_archive.md`  |  **Companion docs:** `operations.md`, `troubleshooting.md`
 
 ---
 
 ## How to use this doc
 
-This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B40, D65, R27**).
+This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B42, D65, R27**).
 
 When an item is fixed, copy its block to `../archive/tech_debt_archive.md` with `✅ Fixed S<N>` and remove it here.
 
@@ -47,11 +47,12 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B33 | Auto-release can pay the seller inside the dispute window | Medium-High |
 | B34 | Arbitration cannot be resolved; seller 48-hour deadline not enforced | High |
 | B35 | Governance actions are records only; votes not cryptographically verified | Medium-High |
-| B36 | A rating caps the reputation score at 100, though the maximum is 500 | Medium-High |
 | B37 | One-sided ratings are never revealed | Medium |
 | B38 | `npm test`: the API health test cannot load without test environment variables | Low-Medium |
 | B39 | `getSuggestions` has no caller | Low |
 | B40 | `JwtPayload.type` uses the wrong vocabulary, one `tsc` error at the root | Low-Medium |
+| B41 | The rating path looks up `reputations` by `did`; every other site uses `vendor_did` | Medium-High |
+| B42 | `calculateAverageRating` counts only revealed ratings, so a new rating can write 0 | Low-Medium |
 | D5 | No HS code on products | Medium-High |
 | D6 | Currency layer absent | Medium |
 | D7 | Provider rating field exists but isn't populated | Medium |
@@ -263,13 +264,6 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Priority:** Medium-High. High once real funds flow.
 **Note (S44):** the council threshold stays 2 of 3, signers not yet named, number may grow later. Needed for D62. Until signers are named, Pam is the interim holder of the emergency pause (single point of control, accepted for now). The pause flag must also be read by the order and payout code, which it is not today.
 
-### B36. A rating caps the reputation score at 100, though the maximum is 500
-**What:** `updateReputationFromRating` adds or subtracts a few points and then clamps to 0 to 100. The reputation formula has a maximum of 500. A seller at 300 falls to about 100 after one rating. It also writes the score directly, bypassing the formula. Unverified: it looks the record up by `did`, while search looks it up by `vendor_did`.
-**Where:** `src/core/layer4-trust/rating.service.ts` (lines 250 to 290), `layer0-identity/types.ts` (`DEFAULT_REPUTATION_PARAMS`).
-**Fix:** Record the rating as a reputation event and recalculate with the formula. Check the column name.
-**Priority:** Medium-High.
-**Note (S44):** blocks D63. A reputation threshold for seller advances is meaningless until ratings stop corrupting the score. Pam: ratings matter for this.
-
 ### B37. One-sided ratings are never revealed
 **What:** `autoRevealExpiredRatings` reveals a rating after 7 days when only one party has rated. Nothing calls it and no scheduler job runs it.
 **Where:** `rating.service.ts` (line 202), `src/api/scheduler.ts`.
@@ -296,6 +290,18 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **What:** `JwtPayload.type` is `'user' | 'client' | 'service'`, but `catalog.routes.ts:305` compares `req.user?.type` with `'kyc'`, which is a `tsc` error and the only one at the root. Per the B30 review, tokens are signed with `type: identity.type` (`'kyc' | 'nostr' | 'anonymous'`), so it works at runtime and only the type is wrong. Not checked by us in the token-signing code.
 **Where:** `src/api/core/auth.ts` (line 17), `src/api/routes/catalog.routes.ts` (line 305). Check every other use of `req.user?.type`.
 **Fix:** Make the union say what tokens really carry. Confirm the signing code. Then check that nothing else relies on `'user' | 'client' | 'service'`.
+**Priority:** Low-Medium.
+
+### B41. The rating path looks up `reputations` by `did`, though every other site uses `vendor_did`
+**What:** `RatingService.updateReputationFromRating` selects the reputation row with `.eq('did', userDid)` (`rating.service.ts:261`) and updates it with `.eq('did', userDid)` (`:295`). Every other place that touches `reputations` uses `vendor_did`: `reputation.service.ts:35` and `:400`, `proof.service.ts:339`, `search.service.ts:374`, and the row is created with `vendor_did: did` (`identity.service.ts:362`). If the table has no `did` column, the select errors, `data` is null and the function returns early, so a rating writes no score at all. Found while closing B36 and not fixed there, because that patch was limited to the cap. Unverified against the database: it needs one read of the `reputations` columns, which is Pam's to run.
+**Where:** `src/core/layer4-trust/rating.service.ts` (lines 253 to 297).
+**Fix:** Confirm the column with Pam, then use `vendor_did` in both queries. If the `did` column does not exist, B36's symptom (300 falling to 100) cannot happen on a real record either, because the write never reaches the clamp; the live behaviour is that a rating changes nothing.
+**Priority:** Medium-High.
+
+### B42. `calculateAverageRating` counts only revealed ratings, so a new rating can write 0
+**What:** `calculateAverageRating` (`rating.service.ts:301`) builds its average from `getRatingsForUser`, which filters `.not('revealed_at', 'is', null)`. A rating stays unrevealed until both parties rate or 7 days pass, so the rating just submitted is not counted, and a vendor with no revealed ratings has `metrics.average_rating = 0` written over whatever was there. Found while closing B36; not fixed there, because B36 was limited to the cap.
+**Where:** `src/core/layer4-trust/rating.service.ts` (`calculateAverageRating`, `getRatingsForUser`).
+**Fix:** Decide whether the average should include unrevealed ratings. If yes, read `ratings` directly instead of going through `getRatingsForUser`, which exists to hide unrevealed ratings from callers.
 **Priority:** Low-Medium.
 
 ### D5. No HS code on products

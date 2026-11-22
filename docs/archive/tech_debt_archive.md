@@ -492,3 +492,11 @@ Move it under the same number with `**Status:** ✅ Fixed S<session number>.` an
 **Fix:** Escape, or replace with the database function from B29. Test with commas and brackets first.
 **Status:** ✅ Fixed S45. Found larger than described: on the live `product_index`, searches such as `toys, games`, `red, green` and `24" ruler` made PostgREST refuse the query, a 500 on the public search endpoint. `buildTextSearchFilter()` now normalises the text, quotes and escapes it for the filter grammar and escapes LIKE wildcards. 17 unit tests, and live read-only checks on four hostile and three ordinary searches after the fix. Commit `d6a0fc5` (the fix) and `6104ea4` (a root `jest.config.js` so the tests can run). B29 replaces the whole text match and supersedes this. Done by the Pollen agent on Buzz, reviewed by Claude, merged by Pam.
 **Priority:** Medium-High.
+
+### B36. A rating caps the reputation score at 100, though the maximum is 500
+**What:** `updateReputationFromRating` adds or subtracts a few points and then clamps to 0 to 100. The reputation formula has a maximum of 500. A seller at 300 falls to about 100 after one rating. It also writes the score directly, bypassing the formula. Unverified: it looks the record up by `did`, while search looks it up by `vendor_did`.
+**Where:** `src/core/layer4-trust/rating.service.ts` (lines 250 to 290), `layer0-identity/types.ts` (`DEFAULT_REPUTATION_PARAMS`).
+**Fix:** Record the rating as a reputation event and recalculate with the formula. Check the column name.
+**Status:** ✅ Fixed S46. The 0-100 clamp is gone: the cap is now `DEFAULT_REPUTATION_PARAMS.maxScore` (500), so a score of 300 stays at 301 after a five-star rating instead of falling to 100. The formula in `calculateReputationScore` is untouched, and the score is still written directly rather than recalculated: only the cap changed, per Pam. 7 unit tests, 3 of which fail against the old clamp. The `did` / `vendor_did` lookup and the average-rating write are reported as B41 and B42, not fixed here. Done by the Pollen agent on Buzz, reviewed by Claude, merged by Pam.
+**Priority:** Medium-High.
+**Note (S44):** blocks D63. A reputation threshold for seller advances is meaningless until ratings stop corrupting the score. Pam: ratings matter for this.
