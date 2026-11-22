@@ -1,13 +1,13 @@
 # Tech Debt: open items
 
-**Last updated:** 2026-11-18 (Session 44)
+**Last updated:** 2026-11-22 (Session 45)
 **Closed items:** `../archive/tech_debt_archive.md`  |  **Companion docs:** `operations.md`, `troubleshooting.md`
 
 ---
 
 ## How to use this doc
 
-This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B37, D65, R27**).
+This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B40, D65, R27**).
 
 When an item is fixed, copy its block to `../archive/tech_debt_archive.md` with `✅ Fixed S<N>` and remove it here.
 
@@ -42,7 +42,6 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B27 | Governance fee changes have no effect; limits contradict the fee principle | High |
 | B28 | Marketplace fee is calculated but never collected | High |
 | B29 | Search loads every match, has no database ranking, cannot scale | High, launch blocker |
-| B30 | Search text is placed directly in the filter string | Medium-High |
 | B31 | Payout routes need only a login and take the destination from the request | High, before real funds |
 | B32 | Release, completion and dispute resolution move no money | High |
 | B33 | Auto-release can pay the seller inside the dispute window | Medium-High |
@@ -50,6 +49,9 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B35 | Governance actions are records only; votes not cryptographically verified | Medium-High |
 | B36 | A rating caps the reputation score at 100, though the maximum is 500 | Medium-High |
 | B37 | One-sided ratings are never revealed | Medium |
+| B38 | `npm test`: the API health test cannot load without test environment variables | Low-Medium |
+| B39 | `getSuggestions` has no caller | Low |
+| B40 | `JwtPayload.type` uses the wrong vocabulary, one `tsc` error at the root | Low-Medium |
 | D5 | No HS code on products | Medium-High |
 | D6 | Currency layer absent | Medium |
 | D7 | Provider rating field exists but isn't populated | Medium |
@@ -227,13 +229,8 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **What:** Matching is `ILIKE '%text%'`. `search()` fetches all matches, runs three more queries per row, scores in JavaScript and paginates last. Search is a launch requirement (S44: Postgres full-text search with proper ranking).
 **Where:** `src/core/layer1-catalog/search.service.ts` (lines 25 to 64, 197, 276 to 372); the `product_index` table and its trigger `trigger_sync_product_to_index`.
 **Fix:** A `tsvector` column with GIN index, `websearch_to_tsquery` with `ts_rank` and field weights, filtering, vendor join and pagination in one database function. Keep the response shape. Facts checked in the live database (S44): no `search_vector` column; the only text index is on `name` with the English dictionary; the index holds no full description, Incoterm, ships-to or seller country. The trigger `trigger_sync_product_to_index` must be extended too. Use a non-English-specific dictionary.
+**Note (S45):** B30's `buildTextSearchFilter()` in `search.service.ts` is the interim safe text filter. Remove it when this replaces the text match.
 **Priority:** High, launch blocker.
-
-### B30. Search text is placed directly in the filter string
-**What:** `.or('name.ilike.%${query}%, ...')` puts user input in the filter. A comma or bracket may break or alter it. Not tested.
-**Where:** `search.service.ts` (line 211), and `getSuggestions`.
-**Fix:** Escape, or replace with the database function from B29. Test with commas and brackets first.
-**Priority:** Medium-High.
 
 ### B31. Payout routes need only a login, and take the destination from the request
 **What:** `POST /api/v1/bitcoin/vendor-payout` and `/split-payout` use `requireAuth`, which accepts any valid token. They take the destination address (and, for split, the amounts) from the request body and check only that the order is `delivered` or `completed`. Neither service function checks that the caller is the seller or that the address belongs to the seller. Not tested. Sandbox and testnet today, so it matters before real funds.
@@ -282,6 +279,24 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 ---
 
 ## 🟡 Deferred or partial
+
+### B38. `npm test`: the API health test cannot load without test environment variables
+**What:** B30 (commit `6104ea4`) added a root `jest.config.js` (ts-jest, node, tests under `src`), so `npm test` now runs TypeScript tests. `src/api/__tests__/health.test.ts` fails to load: it imports the whole API, and the `Config` constructor validates required environment variables at import (`src/api/core/config.ts:60`, reached from `src/api/index.ts:15`). Before B30 no test under `src` ran at all.
+**Where:** `src/api/__tests__/health.test.ts`, `src/api/core/config.ts`, `jest.config.js`.
+**Fix:** Supply test-only environment values (a jest setup file or `.env.test` with fake values; never real keys), or stop the test importing the whole API. Decide which.
+**Priority:** Low-Medium.
+
+### B39. `getSuggestions` has no caller
+**What:** `SearchService.getSuggestions` (autocomplete) is not called from any route or client. B30 hardened its text handling (same normalisation and LIKE escaping), but it remains unused.
+**Where:** `src/core/layer1-catalog/search.service.ts` (line 176).
+**Fix:** Wire it to a route with the search work (B29 and D54), or remove it.
+**Priority:** Low.
+
+### B40. `JwtPayload.type` uses the wrong vocabulary, one `tsc` error at the root
+**What:** `JwtPayload.type` is `'user' | 'client' | 'service'`, but `catalog.routes.ts:305` compares `req.user?.type` with `'kyc'`, which is a `tsc` error and the only one at the root. Per the B30 review, tokens are signed with `type: identity.type` (`'kyc' | 'nostr' | 'anonymous'`), so it works at runtime and only the type is wrong. Not checked by us in the token-signing code.
+**Where:** `src/api/core/auth.ts` (line 17), `src/api/routes/catalog.routes.ts` (line 305). Check every other use of `req.user?.type`.
+**Fix:** Make the union say what tokens really carry. Confirm the signing code. Then check that nothing else relies on `'user' | 'client' | 'service'`.
+**Priority:** Low-Medium.
 
 ### D5. No HS code on products
 **What:** Required for international shipping.

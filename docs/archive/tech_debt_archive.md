@@ -485,3 +485,10 @@ Move it under the same number with `**Status:** ✅ Fixed S<session number>.` an
 **Status:** ✅ Fixed S44. Replaced by `docs/architecture/` (README, LAYERS, PAYMENTS_AND_FEES, ACTORS_AND_TRUST, LOGISTICS, COMMS_AND_NOSTR, REF_CLIENT, diagrams), a redrafted `docs/whitepaper/WHITEPAPER.md` and a rewritten `PROJECT_STRUCTURE.md`. The old `ARCHITECTURE.md`, `NOSTR_ARCHITECTURE_RATIONALE.md`, `diagrams/*.mmd` and `specs/` were removed or superseded.
 **Fix:** Not yet scoped — open question whether this becomes one consolidated whitepaper + architecture doc (specs folded in) or stays as separate whitepaper/architecture/specs. Deliberately not decided tonight, per Pam (S33), to avoid scope creep mid-L15. Revisit as its own session once L15/L16 ship — same "explicitly deferred" pattern as L17's `LOGISTICS_ARCHITECTURE.md` consolidation was for L16.
 **Priority:** Medium. Not blocking any current build work, but the drift is compounding — every session since S29 has been adding real decisions (fee model, terminology, Nostr rationale, this session's consolidation-vs-hub principle) that these master docs don't capture.
+
+### B30. Search text is placed directly in the filter string
+**What:** `.or('name.ilike.%${query}%, ...')` puts user input in the filter. A comma or bracket may break or alter it. Not tested.
+**Where:** `search.service.ts` (line 211), and `getSuggestions`.
+**Fix:** Escape, or replace with the database function from B29. Test with commas and brackets first.
+**Status:** ✅ Fixed S45. Found larger than described: on the live `product_index`, searches such as `toys, games`, `red, green` and `24" ruler` made PostgREST refuse the query, a 500 on the public search endpoint. `buildTextSearchFilter()` now normalises the text, quotes and escapes it for the filter grammar and escapes LIKE wildcards. 17 unit tests, and live read-only checks on four hostile and three ordinary searches after the fix. Commit `d6a0fc5` (the fix) and `6104ea4` (a root `jest.config.js` so the tests can run). B29 replaces the whole text match and supersedes this. Done by the Pollen agent on Buzz, reviewed by Claude, merged by Pam.
+**Priority:** Medium-High.
