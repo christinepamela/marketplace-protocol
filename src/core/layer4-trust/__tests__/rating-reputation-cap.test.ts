@@ -12,8 +12,9 @@
  * `reputations`. That proves both the arithmetic and the write path.
  *
  * What the stub does NOT prove: it is an in-memory table, not PostgREST, so it
- * says nothing about the real column names (see the `did` / `vendor_did`
- * mismatch, tracked as B41) or about the filter grammar.
+ * says nothing about the real column names. `reputations` has `vendor_did` and
+ * no `did` (confirmed S44, tracked as B41); this stub accepts `did` so the
+ * tests can reach the cap. When B41 is fixed the stub must reject `did`.
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -147,8 +148,9 @@ const ORDER = 'order-1';
 /**
  * The `reputations` row carries both `did` and `vendor_did` because
  * `updateReputationFromRating` looks it up by `did` while every other site in
- * the codebase uses `vendor_did`. Which one the real table has is unverified
- * (it needs the database); that mismatch is B41, not this item.
+ * the codebase uses `vendor_did`. The real table has `vendor_did` only
+ * (confirmed S44), so that lookup finds nothing; it is B41, not this item. The
+ * stub keeps `did` only so these tests can reach the cap.
  */
 function makeState(score: number): StubState {
   return {

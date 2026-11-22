@@ -1,13 +1,13 @@
 # Tech Debt: open items
 
-**Last updated:** 2026-11-22 (Session 46)
+**Last updated:** 2026-11-22 (Session 44)
 **Closed items:** `../archive/tech_debt_archive.md`  |  **Companion docs:** `operations.md`, `troubleshooting.md`
 
 ---
 
 ## How to use this doc
 
-This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B42, D65, R27**).
+This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B43, D65, R27**).
 
 When an item is fixed, copy its block to `../archive/tech_debt_archive.md` with `✅ Fixed S<N>` and remove it here.
 
@@ -51,8 +51,9 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B38 | `npm test`: the API health test cannot load without test environment variables | Low-Medium |
 | B39 | `getSuggestions` has no caller | Low |
 | B40 | `JwtPayload.type` uses the wrong vocabulary, one `tsc` error at the root | Low-Medium |
-| B41 | The rating path looks up `reputations` by `did`; every other site uses `vendor_did` | Medium-High |
+| B41 | The rating path looks up `reputations` by `did`; the table has no `did` column, so a rating writes nothing | High |
 | B42 | `calculateAverageRating` counts only revealed ratings, so a new rating can write 0 | Low-Medium |
+| B43 | The rating path writes `score` directly instead of going through the reputation formula | Medium-High |
 | D5 | No HS code on products | Medium-High |
 | D6 | Currency layer absent | Medium |
 | D7 | Provider rating field exists but isn't populated | Medium |
@@ -292,17 +293,29 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Fix:** Make the union say what tokens really carry. Confirm the signing code. Then check that nothing else relies on `'user' | 'client' | 'service'`.
 **Priority:** Low-Medium.
 
-### B41. The rating path looks up `reputations` by `did`, though every other site uses `vendor_did`
-**What:** `RatingService.updateReputationFromRating` selects the reputation row with `.eq('did', userDid)` (`rating.service.ts:261`) and updates it with `.eq('did', userDid)` (`:295`). Every other place that touches `reputations` uses `vendor_did`: `reputation.service.ts:35` and `:400`, `proof.service.ts:339`, `search.service.ts:374`, and the row is created with `vendor_did: did` (`identity.service.ts:362`). If the table has no `did` column, the select errors, `data` is null and the function returns early, so a rating writes no score at all. Found while closing B36 and not fixed there, because that patch was limited to the cap. Unverified against the database: it needs one read of the `reputations` columns, which is Pam's to run.
+### B41. The rating path looks up `reputations` by `did`, so a rating writes nothing
+**What:** `RatingService.updateReputationFromRating` selects the reputation row with `.eq('did', userDid)` (`rating.service.ts:261`) and updates it with `.eq('did', userDid)` (`:295`), but `reputations` has no `did` column. Pam ran the query in S44; the columns are `id`, `vendor_did`, `score`, `metrics`, `history`, `recent_events_hash`, `last_updated`. Every other place that touches `reputations` uses `vendor_did`: `reputation.service.ts:35` and `:400`, `proof.service.ts:339`, `search.service.ts:374`, and the row is created with `vendor_did: did` (`identity.service.ts:362`). So the select fails, and its error is discarded (`const { data: reputation } = ...`: no `error` is read), `reputation` is null and the function returns before it reaches the score. **A rating currently writes nothing at all**: no score, no metrics. The B36 cap is real code but unreachable on a real record, and the old symptom (300 falling to 100) never happened live. The update's `.eq('did', ...)` is wrong the same way and would still match nothing if only the select were fixed.
 **Where:** `src/core/layer4-trust/rating.service.ts` (lines 253 to 297).
-**Fix:** Confirm the column with Pam, then use `vendor_did` in both queries. If the `did` column does not exist, B36's symptom (300 falling to 100) cannot happen on a real record either, because the write never reaches the clamp; the live behaviour is that a rating changes nothing.
-**Priority:** Medium-High.
+**Fix:** Use `vendor_did` in both queries, and read the select's `error` instead of dropping it, so a wrong column fails loudly next time.
+**Test note:** the B36 unit tests pass because the stub's `reputations` row carries both `did` and `vendor_did`, so the `.eq('did', ...)` lookup finds it: a stub is only the test's own opinion of the schema. When B41 is fixed the stub must hold `vendor_did` only (or reject a filter on a column it does not have), so a wrong column name makes a test fail instead of passing quietly.
+**Order:** first in the rating path: B41, then B42, then B43. Fixing the cap or the average before the write lands tests nothing.
+**Priority:** High.
 
 ### B42. `calculateAverageRating` counts only revealed ratings, so a new rating can write 0
 **What:** `calculateAverageRating` (`rating.service.ts:301`) builds its average from `getRatingsForUser`, which filters `.not('revealed_at', 'is', null)`. A rating stays unrevealed until both parties rate or 7 days pass, so the rating just submitted is not counted, and a vendor with no revealed ratings has `metrics.average_rating = 0` written over whatever was there. Found while closing B36; not fixed there, because B36 was limited to the cap.
 **Where:** `src/core/layer4-trust/rating.service.ts` (`calculateAverageRating`, `getRatingsForUser`).
 **Fix:** Decide whether the average should include unrevealed ratings. If yes, read `ratings` directly instead of going through `getRatingsForUser`, which exists to hide unrevealed ratings from callers.
+**Order:** second, after B41 and before B43. It writes into the same update, so settle it before that update is exercised.
 **Priority:** Low-Medium.
+
+### B43. The rating path writes `score` directly instead of going through the reputation formula
+**What:** `updateReputationFromRating` adds `+1` (rating 4 or 5), `0` (rating 3) or `-2` (rating 1 or 2) to the stored score and writes it, instead of recording a reputation event and recalculating with `calculateReputationScore` (base 50, `+2` per completed transaction to a cap of 200, `averageRating` x 20, dispute penalties, then the identity multiplier). It also leaves `transactionsCompleted`, `totalRatings` and `onTimeDeliveryRate` untouched, all of which the formula reads.
+**Would a later recalculation overwrite the rating deltas?** Yes, and it would drop the rating entirely rather than merge it. Recalculation happens only in `ReputationService.updateAfterTransaction`, `recordDispute` and `recordVerificationMilestone`; each computes `calculateReputationScore(metrics, identityType)` from scratch and writes the result through `saveReputation` (`reputation.service.ts:390`), replacing `score` and `metrics` wholesale. None of those three methods has a call site in `src/` today (checked S44: the only `ReputationService` method used from a route is `getReputation`, `identity.routes.ts:402` and `:493`), so today nothing recalculates and the delta is all a rating leaves. The moment one of them is wired up, every `+1` / `-2` the rating path wrote is discarded and replaced by formula output computed from metrics the rating path never updated.
+**Does `average_rating` in metrics collide with the keys `reputation.service.ts` writes?** Not a collision: different keys, worse result. `ReputationMetrics` is camelCase (`averageRating`, `transactionsCompleted`, ...; `identity.service.ts:368` seeds a row in that shape), and the rating path writes a separate snake_case `metrics.average_rating`. `calculateReputationScore` reads `metrics.averageRating` (`types.ts:317`), so the key the rating path writes is never read by the formula: it is dead data, and the `averageRating` the formula would use stays where it was (0 for a new identity). Two averages now sit in the same `metrics` object and only one of them means anything to the score.
+**Where:** `src/core/layer4-trust/rating.service.ts` (`updateReputationFromRating`), `src/core/layer0-identity/reputation.service.ts` (`updateAfterTransaction`, `saveReputation`), `src/core/layer0-identity/types.ts` (`calculateReputationScore`).
+**Fix:** Have the rating path record a reputation event and recalculate, or move the whole thing into `ReputationService` and give that a call site. Settle the metrics key spelling in the same change so one average feeds the formula.
+**Order:** third, after B41 and B42; doing it before the write reaches a row (B41) proves nothing.
+**Priority:** Medium-High.
 
 ### D5. No HS code on products
 **What:** Required for international shipping.
@@ -601,7 +614,7 @@ D40 (link a quote to the RFQ it answers with `quote_request_id`) fixes the first
 
 ### D63. Seller-set advance (deposit)
 **What:** A seller-set advance of up to about 30%, released when the seller confirms the order, and only for sellers above a reputation threshold. Confirmed S44 as later, and kept simple.
-**Fix:** Needs B36 fixed first, because the threshold uses the reputation score.
+**Fix:** Needs B41, B42 and B43 first, because the threshold uses the reputation score and the rating path does not move it: the write reaches no row (B41), can overwrite the average with 0 (B42), and bypasses the formula (B43). Order: B41, then B42, then B43.
 **Priority:** Low. Later.
 
 ### D64. Product visibility states differ from the spec
