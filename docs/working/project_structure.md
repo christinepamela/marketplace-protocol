@@ -54,6 +54,7 @@ marketplace-protocol/
     │   ├── operations.md          Working rules, principles, test data
     │   ├── troubleshooting.md     Symptoms and fixes
     │   ├── session_template.md    Handover template
+    │   ├── agent_brief.md         Standing rules for AI agents working on the repo
     │   └── <N>.md                 The latest session handover (read first)
     └── archive/
         ├── tech_debt_archive.md   Fixed items
