@@ -299,6 +299,7 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Fix:** Use `vendor_did` in both queries, and read the select's `error` instead of dropping it, so a wrong column fails loudly next time.
 **Test note:** the B36 unit tests pass because the stub's `reputations` row carries both `did` and `vendor_did`, so the `.eq('did', ...)` lookup finds it: a stub is only the test's own opinion of the schema. When B41 is fixed the stub must hold `vendor_did` only (or reject a filter on a column it does not have), so a wrong column name makes a test fail instead of passing quietly.
 **Order:** first in the rating path: B41, then B42, then B43. Fixing the cap or the average before the write lands tests nothing.
+**Deploy note:** fixing B41 makes the rating write live for the first time, so B42 (average overwritten with 0) and the dead `average_rating` key (B43) go live with it. Do B42 straight after B41, and do not deploy B41 to real users alone.
 **Priority:** High.
 
 ### B42. `calculateAverageRating` counts only revealed ratings, so a new rating can write 0
