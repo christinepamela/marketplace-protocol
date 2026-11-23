@@ -7,6 +7,7 @@
 
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import type { IdentityType } from '../../core/layer0-identity/types';
 import { config } from './config';
 import { UnauthorizedError } from './errors';
 
@@ -14,7 +15,7 @@ import { UnauthorizedError } from './errors';
 export interface JwtPayload {
   sub: string;           // Subject (user DID or client ID)
   did?: string;
-  type: 'user' | 'client' | 'service';
+  type: IdentityType;    // 'kyc' | 'nostr' | 'anonymous': what identity.routes.ts signs
   tokenType?: 'access' | 'refresh';
   permissions?: string[];
   iat?: number;          // Issued at
