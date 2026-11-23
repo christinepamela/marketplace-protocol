@@ -100,7 +100,7 @@ async function runTests() {
   // Generate auth token for authenticated tests
   authToken = TokenManager.generateToken({
     sub: testDID,
-    type: 'user',
+    type: 'anonymous',
     permissions: ['identity:read', 'identity:write', 'identity:verify'],
   });
 

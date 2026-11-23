@@ -173,21 +173,21 @@ async function setupTestData() {
     signer1Token = TokenManager.generateToken({
       sub: testSigner1Did,
       did: testSigner1Did,
-      type: 'user',
+      type: 'anonymous',
       permissions: ['governance:read', 'governance:propose', 'governance:vote', 'governance:execute'],
     } as any);
 
     signer2Token = TokenManager.generateToken({
       sub: testSigner2Did,
       did: testSigner2Did,
-      type: 'user',
+      type: 'anonymous',
       permissions: ['governance:read', 'governance:propose', 'governance:vote', 'governance:execute'],
     } as any);
 
     signer3Token = TokenManager.generateToken({
       sub: testSigner3Did,
       did: testSigner3Did,
-      type: 'user',
+      type: 'anonymous',
       permissions: ['governance:read', 'governance:propose', 'governance:vote', 'governance:execute'],
     } as any);
 
@@ -279,7 +279,7 @@ async function test2_getNonSignerCannotPropose() {
     const nonSignerToken = TokenManager.generateToken({
       sub: nonSignerDid,
       did: nonSignerDid,
-      type: 'user',
+      type: 'anonymous',
       permissions: ['governance:read'],
     } as any);
 

@@ -62,7 +62,7 @@ async function setupTestData() {
   // Cast to any to add 'did' field (your auth middleware should handle this)
   buyerToken = TokenManager.generateToken({
     sub: testBuyerDid,
-    type: 'user',
+    type: 'anonymous',
     permissions: ['orders:read', 'orders:write'],
     did: testBuyerDid
   } as any);
@@ -96,7 +96,7 @@ async function setupTestData() {
   testVendorDid = vendor.did;
   vendorToken = TokenManager.generateToken({
     sub: testVendorDid,
-    type: 'user',
+    type: 'anonymous',
     permissions: ['orders:read', 'orders:write'],
     did: testVendorDid
   } as any);
@@ -265,7 +265,7 @@ async function test3_unauthorizedAccess() {
   const otherUserDid = `did:rangkai:${uuidv4()}`;
   const otherToken = TokenManager.generateToken({
     sub: otherUserDid,
-    type: 'user',
+    type: 'anonymous',
     permissions: [],
     did: otherUserDid
   } as any);

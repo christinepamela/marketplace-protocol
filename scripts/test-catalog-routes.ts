@@ -61,7 +61,7 @@ async function runTests() {
   testVendorDid = vendorResponse.body.data.did;
   authToken = TokenManager.generateToken({
     sub: testVendorDid,
-    type: 'user',
+    type: 'anonymous',
     permissions: ['catalog:read', 'catalog:write', 'catalog:search'],
   });
 
@@ -165,7 +165,7 @@ async function runTests() {
   // Test 5: Update requires ownership
   const otherVendorToken = TokenManager.generateToken({
     sub: 'did:rangkai:other-vendor',
-    type: 'user',
+    type: 'anonymous',
     permissions: ['catalog:write'],
   });
   

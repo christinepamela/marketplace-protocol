@@ -62,7 +62,7 @@ async function setupTestData() {
   testProviderDid = provider.did;
   providerToken = TokenManager.generateToken({
     sub: testProviderDid,
-    type: 'user',
+    type: 'anonymous',
     permissions: ['logistics:read', 'logistics:write'],
     did: testProviderDid
   } as any);
@@ -91,7 +91,7 @@ async function setupTestData() {
   testBuyerDid = buyer.did;
   buyerToken = TokenManager.generateToken({
     sub: testBuyerDid,
-    type: 'user',
+    type: 'anonymous',
     permissions: ['orders:read', 'orders:write'],
     did: testBuyerDid
   } as any);

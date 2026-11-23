@@ -21,7 +21,7 @@ async function diagnosticTest() {
   const token = TokenManager.generateToken({
     sub: testDid,
     did: testDid,
-    type: 'user',
+    type: 'anonymous',
     permissions: [],
   } as any);
 
