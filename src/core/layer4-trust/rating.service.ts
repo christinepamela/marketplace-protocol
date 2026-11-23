@@ -254,12 +254,27 @@ export class RatingService {
     userDid: string,
     rating: number
   ): Promise<void> {
-    // Get current reputation
-    const { data: reputation } = await this.supabase
+    // Get current reputation. The table's identity column is `vendor_did`
+    // (confirmed S44: id, vendor_did, score, metrics, history,
+    // recent_events_hash, last_updated -- there is no `did`). B41.
+    const { data: reputation, error: reputationError } = await this.supabase
       .from('reputations')
       .select('*')
-      .eq('did', userDid)
+      .eq('vendor_did', userDid)
       .single();
+
+    if (reputationError) {
+      // PGRST116 is `.single()` finding no row: the identity has no reputation
+      // record yet, which is not an error for this path. Anything else -- a
+      // column the table does not have, a permission problem -- must fail
+      // loudly. Discarding it is what let B41 write nothing, silently.
+      if (reputationError.code === 'PGRST116') {
+        return; // User doesn't have reputation record yet
+      }
+      throw new Error(
+        `Failed to load reputation for ${userDid}: ${reputationError.message}`
+      );
+    }
 
     if (!reputation) {
       return; // User doesn't have reputation record yet
@@ -283,7 +298,7 @@ export class RatingService {
       Math.min(DEFAULT_REPUTATION_PARAMS.maxScore, reputation.score + scoreChange)
     );
 
-    await this.supabase
+    const { error: updateError } = await this.supabase
       .from('reputations')
       .update({
         score: newScore,
@@ -292,7 +307,13 @@ export class RatingService {
           average_rating: await this.calculateAverageRating(userDid),
         },
       })
-      .eq('did', userDid);
+      .eq('vendor_did', userDid);
+
+    if (updateError) {
+      throw new Error(
+        `Failed to update reputation for ${userDid}: ${updateError.message}`
+      );
+    }
   }
 
   /**
