@@ -25,6 +25,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 - One item per branch and one item per channel. If you find another problem, report it. Do not fix it.
 - Commit messages: first line is `<item id>: what it does`. The body says what was wrong, what you changed, how you checked it. End with a `Co-authored-by:` line for yourself.
 - **Session label:** never choose one. Pam gives the label in the brief (for example "S44"); copy it into `Fixed S<N>`, the "Last updated" line and anywhere else a session is named. (B36 first used the wrong label, S46.)
+- **Archive wording:** end the archive entry with `Done by <agent>, reviewed by Claude, merged by Pam.` The archive is only read after Pam's merges it, so that is true by the time anyone reads it. Do not write "awaiting".
 - **Starting point:** branch from the current GitHub `main`. If `main` has moved since you started, say so and rebase before you deliver.
 
 **Schema and tests**
@@ -57,10 +58,10 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 | Level | Meaning | Items today |
 |---|---|---|
-| 1 | Pam names the item. You propose a patch. | B41, B42, B37, B38, B39, B40, B17 |
+| 1 | Pam names the item. You propose a patch. | B40, B38, B37, B39, B17 |
 | 2 | Same, and you also update `tech_debt.md` and the archive in the patch | Start here once an item at Level 1 has passed review |
 | 3 | You may choose a low-risk item yourself | Not yet |
-| Human decision first | Do not start without Pam | B26 to B28, B31 to B35, **B43** (changes how reputation is computed), D58, D59, D60, D62, D63, anything touching a key, a payout or the council |
+| Human decision first | Do not start without Pam | B26 to B28, B31 to B35, **B42 and B43** (decided together; they change how reputation is computed), D58, D59, D60, D62, D63, anything touching a key, a payout or the council |
 
 Anything not listed: ask.
 
@@ -68,15 +69,22 @@ Anything not listed: ask.
 
 - **Result:** merged as `d6a0fc5` and `6104ea4`. A search like `toys, games` made the public search endpoint fail with a 500. The fix quotes and escapes the text.
 - **Done well:** read the docs in order; checked the code against the doc; found the problem worse than described; stayed within one item (nearly); reported what it could not verify; refused to use the key again when told.
-- **Done wrong:** used the live service key without asking; first version of the test only proved its own model of the filter grammar, so live results after the fix were needed; also changed an unused function, `getSuggestions` (disclosed, harmless); left a stray empty file named `{` in the worktree.
+- **Done wrong:** used the live service key without asking; first version of the test only proved its own model of the filter grammar, so live results after the fix were needed; also changed an unused function, `getSuggestions` (disclosed, harmless).
 - **Lesson:** unit tests prove the logic. Evidence from the real system proves the fix. Ask Pam to run the live check and paste the output.
 
 ## Worked example: B36 (rating cap) and what it exposed
 
 - **Result:** merged as `f4c2fd0` (three commits). The 0-100 clamp became `DEFAULT_REPUTATION_PARAMS.maxScore`. Seven tests, three fail on the old clamp.
 - **Done well:** limited the patch to the cap; reported two nearby bugs (B41, B42) instead of fixing them; disclosed an unrequested edit; corrected its own claim about how the patch applies; accepted review changes cleanly.
-- **Done wrong:** wrong session label (S46); the first archive text read as if ratings now moved reputation; said "merged by Pam" before the merge.
+- **Done wrong:** wrong session label (S46); the first archive text read as if ratings now moved reputation.
 - **Lesson:** a green test can describe an unreachable path. The fix was correct, but a real rating wrote nothing, because the column name was wrong and the stub hid it. Check that the path is reachable in the real system, and keep the stub honest.
+
+## Worked example: B41 (the rating write used a column the table does not have)
+
+- **Result:** merged as `41b563c` and `29c34d8`. Both queries use `vendor_did`; both errors are read. The test stub now rejects a column the table does not have; nine of eleven tests fail on the old code.
+- **Done well:** stayed inside the item; chose, and said it was choosing, to treat `PGRST116` (no row) as quiet and every other error as loud; reported a new bug instead of fixing it (B44); showed the failing and passing runs; used the session label from the brief; patch applied as described.
+- **Done wrong:** nothing that counts. Two nits: a missing blank line in `tech_debt.md`, and "awaiting merge" wording, which was a gap in this brief and is now a rule.
+- **Lesson:** making an error loud has a cost. Reviewing it turned up B45: the rating is saved before reputation is updated, so a failure now shows an error for a rating that was stored. When a fix turns silence into failure, ask what the caller sees.
 
 ## How an agent earns independence
 
@@ -103,11 +111,11 @@ Pam can move the agent down or up at any time.
 
 | Item | Clean? | Why not |
 |---|---|---|
-| B30 | No | Used the service key without asking; first test only proved its own model; stray file |
-| B36 | No | Wrong session label; wording said ratings now moved reputation; claimed "merged" early; patch applied only in part by `git apply` |
-| B41 | | |
+| B30 | No | Used the service key without asking; first test only proved its own model |
+| B36 | No | Wrong session label; wording said ratings now moved reputation; patch applied only in part by `git apply` |
+| B41 | Yes | |
 
-Clean patches in a row: 0. Stage: 1.
+Clean patches in a row: 1 (needs 3 for stage 2). Stage: 1.
 
 ## Open items for this brief
 

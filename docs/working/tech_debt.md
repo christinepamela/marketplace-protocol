@@ -1,13 +1,13 @@
 # Tech Debt: open items
 
-**Last updated:** 2026-11-22 (Session 44)
+**Last updated:** 2026-11-23 (Session 44)
 **Closed items:** `../archive/tech_debt_archive.md`  |  **Companion docs:** `operations.md`, `troubleshooting.md`
 
 ---
 
 ## How to use this doc
 
-This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B44, D65, R27**).
+This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B45, D65, R27**).
 
 When an item is fixed, copy its block to `../archive/tech_debt_archive.md` with `✅ Fixed S<N>` and remove it here.
 
@@ -54,6 +54,7 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B42 | `calculateAverageRating` counts only revealed ratings, so a new rating can write 0 | Low-Medium |
 | B43 | The rating path writes `score` directly instead of going through the reputation formula | Medium-High |
 | B44 | The rating path changes a reputation row without updating `last_updated` | Low |
+| B45 | A reputation failure after a rating is saved returns an error but keeps the rating | Low-Medium |
 | D5 | No HS code on products | Medium-High |
 | D6 | Currency layer absent | Medium |
 | D7 | Provider rating field exists but isn't populated | Medium |
@@ -297,8 +298,8 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **What:** `calculateAverageRating` (`rating.service.ts:301`) builds its average from `getRatingsForUser`, which filters `.not('revealed_at', 'is', null)`. A rating stays unrevealed until both parties rate or 7 days pass, so the rating just submitted is not counted, and a vendor with no revealed ratings has `metrics.average_rating = 0` written over whatever was there. Found while closing B36; not fixed there, because B36 was limited to the cap.
 **Where:** `src/core/layer4-trust/rating.service.ts` (`calculateAverageRating`, `getRatingsForUser`).
 **Fix:** Decide whether the average should include unrevealed ratings. If yes, read `ratings` directly instead of going through `getRatingsForUser`, which exists to hide unrevealed ratings from callers.
-**Order:** next, now that B41 is fixed (S44): this update reaches a real row for the first time, so settle it before the update is exercised, and before B43.
-**Deploy note:** B41 is fixed, so this path now writes for the first time and this item is live with it: a vendor with no revealed ratings gets `metrics.average_rating = 0` written over whatever was there. Do B42 straight after B41, and do not deploy the rating write to real users before it is settled.
+**Order:** decide together with B43. Which key the average lives under (`average_rating` or `averageRating`) depends on how Pam decides a rating should change reputation. Not urgent on its own.
+**Deploy note:** B41 is fixed, so a rating now writes to a real row. For this item that means a vendor with no revealed ratings gets `metrics.average_rating = 0` written. Nothing reads that key (checked S44: the score formula, `VendorBadge` and the identity routes read the camelCase `averageRating`), so there is no visible effect today. The real effect is B43: the `averageRating` that the badge and the formula read is never updated by a rating.
 **Priority:** Low-Medium.
 
 ### B43. The rating path writes `score` directly instead of going through the reputation formula
@@ -308,6 +309,7 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Where:** `src/core/layer4-trust/rating.service.ts` (`updateReputationFromRating`), `src/core/layer0-identity/reputation.service.ts` (`updateAfterTransaction`, `saveReputation`), `src/core/layer0-identity/types.ts` (`calculateReputationScore`).
 **Fix:** Have the rating path record a reputation event and recalculate, or move the whole thing into `ReputationService` and give that a call site. Settle the metrics key spelling in the same change so one average feeds the formula.
 **Order:** third, after B42; doing it before the write reaches a row (B41, fixed S44) and before the average is settled (B42) proves nothing.
+**Note (S44):** `VendorBadge` (`rangkai-marketplace/components/products/VendorBadge.tsx:69`) and `identity.routes.ts:416` show `metrics.averageRating`, which no rating updates. Decide this with B42. **Pam decides**: it changes how reputation is computed.
 **Priority:** Medium-High.
 
 ### B44. The rating path changes a reputation row without updating `last_updated`
@@ -315,6 +317,13 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Where:** `src/core/layer4-trust/rating.service.ts` (`updateReputationFromRating`).
 **Fix:** Set `last_updated` in the same update, or confirm that a database trigger already does it (for example `moddatetime` on `reputations`) and close this as not a bug. Not checked: triggers are database state, and this branch had no live access.
 **Priority:** Low. Found while fixing B41; reported, not fixed.
+
+### B45. A reputation failure after a rating is saved returns an error but keeps the rating
+**What:** `submitRating` stores the rating (the insert and update on `ratings`) and only then calls `updateReputationFromRating` (`rating.service.ts:120`). Since B41, that call throws when the reputation select or update fails with anything other than "no row". The route passes the error on (`rating.routes.ts:81`, `next(error)`), so the caller sees a failure, but the rating is already saved, and a retry is refused with "has already rated this order". The user is told it failed when it half worked.
+**Where:** `src/core/layer4-trust/rating.service.ts` (`submitRating`, about lines 60 to 120), `src/api/routes/rating.routes.ts` (line 81).
+**Fix:** Pam decides the behaviour. Options: catch and log the reputation failure and return the saved rating (reputation is retried later); make the two writes one unit (a database function); or make a retry harmless.
+**Priority:** Low-Medium. Found while reviewing B41; reported, not fixed.
+
 ### D5. No HS code on products
 **What:** Required for international shipping.
 **Fix:** Add `hs_code: string` field. v1: free-text required for international products. v2: auto-suggest from product description.
