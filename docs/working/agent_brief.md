@@ -40,7 +40,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 1. The fix is limited to the item. No unrelated cleanup.
 2. A unit test fails before and passes after, and it runs with `npm test`.
-3. `npx tsc --noEmit` shows no new errors. Baselines today: 1 at the root (B40) and 15 in `rangkai-marketplace` (B23).
+3. `npx tsc --noEmit` shows no new errors. Baselines today: 0 at the root and 15 in `rangkai-marketplace` (B23).
 4. You say what you could not check.
 5. The `tech_debt.md` entry is updated in the same branch: the item's block is moved to `docs/archive/tech_debt_archive.md` with `**Status:** ✅ Fixed S<number>.` and a one-line summary, the index row is removed, the "tails" line is correct. New problems you found become new items with the next free ID.
 6. You deliver a patch (`git format-patch`) and a report. Pam reads the patch. Say how it applies: Pam merges the branch from the worktree, and a multi-commit patch needs `git am`, not `git apply`. Test the patch in a throwaway clone before you say it applies.

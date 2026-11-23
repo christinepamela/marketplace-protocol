@@ -7,7 +7,7 @@
 
 ## How to use this doc
 
-This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B45, D65, R27**).
+This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B46, D65, R27**).
 
 When an item is fixed, copy its block to `../archive/tech_debt_archive.md` with `✅ Fixed S<N>` and remove it here.
 
@@ -50,11 +50,11 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B37 | One-sided ratings are never revealed | Medium |
 | B38 | `npm test`: the API health test cannot load without test environment variables | Low-Medium |
 | B39 | `getSuggestions` has no caller | Low |
-| B40 | `JwtPayload.type` uses the wrong vocabulary, one `tsc` error at the root | Low-Medium |
 | B42 | `calculateAverageRating` counts only revealed ratings, so a new rating can write 0 | Low-Medium |
 | B43 | The rating path writes `score` directly instead of going through the reputation formula | Medium-High |
 | B44 | The rating path changes a reputation row without updating `last_updated` | Low |
 | B45 | A reputation failure after a rating is saved returns an error but keeps the rating | Low-Medium |
+| B46 | `JwtPayload` does not describe the payloads that are signed (`clientId` missing, `did` never set) | Low |
 | D5 | No HS code on products | Medium-High |
 | D6 | Currency layer absent | Medium |
 | D7 | Provider rating field exists but isn't populated | Medium |
@@ -288,12 +288,6 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Fix:** Wire it to a route with the search work (B29 and D54), or remove it.
 **Priority:** Low.
 
-### B40. `JwtPayload.type` uses the wrong vocabulary, one `tsc` error at the root
-**What:** `JwtPayload.type` is `'user' | 'client' | 'service'`, but `catalog.routes.ts:305` compares `req.user?.type` with `'kyc'`, which is a `tsc` error and the only one at the root. Per the B30 review, tokens are signed with `type: identity.type` (`'kyc' | 'nostr' | 'anonymous'`), so it works at runtime and only the type is wrong. Not checked by us in the token-signing code.
-**Where:** `src/api/core/auth.ts` (line 17), `src/api/routes/catalog.routes.ts` (line 305). Check every other use of `req.user?.type`.
-**Fix:** Make the union say what tokens really carry. Confirm the signing code. Then check that nothing else relies on `'user' | 'client' | 'service'`.
-**Priority:** Low-Medium.
-
 ### B42. `calculateAverageRating` counts only revealed ratings, so a new rating can write 0
 **What:** `calculateAverageRating` (`rating.service.ts:301`) builds its average from `getRatingsForUser`, which filters `.not('revealed_at', 'is', null)`. A rating stays unrevealed until both parties rate or 7 days pass, so the rating just submitted is not counted, and a vendor with no revealed ratings has `metrics.average_rating = 0` written over whatever was there. Found while closing B36; not fixed there, because B36 was limited to the cap.
 **Where:** `src/core/layer4-trust/rating.service.ts` (`calculateAverageRating`, `getRatingsForUser`).
@@ -323,6 +317,12 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Where:** `src/core/layer4-trust/rating.service.ts` (`submitRating`, about lines 60 to 120), `src/api/routes/rating.routes.ts` (line 81).
 **Fix:** Pam decides the behaviour. Options: catch and log the reputation failure and return the saved rating (reputation is retried later); make the two writes one unit (a database function); or make a retry harmless.
 **Priority:** Low-Medium. Found while reviewing B41; reported, not fixed.
+
+### B46. `JwtPayload` does not describe the payloads that are signed
+**What:** Every token that is signed carries `clientId` (`identity.routes.ts:154`, `:171`, `:233`, `:246`, `:305`), but `JwtPayload` does not declare it, so code reading `req.user?.clientId` would not typecheck even though the value is in the token; the refresh route only gets away with `payload.clientId` because it types the verified payload as `any` (`identity.routes.ts:281`). The other way round, `JwtPayload.did` is declared and `express.d.ts:14` intersects it in "for convenience", but no `jwt.sign` call sets `did`; the three helpers that prefer it (`bitcoin.routes.ts:17`, `logistics.routes.ts:27`, `order.routes.ts:27`) always fall through to `sub`.
+**Where:** `src/api/core/auth.ts` (`JwtPayload`, lines 15 to 23), `src/api/types/express.d.ts` (line 14), the `jwt.sign` calls in `src/api/routes/identity.routes.ts`.
+**Fix:** Declare `clientId?: string`, and either drop `did` or have the signing code set it. Type-only, but it changes what `req.user` advertises, so decide it on its own branch.
+**Priority:** Low. Found while fixing B40; reported, not fixed.
 
 ### D5. No HS code on products
 **What:** Required for international shipping.
