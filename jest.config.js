@@ -15,4 +15,8 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
+  // B38: test-only environment values, for the suites that import the whole
+  // API. `setupFiles` runs before the test file's imports, which is when
+  // `Config` validates the environment (src/api/core/config.ts).
+  setupFiles: ['<rootDir>/jest.setup-env.js'],
 };
