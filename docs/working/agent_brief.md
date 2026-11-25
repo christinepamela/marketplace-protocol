@@ -62,7 +62,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 | Level | Meaning | Items today |
 |---|---|---|
-| 1 | Pam names the item. You propose a patch. | B38, B37, B39, B17 |
+| 1 | Pam names the item. You propose a patch. | B37, B39, B17 |
 | 2 | Same, and you also update `tech_debt.md` and the archive in the patch | Start here once an item at Level 1 has passed review |
 | 3 | You may choose a low-risk item yourself | Not yet |
 | Human decision first | Do not start without Pam | B26 to B28, B31 to B35, **B42, B43, B45 and B47** (reputation design: decided in principle S44; Pam and Claude split it into branches before an agent starts), D58, D59, D60, D62, D63, anything touching a key, a payout or the council |
