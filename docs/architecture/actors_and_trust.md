@@ -32,7 +32,7 @@ All three exist in code and all three stay (`layer0-identity/types.ts`). Each id
 | **Pays into escrow** | Yes | Yes | Yes |
 | **Dispute ruling** | By the marketplace | By the marketplace | **Automatic rules only**, no person rules |
 
-Reputation starts at 50, adds 2 per completed transaction (up to 200), adds ratings, and subtracts 25 or 50 for a minor or major dispute, then applies the multiplier. The maximum is 500. The protocol signs a reputation proof with its own key, so anyone holding the public key can check it.
+Reputation is computed by one formula: a base of 50, plus 2 per completed transaction (up to 200), plus 20 for each point of average rating (up to 100), minus 25 or 50 for a minor or major dispute, then multiplied by the identity multiplier. The cap is 500, though the formula itself tops out at 420 for KYC (B47). **Decided S44 (Pam):** a rating is one input to this formula, not a separate score. It counts once it is revealed (both parties rated, or 7 days passed), so the blind between the two parties holds. A transaction counts when its order completes. Buyers see reputation first (the score and what it is made of, with the identity type beside it, and "New" for a vendor with no ratings) and can then open the individual revealed ratings. **Not built yet** (B43): today a rating shortcut moves the score by +1 or -2 and nothing else feeds the formula, and the starting scores above (75, 35, 20) differ from the formula's value for a blank record (B47). The protocol signs a reputation proof with its own key, so anyone holding the public key can check it.
 
 Sign-up must be **simple and light**. It is built for phones and for people with no formal training. Phone first.
 

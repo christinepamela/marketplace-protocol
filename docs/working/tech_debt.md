@@ -1,13 +1,13 @@
 # Tech Debt: open items
 
-**Last updated:** 2026-11-23 (Session 44)
+**Last updated:** 2026-11-25 (Session 44)
 **Closed items:** `../archive/tech_debt_archive.md`  |  **Companion docs:** `operations.md`, `troubleshooting.md`
 
 ---
 
 ## How to use this doc
 
-This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B46, D65, R27**).
+This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B47, D65, R28**).
 
 When an item is fixed, copy its block to `../archive/tech_debt_archive.md` with `✅ Fixed S<N>` and remove it here.
 
@@ -55,6 +55,7 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B44 | The rating path changes a reputation row without updating `last_updated` | Low |
 | B45 | A reputation failure after a rating is saved returns an error but keeps the rating | Low-Medium |
 | B46 | `JwtPayload` does not describe the payloads that are signed (`clientId` missing, `did` never set) | Low |
+| B47 | Reputation starting scores and the 500 maximum disagree with the formula | Medium |
 | D5 | No HS code on products | Medium-High |
 | D6 | Currency layer absent | Medium |
 | D7 | Provider rating field exists but isn't populated | Medium |
@@ -126,6 +127,7 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | R25 | Destination and provider choice are single-valued where the flow needs several | Roadmap |
 | R26 | Nostr communications build (relay, rooms, media, audit log) | Roadmap |
 | R27 | Returns: replacement, credit, partial refund, optional physical return | Roadmap |
+| R28 | Rating average for small counts (one 5★ rating gives the full bonus) | Roadmap |
 
 ---
 
@@ -292,8 +294,9 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **What:** `calculateAverageRating` (`rating.service.ts:301`) builds its average from `getRatingsForUser`, which filters `.not('revealed_at', 'is', null)`. A rating stays unrevealed until both parties rate or 7 days pass, so the rating just submitted is not counted, and a vendor with no revealed ratings has `metrics.average_rating = 0` written over whatever was there. Found while closing B36; not fixed there, because B36 was limited to the cap.
 **Where:** `src/core/layer4-trust/rating.service.ts` (`calculateAverageRating`, `getRatingsForUser`).
 **Fix:** Decide whether the average should include unrevealed ratings. If yes, read `ratings` directly instead of going through `getRatingsForUser`, which exists to hide unrevealed ratings from callers.
-**Order:** decide together with B43. Which key the average lives under (`average_rating` or `averageRating`) depends on how Pam decides a rating should change reputation. Not urgent on its own.
+**Order:** built inside B43, not separately.
 **Deploy note:** B41 is fixed, so a rating now writes to a real row. For this item that means a vendor with no revealed ratings gets `metrics.average_rating = 0` written. Nothing reads that key (checked S44: the score formula, `VendorBadge` and the identity routes read the camelCase `averageRating`), so there is no visible effect today. The real effect is B43: the `averageRating` that the badge and the formula read is never updated by a rating.
+**Decision (Pam, 25 Nov, S44):** the average counts revealed ratings only. That is correct, not a bug: a rating must stay hidden from the other party until both have rated or 7 days pass, and reputation must not leak it. What remains of this item is the 0 written when nothing is revealed and the unused snake_case key; both go away when the average is computed by the formula path (B43).
 **Priority:** Low-Medium.
 
 ### B43. The rating path writes `score` directly instead of going through the reputation formula
@@ -302,8 +305,17 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Does `average_rating` in metrics collide with the keys `reputation.service.ts` writes?** Not a collision: different keys, worse result. `ReputationMetrics` is camelCase (`averageRating`, `transactionsCompleted`, ...; `identity.service.ts:368` seeds a row in that shape), and the rating path writes a separate snake_case `metrics.average_rating`. `calculateReputationScore` reads `metrics.averageRating` (`types.ts:317`), so the key the rating path writes is never read by the formula: it is dead data, and the `averageRating` the formula would use stays where it was (0 for a new identity). Two averages now sit in the same `metrics` object and only one of them means anything to the score.
 **Where:** `src/core/layer4-trust/rating.service.ts` (`updateReputationFromRating`), `src/core/layer0-identity/reputation.service.ts` (`updateAfterTransaction`, `saveReputation`), `src/core/layer0-identity/types.ts` (`calculateReputationScore`).
 **Fix:** Have the rating path record a reputation event and recalculate, or move the whole thing into `ReputationService` and give that a call site. Settle the metrics key spelling in the same change so one average feeds the formula.
-**Order:** third, after B42; doing it before the write reaches a row (B41, fixed S44) and before the average is settled (B42) proves nothing.
+**Order:** after the B47 decision and after B37 (see Plan).
 **Note (S44):** `VendorBadge` (`rangkai-marketplace/components/products/VendorBadge.tsx:69`) and `identity.routes.ts:416` show `metrics.averageRating`, which no rating updates. Decide this with B42. **Pam decides**: it changes how reputation is computed.
+**Decision (Pam, 25 Nov, S44):** a rating is an input to the reputation formula, not a separate score: it goes through `ReputationService` and the formula. It updates reputation when it is **revealed**, not when it is submitted (so the blind between the two parties holds). A **completed transaction** counts when its order completes, independently of rating. Buyers see reputation first (the score and what it is made of, the identity type beside it, "New" for no ratings) and can then open the individual revealed ratings.
+**Plan (proposal, to be split into branches before an agent starts; order matters):**
+1. B47 decided first, because the first recalculation changes the number buyers see.
+2. B37: wire the 7-day auto-reveal into the scheduler, otherwise one-sided ratings are never revealed and never count.
+3. A `ReputationService` method that records a `rating` event for a revealed rating and recalculates with the formula (rating only; it must not change the transaction count). Call it when a rating becomes revealed, from `submitRating` and from the auto-reveal job. One event per rating id, so a retry cannot count twice. Remove the +1 / 0 / -2 shortcut.
+4. Split the transaction count out of `updateAfterTransaction` and record it at order completion (depends on B32 and on the order-completion path).
+5. One key spelling: `averageRating` only; stop writing `average_rating`.
+6. A recompute from the stored ratings, orders and disputes, so a missed update (B45) can be repaired.
+7. Display (separate branches): the badge and search show the breakdown, the identity type and "New".
 **Priority:** Medium-High.
 
 ### B44. The rating path changes a reputation row without updating `last_updated`
@@ -316,6 +328,7 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **What:** `submitRating` stores the rating (the insert and update on `ratings`) and only then calls `updateReputationFromRating` (`rating.service.ts:120`). Since B41, that call throws when the reputation select or update fails with anything other than "no row". The route passes the error on (`rating.routes.ts:81`, `next(error)`), so the caller sees a failure, but the rating is already saved, and a retry is refused with "has already rated this order". The user is told it failed when it half worked.
 **Where:** `src/core/layer4-trust/rating.service.ts` (`submitRating`, about lines 60 to 120), `src/api/routes/rating.routes.ts` (line 81).
 **Fix:** Pam decides the behaviour. Options: catch and log the reputation failure and return the saved rating (reputation is retried later); make the two writes one unit (a database function); or make a retry harmless.
+**Decision (Pam, 25 Nov, S44):** log and return. The rating counts and stays saved; reputation is recomputed from stored data, so a missed update is repaired later (B43 plan, step 6). Built together with B43.
 **Priority:** Low-Medium. Found while reviewing B41; reported, not fixed.
 
 ### B46. `JwtPayload` does not describe the payloads that are signed
@@ -323,6 +336,12 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Where:** `src/api/core/auth.ts` (`JwtPayload`, lines 15 to 23), `src/api/types/express.d.ts` (line 14), the `jwt.sign` calls in `src/api/routes/identity.routes.ts`.
 **Fix:** Declare `clientId?: string`, and either drop `did` or have the signing code set it. Type-only, but it changes what `req.user` advertises, so decide it on its own branch.
 **Priority:** Low. Found while fixing B40; reported, not fixed.
+
+### B47. Reputation starting scores and the 500 maximum disagree with the formula
+**What:** A new identity's reputation row is seeded with the trust score (KYC 75, Nostr 35, anonymous 20: `identity.service.ts:43`, `:74` and `:359`, `DEFAULT_TRUST_SCORES`). The formula gives a blank record (base 50, no transactions, no ratings) times the multiplier: KYC 60, Nostr 50, anonymous 40. So the first recalculation moves a new KYC vendor from 75 to 60 and an anonymous one from 20 to 40. Separately, the formula's best possible score is (50 + 200 + 100) x 1.2 = 420 for KYC, so `maxScore` 500 can never be reached by the formula; only the old rating shortcut could pass 420. `actors_and_trust.md` stated both starting numbers.
+**Where:** `layer0-identity/types.ts` (`DEFAULT_TRUST_SCORES`, `DEFAULT_REPUTATION_PARAMS`, `calculateReputationScore`), `layer0-identity/identity.service.ts`.
+**Fix:** Pam decides. (a) Seed new rows at the formula's blank-record value and drop the separate trust score; or (b) keep the trust score as its own number used for something else, and say what. And decide whether `maxScore` stays 500 (a ceiling the formula does not reach) or becomes 420. Decide before the B43 recalculation is built.
+**Priority:** Medium. Found S44 while explaining reputation; not fixed.
 
 ### D5. No HS code on products
 **What:** Required for international shipping.
@@ -753,5 +772,9 @@ US eliminating $800 de minimis for some corridors. Surface "expect duties" warni
 **What:** B2B norm is replacement, credit or partial refund, with a physical return only for higher-value goods and with the seller's agreement. A ruling should be able to order any of these. See `docs/architecture/logistics.md` (Returns). Criteria decided in outline (Pam, S44, 20 Nov): confirm it is a real problem, find whose fault, the party at fault bears the cost (carrier for shipment faults, seller for seller faults, buyer for buyer faults). See `docs/architecture/payments_and_fees.md`, "Returns and who pays". Open: recovering money from a carrier already paid.
 **Where:** Not built. Part of D60.
 **Priority:** Roadmap.
+
+### R28. Rating average for small counts
+**What:** The formula uses the raw average, so a single 5-star rating gives the full 100-point rating bonus. Later: smooth small counts (for example, count the average only from 3 ratings, or pull it toward a prior).
+**Priority:** Roadmap. Found S44.
 
 **END OF OPEN TECH DEBT**

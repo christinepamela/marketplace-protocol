@@ -28,6 +28,10 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 - **Archive wording:** end the archive entry with `Done by <agent>, reviewed by Claude, merged by Pam.` The archive is only read after Pam's merges it, so that is true by the time anyone reads it. Do not write "awaiting".
 - **Starting point:** branch from the current GitHub `main`. If `main` has moved since you started, say so and rebase before you deliver.
 
+**Callers and coverage**
+- When an item says "find every use" or "every place", search the whole repo: `src`, `scripts`, `packages`, `rangkai-marketplace` and `logistics-marketplace`. Not only `src/`.
+- Say which folders `tsc` and `npm test` actually cover. The root `tsconfig.json` includes only `src/**`, so `scripts/`, `packages/` and the apps are not checked by the root `tsc`. (B40: the signing helper's 17 callers were in `scripts/`.)
+
 **Schema and tests**
 - A column name comes from the real database, never from other code and never from a test stub. Ask Pam to run a read-only query on `information_schema.columns` and paste it. (B41: the rating code used `did`, the table has `vendor_did`, and the tests passed because the stub accepted both.)
 - A stub must model the real schema: hold only the real columns and reject a filter on a column that does not exist, so a wrong name fails a test instead of passing.
@@ -58,10 +62,10 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 | Level | Meaning | Items today |
 |---|---|---|
-| 1 | Pam names the item. You propose a patch. | B40, B38, B37, B39, B17 |
+| 1 | Pam names the item. You propose a patch. | B38, B37, B39, B17 |
 | 2 | Same, and you also update `tech_debt.md` and the archive in the patch | Start here once an item at Level 1 has passed review |
 | 3 | You may choose a low-risk item yourself | Not yet |
-| Human decision first | Do not start without Pam | B26 to B28, B31 to B35, **B42 and B43** (decided together; they change how reputation is computed), D58, D59, D60, D62, D63, anything touching a key, a payout or the council |
+| Human decision first | Do not start without Pam | B26 to B28, B31 to B35, **B42, B43, B45 and B47** (reputation design: decided in principle S44; Pam and Claude split it into branches before an agent starts), D58, D59, D60, D62, D63, anything touching a key, a payout or the council |
 
 Anything not listed: ask.
 
@@ -85,6 +89,13 @@ Anything not listed: ask.
 - **Done well:** stayed inside the item; chose, and said it was choosing, to treat `PGRST116` (no row) as quiet and every other error as loud; reported a new bug instead of fixing it (B44); showed the failing and passing runs; used the session label from the brief; patch applied as described.
 - **Done wrong:** nothing that counts. Two nits: a missing blank line in `tech_debt.md`, and "awaiting merge" wording, which was a gap in this brief and is now a rule.
 - **Lesson:** making an error loud has a cost. Reviewing it turned up B45: the rating is saved before reputation is updated, so a failure now shows an error for a rating that was stored. When a fix turns silence into failure, ask what the caller sees.
+
+## Worked example: B40 (token type)
+
+- **Result:** merged as `218b8c9`, `b56c000`, `38db846`. `JwtPayload.type` is `IdentityType`; the root `tsc` baseline is 0; the 17 test-script call sites pass `'anonymous'`.
+- **Done well:** type-only in `src/`; explained why `'anonymous'` keeps behaviour the same; proved the break with a throwaway tsconfig over `scripts/`; found that twelve sites hid behind `as any`; owned the mistake in the archive entry.
+- **Done wrong:** the first report said no site passed `'user'`, from a search of `src/` only. The signing helper and its callers were in `scripts/`.
+- **Lesson:** "no callers" is a claim about the whole repo. Search all of it, and say what the compiler does not cover.
 
 ## How an agent earns independence
 
@@ -114,8 +125,9 @@ Pam can move the agent down or up at any time.
 | B30 | No | Used the service key without asking; first test only proved its own model |
 | B36 | No | Wrong session label; wording said ratings now moved reputation; patch applied only in part by `git apply` |
 | B41 | Yes | |
+| B40 | No | Searched `src/` only and missed the signing helper's 17 callers in `scripts/`; corrected well after review |
 
-Clean patches in a row: 1 (needs 3 for stage 2). Stage: 1.
+Clean patches in a row: 0 (needs 3 for stage 2). Stage: 1.
 
 ## Open items for this brief
 
