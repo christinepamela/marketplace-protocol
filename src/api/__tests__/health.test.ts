@@ -77,14 +77,32 @@ describe('Health Check Endpoints', () => {
   });
   
   describe('CORS', () => {
-    it('should include CORS headers', async () => {
+    // B48: the app configures `cors({ origin: config.corsOrigins })`
+    // (src/api/index.ts), and `corsOrigins` is `CORS_ORIGINS` split on commas
+    // (src/api/core/config.ts). jest.setup-env.js sets CORS_ORIGINS
+    // explicitly, so this test reads the same variable the app reads rather
+    // than relying on the schema's default and drifting from it.
+    const allowedOrigin = (process.env.CORS_ORIGINS as string).split(',')[0].trim();
+    const foreignOrigin = 'https://test-only-foreign-origin.example';
+
+    it('should echo an allowed origin back in access-control-allow-origin', async () => {
       const response = await request(app)
         .get('/health')
+        .set('Origin', allowedOrigin)
         .expect(200);
-      
-      expect(response.headers['access-control-allow-origin']).toBeDefined();
+
+      expect(response.headers['access-control-allow-origin']).toBe(allowedOrigin);
     });
-    
+
+    it('should send no access-control-allow-origin for a foreign origin', async () => {
+      const response = await request(app)
+        .get('/health')
+        .set('Origin', foreignOrigin)
+        .expect(200);
+
+      expect(response.headers['access-control-allow-origin']).toBeUndefined();
+    });
+
     it('should handle OPTIONS preflight requests', async () => {
       const response = await request(app)
         .options('/api/v1/version')

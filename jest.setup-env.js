@@ -24,6 +24,13 @@ const TEST_ENV = {
   NODE_ENV: 'test',
   PORT: '3000',
 
+  // CORS allow-list (B48). The health suite asserts that an allowed Origin is
+  // echoed back and a foreign one gets no header, so the allow-list is stated
+  // here instead of being inherited from the schema's default
+  // (src/api/core/config.ts). The test reads this same variable, so the two
+  // cannot drift. Not a real host.
+  CORS_ORIGINS: 'http://test-only-allowed-origin.example',
+
   // Not a Supabase project. createClient() does not open a connection; no
   // request is made unless a query runs, and these tests only reach /health,
   // /version, the 404 handler and middleware.
