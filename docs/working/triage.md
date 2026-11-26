@@ -48,13 +48,25 @@ from an earlier session (that is marked "per the item").
 
 ---
 
+## Status after merge (S44, `678e8a6`)
+
+Pam's decisions on 26 Nov S44 are recorded here; the tables below are the triage as first written.
+
+- **Approved A list, now two items: B44 and D57.** B17 and B46 are done. B50 moved to class B.
+- **B51 approved** (a test runner for both Next apps) and added to `tech_debt.md`. It is pre-approved for stage 2, so the A list is **B44, D57, B51**.
+- **D26 and D33 closed** as misdiagnosed and archived.
+- **D32** (`keys/`): Pam deletes it locally after checking `.env`; the item closes when she confirms.
+- Baselines at `678e8a6`: root `tsc` 0, `rangkai-marketplace` `tsc` 14, `npm test` 5 suites / 40 tests.
+
+---
+
 ## The 99 items
 
 | ID | Item | Class | Reason |
 |---|---|---|---|
 | B1 | Logistics payment, two pieces left | C | The L17 doc half was resolved in S44; what is left is an end-to-end split payout on live BTC. Money, and needs live funds. |
 | B4 | Tracking number not shown in buyer shipment UI | D | Code path is complete: `order.service.ts:608` maps `trackingNumber`, `app/orders/[id]/page.tsx:308` and `TrackingTimeline.tsx:95` render it. Needs a real shipped order to reproduce. |
-| B17 | Buyer page swallows a broken `sdk.identity.getIdentity` | A | One rename to the real method, `getByDid`. Pre-approved. |
+| B17 | Buyer page swallows a broken `sdk.identity.getIdentity` | Done | Fixed and merged S44 (`678e8a6`), archived. |
 | B20 | RFQ matcher skips its filters for blank providers | B | Needs a decision on what a blank profile means; lands with B21, which is what produces blank profiles. |
 | B21 | Provider registration collects no capability data | B | Which fields, in what operator wording. Backfilling existing providers is a live DB write. |
 | B22 | Two live capability vocabularies | C | Moving `searchProviders` onto `routes`/`modes` and deriving or dropping two `NOT NULL` columns is a migration. |
@@ -76,9 +88,9 @@ from an earlier session (that is marked "per the item").
 | B43 | Rating path writes `score` directly | C | Reputation design. Pam decides; split into branches before an agent starts. |
 | B44 | Rating path does not update `last_updated` | A | One field in one update, testable in the existing stub. Superseded if B43 replaces the method first. |
 | B45 | Reputation failure keeps the rating | C | Decided (log and return); built together with B43. |
-| B46 | `JwtPayload` does not describe the payloads | A | Declare `clientId?: string`; type-only. Pre-approved. |
+| B46 | `JwtPayload` does not describe the payloads | Done | `clientId` part merged S44 (`f73d1b0`); the `did` question stays open in `tech_debt.md`. |
 | B47 | Starting scores and the 500 maximum | C | Decided; identity seeding is human-decision first, built with B43. |
-| B50 | Two signal handlers, the second kills shutdown | A | One handler set, verifiable by listener counts and an extracted helper. |
+| B50 | Two signal handlers, the second kills shutdown | B | Moved from A by Pam and Claude, S44: the fix needs a decision first (which file owns the signal handlers, and whether shutdown waits with a timeout), and it touches how a scheduler job is stopped before real funds. |
 | D5 | No HS code on products | B | The field and form input exist (`ProductForm.tsx:68`, `:119`, `:160`); the open ask is "required for international", which is a decision. |
 | D6 | Currency layer absent | C | FX design. |
 | D7 | Provider rating field not populated | B | Who prompts, when, and from which write path: a product flow decision. |
@@ -93,11 +105,11 @@ from an earlier session (that is marked "per the item").
 | D18 | v2 Frostr multisig | C | Keys and auth. |
 | D20 | Nostr data load | C | Cross-cutting design. |
 | D23 | Firm quote expired, seller bears the risk | B | Confirmed: no notification code anywhere in `src`. Building even a minimal one is a decision. |
-| D26 | Backend `tsc` output lands at repo root | D | No `packages/tsconfig.json` exists (see "New problems"). The root `outDir` is the backend build. Misdiagnosed. |
+| D26 | Backend `tsc` output lands at repo root | Closed | No `packages/tsconfig.json` exists (see "New problems"). The root `outDir` is the backend build. Misdiagnosed. |
 | D28 | `ownLogistics` is one checkbox for the cart | B | Frontend state and prop change with no test runner; also a checkout-screen UX choice. |
 | D30 | Cart vendor name is a placeholder | B | Still literal at `cart.ts:139`; B17 now works, but making `addToCart` async (or resolving the name at render) is a store-shape decision. |
 | D32 | `keys/` PEM pair at repo root | B | Only Pam can say whether a service references it; checking means reading `.env`, which agents may not do. |
-| D33 | Root `dist/` is stale build output | D | Gitignored (`.gitignore:5`) and regenerable backend build output. Nothing to patch. |
+| D33 | Root `dist/` is stale build output | Closed | Gitignored (`.gitignore:5`) and regenerable backend build output. Nothing to patch. |
 | D34 | Opportunities "Submit quote" resets on refresh | B | The data is available (`logistics.routes.ts:208`–`:246`); the rest is frontend work with no test runner. |
 | D35 | Abandoned checkout leaves open `quote_requests` | B | When to close (cart removal, logout, order, timer) is a flow decision; frontend plus DB writes, no tests. |
 | D38 | ~116 untitled Supabase queries | C | Pam's dashboard. |

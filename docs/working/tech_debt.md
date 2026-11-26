@@ -7,7 +7,7 @@
 
 ## How to use this doc
 
-This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B50, D65, R28**).
+This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B51, D65, R28**).
 
 When an item is fixed, copy its block to `../archive/tech_debt_archive.md` with `✅ Fixed S<N>` and remove it here.
 
@@ -31,11 +31,10 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 |---|---|---|
 | B1 | Logistics payment: two pieces remain | Medium |
 | B4 | Tracking number not shown in buyer shipment UI | Medium |
-| B17 | Buyer product page silently swallows a broken `sdk.identity.getIdentity` call | Low |
 | B20 | RFQ matcher skips its filters for providers with no declared capabilities | High |
 | B21 | Provider registration collects no capability data | High |
 | B22 | Two live vocabularies for provider capability, read inconsistently by different code paths | High (Medium if D44 not built) |
-| B23 | `rangkai-marketplace` has never typechecked clean (15 errors) | Medium |
+| B23 | `rangkai-marketplace` has never typechecked clean (14 errors) | Medium |
 | B24 | Buyer RFQ path converts weight units but not dimensions, and fabricates missing values | High |
 | B25 | Buyer pending endpoint still shows a buyer their expired RFQs | Medium |
 | B26 | Stripe payout pays the seller the whole order total | High |
@@ -56,6 +55,7 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B46 | `JwtPayload.did` is declared but no signing code sets it (`clientId` fixed S44) | Low |
 | B47 | Reputation starting scores and the 500 maximum disagree with the formula | Medium |
 | B50 | SIGTERM and SIGINT each run two handlers, and the entry point's exits the process before the graceful close finishes | Low-Medium |
+| B51 | Neither Next app (`rangkai-marketplace`, `logistics-marketplace`) has a test runner | Medium |
 | D5 | No HS code on products | Medium-High |
 | D6 | Currency layer absent | Medium |
 | D7 | Provider rating field exists but isn't populated | Medium |
@@ -70,11 +70,9 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | D18 | v2 Frostr 2-of-3 multisig auth | v2 |
 | D20 | Nostr data load management | Cross-cutting |
 | D23 | Seller notification: firm quote expired → auto-converted to estimated, seller bears price risk | Low-Medium |
-| D26 | Backend package's `tsc` output lands at repo root, not inside `packages/` | Low |
 | D28 | `ownLogistics` is one checkbox for the whole cart — breaks with 2+ vendors | Low |
 | D30 | Cart items carry a hardcoded "Vendor" placeholder name, never populated | Medium |
 | D32 | `keys/` folder at repo root contains generated PEM key pair from early identity setup | Low |
-| D33 | `dist/` folder at repo root is stale backend build output | Low |
 | D34 | Opportunities page "Submit quote" button resets on refresh | Low |
 | D35 | Abandoned checkout leaves open `quote_requests` rows behind | Medium |
 | D38 | Supabase SQL editor has accumulated ~116 untitled test queries | Low |
@@ -147,12 +145,6 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 **Priority:** Medium. Buyer-facing bug, makes the buyer experience feel incomplete.
 **Status:** 🟡 Code verified S37. `mapDatabaseToOrder` correctly maps `tracking_number`, `markAsShipped` correctly writes it, and the order detail page correctly renders it when present. No shipped orders exist in DB to test against — all 10 orders are `payment_pending` or `paid`. Needs end-to-end shipping test once an order reaches `shipped` status.
 
-### B17. Buyer product page silently swallows a broken `sdk.identity.getIdentity` call
-**What:** `getVendorIdentity()` in `products.ts` try/catches `sdk.identity.getIdentity()`, returning null on failure — which is why the page never visibly broke from this before. **Confirmed S33, post-B18-fix:** the error persisted even after `packages` build was cleaned, `packages/sdk` rebuilt, and the stale `node_modules` copy force-reinstalled (D25's workaround). Same shape as D22 — this is a real missing/misnamed method on `IdentityModule`, not a stale-build symptom.
-**Where:** `rangkai-marketplace/lib/api/products.ts` `getVendorIdentity()`; `packages/sdk/src/modules/identity.ts` (not yet viewed — need to see it to confirm the correct method name, same way D22 was resolved by viewing `catalog.ts`).
-**Fix:** View `packages/sdk/src/modules/identity.ts`, find the real method name (or confirm it needs adding), fix the call site.
-**Priority:** Low — degrades gracefully (D30's cart-vendor-name issue is the visible symptom that made this worth fixing sooner rather than later, but nothing crashes).
-
 ### B20. RFQ matcher skips its filters for providers with no declared capabilities
 **What:** `/logistics/opportunities` treats empty `routes` or `incoterms_supported` as "skip this filter", so a provider that declared nothing sees every open RFQ. Weight bounds have no such guard: `weight_min_kg` / `weight_max_kg` apply whenever they are non-null, so a wrong weight silently drops an RFQ from a provider's pool (SatsFleet's 0.1 kg floor drops any RFQ whose weight arrived as 0).
 Providers with declared capabilities are filtered correctly: on 2026-10-21 BitHaul (routes MY→SG, incoterms DAP/DDP) was shown 6 of 8 open RFQs and correctly denied the MY→MY and MY→DE ones. Every provider who registers through the UI starts fully blank (B21), so behaviour differs from provider to provider. The incentive is inverted: a provider who declares its capabilities is the only kind that can be filtered out, while a blank one sees everything.
@@ -180,17 +172,16 @@ Data-level symptom already present: SatsFleet's `service_regions` (MY, SG, US, C
 **Fix:** Pick canonical (`routes`/`modes`), migrate `searchProviders` onto it, derive or drop the deprecated columns. Do this before any capability filtering is built on top.
 **Priority:** High if D44 is built, Medium otherwise.
 
-### B23. `rangkai-marketplace` has never typechecked clean (15 errors)
-**What:** `npx tsc --noEmit` in `rangkai-marketplace` reports 15 errors. The app runs anyway because Next dev skips typechecking. Breakdown (S42):
+### B23. `rangkai-marketplace` has never typechecked clean (14 errors)
+**What:** `npx tsc --noEmit` in `rangkai-marketplace` reports 14 errors (15 until B17 was fixed in S44). The app runs anyway because Next dev skips typechecking. Breakdown (S42, B17 line removed S44):
 - 5: the SDK does not export `SearchFilters` (×3), `SearchResultItem`, `Review`
 - 3: `FilterSidebar.tsx`, implicit `any` on three filter callbacks
 - 3: `ProductForm.tsx` 144/145/161, SDK `Product` vs the local `FormData` type
 - 2: `LogisticsProviderSelector.tsx`, `provider_id` / `order_id` are `string | null` in the SDK type (S38 made them nullable for seller estimates)
-- 1: `lib/api/auth.ts:56`, `email` is not in `RegisterIdentityRequest`
-- 1: `lib/api/products.ts:155`, `getIdentity` does not exist (B17)
+- 1: `lib/api/auth.ts:56`, `email` is not in `RegisterIdentityRequest`. TypeScript reports only the first excess property, so the same `register` call (`password`, `contactInfo`, `metadata`) probably also fails the type; expect the count to rise by up to three once `email` is dealt with, and check before treating that as a regression.
 **Where:** `rangkai-marketplace` (full list: `npx tsc --noEmit > tsc.txt 2>&1`).
-**Fix:** Clear the 15, then add `tsc --noEmit` to a pre-commit or CI step for every package so it cannot recur.
-**Priority:** Medium. 15 is the baseline: more means something broke.
+**Fix:** Clear the 14, then add `tsc --noEmit` to a pre-commit or CI step for every package so it cannot recur.
+**Priority:** Medium. 14 is the baseline (S44): more means something broke.
 
 ### B24. Buyer RFQ path converts weight units but not dimensions, and fabricates missing values
 **What:** `POST /logistics/quote-requests/buyer` derives shipment data server-side from the product row. It handles weight units correctly (kg/lb/g branches), but reads dimensions raw with no unit check at all — `logistics.dimensions?.length || 1`. Products store the seller's chosen display unit, so a seller who entered inches has those numbers filed as centimetres. A 12×8×6 in carton becomes 12×8×6 cm: an 84 kg volumetric shipment quoted as 0.1 kg.
@@ -234,7 +225,7 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **What:** Matching is `ILIKE '%text%'`. `search()` fetches all matches, runs three more queries per row, scores in JavaScript and paginates last. Search is a launch requirement (S44: Postgres full-text search with proper ranking).
 **Where:** `src/core/layer1-catalog/search.service.ts` (lines 25 to 64, 197, 276 to 372); the `product_index` table and its trigger `trigger_sync_product_to_index`.
 **Fix:** A `tsvector` column with GIN index, `websearch_to_tsquery` with `ts_rank` and field weights, filtering, vendor join and pagination in one database function. Keep the response shape. Facts checked in the live database (S44): no `search_vector` column; the only text index is on `name` with the English dictionary; the index holds no full description, Incoterm, ships-to or seller country. The trigger `trigger_sync_product_to_index` must be extended too. Use a non-English-specific dictionary.
-**Note (S45):** B30's `buildTextSearchFilter()` in `search.service.ts` is the interim safe text filter. Remove it when this replaces the text match.
+**Note (S44):** B30's `buildTextSearchFilter()` in `search.service.ts` is the interim safe text filter. Remove it when this replaces the text match.
 **Priority:** High, launch blocker.
 
 ### B31. Payout routes need only a login, and take the destination from the request
@@ -344,6 +335,12 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Fix:** One handler set, in the entry point or in `index.ts`, with the other removed, and the handler waiting for the HTTP server and the WebSocket manager before exiting.
 **Priority:** Low-Medium for now; **before real funds** it matters more, because the entry point's immediate exit can cut a scheduler job (a payout) in the middle of its run. Found S44 while checking that nothing relies on the heartbeat timer to keep the process alive (B49). Reported, not fixed.
 
+### B51. Neither Next app has a test runner
+**What:** `rangkai-marketplace` and `logistics-marketplace` have no jest config and no test files, so a frontend fix can only be checked by `tsc`, which does not see behaviour. Found by the S44 triage (`working/triage.md`): the frontend items it names (D28, D30, D34, D35, R22) sit in class B for that reason alone.
+**Where:** both app folders (`package.json`, a new `jest.config`, a setup file).
+**Fix:** Add jest with `next/jest` and `@testing-library/react` to each app, plus one smoke test per app that renders a real component, so the runner is proven to work. Wire each into that app's `npm test`. Do not change any app behaviour in the same branch. Report the new `tsc` and test baselines.
+**Priority:** Medium. It unlocks the frontend items for the agent with real evidence. Approved by Pam, S44; pre-approved for stage 2.
+
 ### D5. No HS code on products
 **What:** Required for international shipping.
 **Fix:** Add `hs_code: string` field. v1: free-text required for international products. v2: auto-suggest from product description.
@@ -382,7 +379,7 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 
 ### D14. BitcoinService instantiation pattern is inconsistent
 **What:** Routes create `new BitcoinService(req.supabase, ...)` per request. Scheduler injects a single instance. Redundant wallet derivation work, cached BTC price not shared.
-**Where:** `src/api/routes/bitcoin.routes.ts` (3 places), `src/api/scheduler.ts`
+**Where (checked S44 at `678e8a6`):** `new BitcoinService(` in `src/api/routes/bitcoin.routes.ts` (lines 79, 139, 238, 328), `src/api/routes/order.routes.ts` (749) and `src/core/layer2-transaction/payment-router.service.ts` (43); the scheduler builds its own instance at `src/api/scheduler.ts:176`. Six sites in all, not three.
 **Fix:** Singleton or DI pattern — instantiate once at server startup.
 **Priority:** Low — performance/cleanliness, not correctness.
 
@@ -427,12 +424,6 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Fix:** Depends on whether a notification system already exists. **Open question for Pam: does one exist that I haven't seen yet?** If not, this needs its own minimal system (even just a `notifications` table + unread badge) before this specific reminder can be built.
 **Priority:** Low-Medium. Doesn't block L14's display logic — the risk sits quietly on the seller's side either way — but worth not leaving open long, it's a trust issue.
 
-### D26. Backend package's `tsc` output lands at repo root, not inside `packages/`
-**What:** `packages/`'s `tsconfig.json` has `outDir` configured such that `npm run build` writes compiled output to `C:\Users\chris\marketplace-protocol\dist\` (repo root) rather than `packages/dist/`. Only noticed S33 because this was the first time that build succeeded all session (see B18) — first time `tsc` actually wrote anything. Purely a build-output location surprise, not a functional bug.
-**Where:** `packages/tsconfig.json` (`outDir` / `rootDir` settings — not yet viewed to confirm the exact misconfiguration).
-**Fix:** Set `outDir` to a path scoped inside `packages/` (e.g. `packages/dist`) so build artifacts don't leak into the repo root, where they could accidentally get committed or confused with `packages/sdk`'s separate `dist/`.
-**Priority:** Low. Cosmetic/organizational, not causing any functional issue currently.
-
 ### D28. `ownLogistics` is one checkbox for the whole cart — breaks with 2+ vendors
 **What:** `checkout/page.tsx`'s "I'll arrange my own logistics" checkbox is single, cart-wide state. Checkout creates one order per vendor, so a buyer with 2+ vendors in cart has no way to choose seller-shipping for one and own-logistics for another — it's all-or-nothing across every order the checkout submits.
 **Where:** `rangkai-marketplace/app/checkout/page.tsx` (single `ownLogistics` state), `lib/api/cart.ts` (`createOrdersFromCart` passes the same `ownLogistics` value to every vendor's order).
@@ -450,13 +441,8 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **What:** `C:\Users\chris\marketplace-protocol\keys\` contains `private.pem` and `public.pem` generated 19/10/2025. Not committed (correctly covered by `keys/` and `*.pem` in `.gitignore`), but the folder is sitting in the working tree with no cleanup plan.
 **Where:** `C:\Users\chris\marketplace-protocol\keys\`
 **Fix:** Confirm these keys are no longer needed (check whether any `.env` or service references them). If unused, delete the folder. If still needed, document what they're for in a comment in `.env.example`.
+**S44 decision:** Pam agreed to delete the folder as local housekeeping; she checks `.env` and the services first, then deletes it herself (agents may not read `.env`). Close this item when she confirms.
 **Priority:** Low. Not a security risk (gitignored), but mystery key material in a repo root is worth understanding.
-
-### D33. `dist/` folder at repo root is stale backend build output
-**What:** `C:\Users\chris\marketplace-protocol\dist\` appeared after B18 was fixed in S33 and the backend `packages/` build ran successfully for the first time. This is the D26 symptom — `packages/tsconfig.json` writes output to repo root instead of inside `packages/`. Correctly covered by `dist/` in `.gitignore`, so it won't be committed.
-**Where:** `C:\Users\chris\marketplace-protocol\dist\`, `packages/tsconfig.json`.
-**Fix:** Fix `outDir` in `packages/tsconfig.json` to write inside `packages/` (see D26). Then delete the root `dist/` folder. Safe to delete now — it's just compiled output, always regenerable with `npm run build`.
-**Priority:** Low. Cosmetic, not causing any functional issue. Bundle with D26 when that gets scheduled.
 
 ### D34. Opportunities page "Submit quote" button resets on refresh
 **What:** The submitted state is local React state, so after a page refresh a provider can submit again. The backend blocks a duplicate while the earlier quote is still pending, but not once it has been accepted or rejected. (The other half of D34, wrong provider loaded, was fixed S36.)

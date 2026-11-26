@@ -44,7 +44,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 1. The fix is limited to the item. No unrelated cleanup.
 2. A unit test fails before and passes after, and it runs with `npm test`.
-3. `npx tsc --noEmit` shows no new errors. Baselines today: 0 at the root and 15 in `rangkai-marketplace` (B23). `npm test` baseline today: 4 suites, 38 tests passed, none failing. Single test files now exit on their own (B49).
+3. `npx tsc --noEmit` shows no new errors. Baselines today (S44, `678e8a6`): 0 at the root and 14 in `rangkai-marketplace` (B23). `npm test` baseline today: 5 suites, 40 tests passed, none failing. Single test files now exit on their own (B49).
 4. You say what you could not check.
 5. The `tech_debt.md` entry is updated in the same branch: the item's block is moved to `docs/archive/tech_debt_archive.md` with `**Status:** ✅ Fixed S<number>.` and a one-line summary, the index row is removed, the "tails" line is correct. New problems you found become new items with the next free ID.
 6. You deliver a patch (`git format-patch`) and a report. Pam reads the patch. Say how it applies: Pam merges the branch from the worktree, and a multi-commit patch needs `git am`, not `git apply`. Test the patch in a throwaway clone before you say it applies.
@@ -64,7 +64,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 |---|---|---|
 | 1 | Pam names the item. You propose a patch. | B37, B39 |
 | 2 | Same, and you also update `tech_debt.md` and the archive in the patch | Start here once an item at Level 1 has passed review |
-| 3 | You may choose a low-risk item yourself, from the pre-approved list only (stage 2, granted by Pam 26 Nov S44) | **Pre-approved list: B46 (the `clientId` part only), B17.** The list grows when Pam approves the triage (`docs/working/triage.md`) |
+| 3 | You may choose a low-risk item yourself, from the pre-approved list only (stage 2, granted by Pam 26 Nov S44) | **Pre-approved list: B44, D57, B51** (B46 and B17 are done). Pam approved this list on 26 Nov S44 from the triage (`docs/working/triage.md`); it grows only when Pam adds to it |
 | Human decision first | Do not start without Pam | B26 to B28, B31 to B35, **B42, B43, B45 and B47** (reputation design: decided in principle S44; Pam and Claude split it into branches before an agent starts), D58, D59, D60, D62, D63, anything touching a key, a payout or the council |
 
 Anything not listed: ask.
@@ -129,7 +129,7 @@ The aim is an agent that gets it right without being checked every time. Indepen
 | Stage | What the agent may do | What checks it | Moves up when |
 |---|---|---|---|
 | 1. Named item | Pam names the item; the agent proposes a patch | A second reviewer (Claude) reads the code; Pam merges | 3 clean patches in a row |
-| 2. Pick from a list (now, granted by Pam 26 Nov S44) | Pam gives a list of pre-approved Level 1 items; the agent picks one, says which in the channel, then works it | Same review, Pam merges | 5 clean patches in a row at stages 1 and 2 together, and CI exists (see open items) |
+| 2. Pick from a list (now, granted by Pam 26 Nov S44) | Pam gives a list of pre-approved Level 1 items; the agent picks one, says which in the channel, then works it | Same review, Pam merges | 5 clean patches in a row at stage 2, and CI exists (see open items) |
 | 3. Light review | For docs-only and test-only branches, Pam merges after reading the report; no second review. Code changes still get the second review | CI (`npm test`, `tsc` against baselines, secret scan) plus Pam | 5 more clean code patches |
 | 4. Trusted for low-risk code | Level 1 code items with a second review only on request; Pam still runs every merge and push | CI plus Pam's reading of the report | Not decided. Revisit after stage 3 |
 
@@ -152,8 +152,11 @@ Pam can move the agent down or up at any time.
 | B38 | Yes | |
 | B48 | Yes | |
 | B49 | Yes | |
+| triage-backlog | Yes | |
+| B46 | Yes | |
+| B17 | Yes | |
 
-Clean patches in a row: 3 (B38, B48, B49). Stage: 2, granted by Pam on 26 Nov S44. The next step up needs 5 more clean patches and CI.
+Clean patches in a row: 6 (B38, B48, B49, triage-backlog, B46, B17); 3 of them since stage 2 was granted by Pam on 26 Nov S44. The next step up needs 5 clean patches at stage 2 and CI, so 2 more and CI.
 
 ## Open items for this brief
 
