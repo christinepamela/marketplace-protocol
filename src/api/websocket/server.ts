@@ -323,6 +323,13 @@ export class WebSocketManager {
         socket.ping();
       });
     }, 30000); // Every 30 seconds
+
+    // B49: the heartbeat must not be the reason the process stays alive.
+    // In production the listening HTTP server holds the process open, and
+    // `shutdown()` clears this interval; without unref, merely importing
+    // `src/api/index.ts` is enough to keep a test worker running after the
+    // tests finish (and a script that only imports the app would never exit).
+    this.heartbeatInterval.unref();
   }
 
   /**
