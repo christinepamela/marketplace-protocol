@@ -62,9 +62,9 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 | Level | Meaning | Items today |
 |---|---|---|
-| 1 | Pam names the item. You propose a patch. | B37, B39, B17 |
+| 1 | Pam names the item. You propose a patch. | B37, B39 |
 | 2 | Same, and you also update `tech_debt.md` and the archive in the patch | Start here once an item at Level 1 has passed review |
-| 3 | You may choose a low-risk item yourself | Not yet |
+| 3 | You may choose a low-risk item yourself, from the pre-approved list only (stage 2, granted by Pam 26 Nov S44) | **Pre-approved list: B46 (the `clientId` part only), B17.** The list grows when Pam approves the triage (`docs/working/triage.md`) |
 | Human decision first | Do not start without Pam | B26 to B28, B31 to B35, **B42, B43, B45 and B47** (reputation design: decided in principle S44; Pam and Claude split it into branches before an agent starts), D58, D59, D60, D62, D63, anything touching a key, a payout or the council |
 
 Anything not listed: ask.
@@ -104,6 +104,22 @@ Anything not listed: ask.
 - **Done wrong:** nothing that counts. The slip (creating its channel and worktree before saying so) is now allowed, see the rule above.
 - **Lesson:** making a suite load can reveal tests that were never running. Report what they show; do not fix it in the same branch.
 
+## Stage 2: how to pick
+
+- Pick only from the pre-approved list (the Level 3 row above). Say which item you picked, in its channel, before you start.
+- One item at a time. Everything else in this brief still applies.
+- If the item turns out to need a decision, a database check or a change to money, identity, keys or governance, stop and report. Do not decide it yourself.
+- A picked item still goes through the same review and merge. Stage 2 changes who chooses, not who checks.
+
+## Classifying open items (triage)
+
+- **A, agent-safe:** the entry's Fix is concrete; the change is code, tests, types, UI or docs; it does not touch money movement, escrow, payout, identity storage, keys or governance; no schema or database change; no product or design decision; verifiable by unit tests or `tsc` without live access.
+- **B, needs a decision or a database check first:** clear once Pam decides or runs a read-only query. State the question.
+- **C, Pam only:** money, identity, keys, governance, the council, schema or migrations, legal, anything marked "Pam decides", roadmap and v2 items.
+- **D, verify first:** may already be fixed or out of date. Check it against the code and report.
+
+A triage is a proposal. Pam approves the A list; only approved A items may be picked at stage 2.
+
 ## How an agent earns independence
 
 The aim is an agent that gets it right without being checked every time. Independence is earned by a record of clean patches, and lost when a rule is broken. Pam decides every step up; the agent never moves itself.
@@ -112,8 +128,8 @@ The aim is an agent that gets it right without being checked every time. Indepen
 
 | Stage | What the agent may do | What checks it | Moves up when |
 |---|---|---|---|
-| 1. Named item (now) | Pam names the item; the agent proposes a patch | A second reviewer (Claude) reads the code; Pam merges | 3 clean patches in a row |
-| 2. Pick from a list | Pam gives a list of pre-approved Level 1 items; the agent picks one, says which in the channel, then works it | Same review, Pam merges | 5 clean patches in a row at stages 1 and 2 together, and CI exists (see open items) |
+| 1. Named item | Pam names the item; the agent proposes a patch | A second reviewer (Claude) reads the code; Pam merges | 3 clean patches in a row |
+| 2. Pick from a list (now, granted by Pam 26 Nov S44) | Pam gives a list of pre-approved Level 1 items; the agent picks one, says which in the channel, then works it | Same review, Pam merges | 5 clean patches in a row at stages 1 and 2 together, and CI exists (see open items) |
 | 3. Light review | For docs-only and test-only branches, Pam merges after reading the report; no second review. Code changes still get the second review | CI (`npm test`, `tsc` against baselines, secret scan) plus Pam | 5 more clean code patches |
 | 4. Trusted for low-risk code | Level 1 code items with a second review only on request; Pam still runs every merge and push | CI plus Pam's reading of the report | Not decided. Revisit after stage 3 |
 
@@ -134,8 +150,10 @@ Pam can move the agent down or up at any time.
 | B41 | Yes | |
 | B40 | No | Searched `src/` only and missed the signing helper's 17 callers in `scripts/`; corrected well after review |
 | B38 | Yes | |
+| B48 | Yes | |
+| B49 | Yes | |
 
-Clean patches in a row: 1 (needs 3 for stage 2). Stage: 1.
+Clean patches in a row: 3 (B38, B48, B49). Stage: 2, granted by Pam on 26 Nov S44. The next step up needs 5 more clean patches and CI.
 
 ## Open items for this brief
 
