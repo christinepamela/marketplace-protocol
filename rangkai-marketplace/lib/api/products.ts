@@ -152,7 +152,7 @@ export async function getVendorReputation(vendorDid: string) {
  */
 export async function getVendorIdentity(vendorDid: string) {
   try {
-    const identity = await sdk.identity.getIdentity(vendorDid)
+    const identity = await sdk.identity.getByDid(vendorDid)
     return identity
   } catch (error) {
     console.error('Failed to fetch vendor identity:', error)
