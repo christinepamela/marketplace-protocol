@@ -50,7 +50,6 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B39 | `getSuggestions` has no caller | Low |
 | B42 | `calculateAverageRating` counts only revealed ratings, so a new rating can write 0 | Low-Medium |
 | B43 | The rating path writes `score` directly instead of going through the reputation formula | Medium-High |
-| B44 | The rating path changes a reputation row without updating `last_updated` | Low |
 | B45 | A reputation failure after a rating is saved returns an error but keeps the rating | Low-Medium |
 | B46 | `JwtPayload.did` is declared but no signing code sets it (`clientId` fixed S44) | Low |
 | B47 | Reputation starting scores and the 500 maximum disagree with the formula | Medium |
@@ -301,12 +300,6 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 6. A recompute from the stored ratings, orders and disputes, so a missed update (B45) can be repaired.
 7. Display (separate branches): the badge and search show the breakdown, the identity type and "New".
 **Priority:** Medium-High.
-
-### B44. The rating path changes a reputation row without updating `last_updated`
-**What:** `updateReputationFromRating` writes `score` and `metrics` and leaves `last_updated` alone. The column exists (confirmed S44) and is set when the row is created (`identity.service.ts:380`, `last_updated: new Date()`), and `ReputationService.saveReputation` sets it on every recalculation (`reputation.service.ts:398`). So after a rating the score moves while the `lastUpdated` the API returns (`reputation.service.ts:417`) still reports the creation or last recalculation time. This only becomes visible now: until B41 was fixed the update reached no row (B41 fixed S44).
-**Where:** `src/core/layer4-trust/rating.service.ts` (`updateReputationFromRating`).
-**Fix:** Set `last_updated` in the same update, or confirm that a database trigger already does it (for example `moddatetime` on `reputations`) and close this as not a bug. Not checked: triggers are database state, and this branch had no live access.
-**Priority:** Low. Found while fixing B41; reported, not fixed.
 
 ### B45. A reputation failure after a rating is saved returns an error but keeps the rating
 **What:** `submitRating` stores the rating (the insert and update on `ratings`) and only then calls `updateReputationFromRating` (`rating.service.ts:120`). Since B41, that call throws when the reputation select or update fails with anything other than "no row". The route passes the error on (`rating.routes.ts:81`, `next(error)`), so the caller sees a failure, but the rating is already saved, and a retry is refused with "has already rated this order". The user is told it failed when it half worked.

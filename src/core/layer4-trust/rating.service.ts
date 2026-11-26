@@ -306,6 +306,11 @@ export class RatingService {
           ...reputation.metrics,
           average_rating: await this.calculateAverageRating(userDid),
         },
+        // A change to the row moves `last_updated`, the way `saveReputation`
+        // does (`reputation.service.ts:398`, B44). Before this the score moved
+        // while the `lastUpdated` the API returns stayed at the creation or last
+        // recalculation time.
+        last_updated: new Date(),
       })
       .eq('vendor_did', userDid);
 

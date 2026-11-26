@@ -395,3 +395,37 @@ describe('B41 the reputation write uses a column the table has', () => {
     expect(state.reputations[0].score).toBe(300);
   });
 });
+
+describe('B44 a rating stamps last_updated', () => {
+  // The stub row is created with a fixed past timestamp. Before the fix the
+  // score moved and this stayed there, so the `lastUpdated` the API returns
+  // (`reputation.service.ts:417`) kept reporting the creation time.
+  const SEEDED = new Date('2026-11-20T00:00:00.000Z').getTime();
+
+  it('moves last_updated in the same update that moves the score', async () => {
+    const before = Date.now();
+    const state = await rateVendor(300, 5);
+    const after = Date.now();
+
+    const written = new Date(state.reputations[0].last_updated).getTime();
+
+    expect(state.reputations[0].score).toBe(301);
+    expect(written).toBeGreaterThan(SEEDED);
+    expect(written).toBeGreaterThanOrEqual(before);
+    expect(written).toBeLessThanOrEqual(after);
+  });
+
+  it('does not stamp last_updated when the update fails', async () => {
+    const state = makeState(300);
+    const service = new RatingService(
+      createStubClient(state, {
+        reputationUpdateError: { code: '42703', message: 'boom' },
+      })
+    );
+
+    await expect(
+      service.submitRating({ ...BUYER_RATING, rating: 5 })
+    ).rejects.toThrow(/Failed to update reputation/);
+    expect(new Date(state.reputations[0].last_updated).getTime()).toBe(SEEDED);
+  });
+});
