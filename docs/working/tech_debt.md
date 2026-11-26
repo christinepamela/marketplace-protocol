@@ -72,7 +72,6 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | D23 | Seller notification: firm quote expired → auto-converted to estimated, seller bears price risk | Low-Medium |
 | D28 | `ownLogistics` is one checkbox for the whole cart — breaks with 2+ vendors | Low |
 | D30 | Cart items carry a hardcoded "Vendor" placeholder name, never populated | Medium |
-| D32 | `keys/` folder at repo root contains generated PEM key pair from early identity setup | Low |
 | D34 | Opportunities page "Submit quote" button resets on refresh | Low |
 | D35 | Abandoned checkout leaves open `quote_requests` rows behind | Medium |
 | D38 | Supabase SQL editor has accumulated ~116 untitled test queries | Low |
@@ -436,13 +435,6 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Where:** `rangkai-marketplace/lib/stores/cart.ts` `addToCart()`.
 **Fix:** Blocked on B17 (`sdk.identity.getIdentity` doesn't exist) — real fix is `addToCart()` fetching the vendor's actual display name via identity lookup when an item is added, which needs B17 resolved first. Short-term workaround shipped S33: fall back to a DID-suffix label when `vendorName === 'Vendor'`, so vendors are at least visually distinguishable in the meantime.
 **Priority:** Medium — cosmetic today with 2 test vendors, but genuinely confusing at any real scale.
-
-### D32. `keys/` folder at repo root contains generated PEM key pair from early identity setup
-**What:** `C:\Users\chris\marketplace-protocol\keys\` contains `private.pem` and `public.pem` generated 19/10/2025. Not committed (correctly covered by `keys/` and `*.pem` in `.gitignore`), but the folder is sitting in the working tree with no cleanup plan.
-**Where:** `C:\Users\chris\marketplace-protocol\keys\`
-**Fix:** Confirm these keys are no longer needed (check whether any `.env` or service references them). If unused, delete the folder. If still needed, document what they're for in a comment in `.env.example`.
-**S44 decision:** Pam agreed to delete the folder as local housekeeping; she checks `.env` and the services first, then deletes it herself (agents may not read `.env`). Close this item when she confirms.
-**Priority:** Low. Not a security risk (gitignored), but mystery key material in a repo root is worth understanding.
 
 ### D34. Opportunities page "Submit quote" button resets on refresh
 **What:** The submitted state is local React state, so after a page refresh a provider can submit again. The backend blocks a duplicate while the earlier quote is still pending, but not once it has been accepted or rejected. (The other half of D34, wrong provider loaded, was fixed S36.)

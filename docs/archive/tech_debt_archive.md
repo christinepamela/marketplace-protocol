@@ -556,3 +556,10 @@ Move it under the same number with `**Status:** ✅ Fixed S<session number>.` an
 **Fix:** Fix `outDir` in `packages/tsconfig.json` to write inside `packages/` (see D26). Then delete the root `dist/` folder. Safe to delete now — it's just compiled output, always regenerable with `npm run build`.
 **Priority:** Low. Cosmetic, not causing any functional issue. Bundle with D26 when that gets scheduled.
 **Status:** ✅ Closed S44, misdiagnosed with D26. Root `dist/` is the backend build output, gitignored (`.gitignore:5`) and regenerable with the build. Nothing to patch; delete it locally if you want it gone.
+
+### D32. `keys/` folder at repo root contains generated PEM key pair from early identity setup
+**What:** `C:\Users\chris\marketplace-protocol\keys\` contains `private.pem` and `public.pem` generated 19/10/2025. Not committed (correctly covered by `keys/` and `*.pem` in `.gitignore`), but the folder is sitting in the working tree with no cleanup plan.
+**Where:** `C:\Users\chris\marketplace-protocol\keys\`
+**Fix:** Confirm these keys are no longer needed (check whether any `.env` or service references them). If unused, delete the folder. If still needed, document what they're for in a comment in `.env.example`.
+**Priority:** Low. Not a security risk (gitignored), but mystery key material in a repo root is worth understanding.
+**Status:** ✅ Closed S44. Pam searched `.env` for `private.pem`, `public.pem` and `keys/` and found nothing; `git grep` on `caeaede` outside `docs/` finds only `scripts/generate-keys.ts`, which writes the two files (lines 31 and 32); nothing reads them. The folder was gitignored local key material from the early identity setup, deleted by Pam as local housekeeping.
