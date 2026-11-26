@@ -44,7 +44,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 1. The fix is limited to the item. No unrelated cleanup.
 2. A unit test fails before and passes after, and it runs with `npm test`.
-3. `npx tsc --noEmit` shows no new errors. Baselines today: 0 at the root and 15 in `rangkai-marketplace` (B23). `npm test` baseline today: 3 suites, 37 tests passed, none failing. Run a single test file with a timeout (for example `timeout 60`), because the API suite can hang without `--forceExit` (B49).
+3. `npx tsc --noEmit` shows no new errors. Baselines today: 0 at the root and 15 in `rangkai-marketplace` (B23). `npm test` baseline today: 4 suites, 38 tests passed, none failing. Single test files now exit on their own (B49).
 4. You say what you could not check.
 5. The `tech_debt.md` entry is updated in the same branch: the item's block is moved to `docs/archive/tech_debt_archive.md` with `**Status:** ✅ Fixed S<number>.` and a one-line summary, the index row is removed, the "tails" line is correct. New problems you found become new items with the next free ID.
 6. You deliver a patch (`git format-patch`) and a report. Pam reads the patch. Say how it applies: Pam merges the branch from the worktree, and a multi-commit patch needs `git am`, not `git apply`. Test the patch in a throwaway clone before you say it applies.
@@ -62,7 +62,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 | Level | Meaning | Items today |
 |---|---|---|
-| 1 | Pam names the item. You propose a patch. | B49, B37, B39, B17 |
+| 1 | Pam names the item. You propose a patch. | B37, B39, B17 |
 | 2 | Same, and you also update `tech_debt.md` and the archive in the patch | Start here once an item at Level 1 has passed review |
 | 3 | You may choose a low-risk item yourself | Not yet |
 | Human decision first | Do not start without Pam | B26 to B28, B31 to B35, **B42, B43, B45 and B47** (reputation design: decided in principle S44; Pam and Claude split it into branches before an agent starts), D58, D59, D60, D62, D63, anything touching a key, a payout or the council |

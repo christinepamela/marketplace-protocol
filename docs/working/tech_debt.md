@@ -7,7 +7,7 @@
 
 ## How to use this doc
 
-This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B49, D65, R28**).
+This file holds only what is still open. Check it before starting work, and add an item the same turn something is deferred. Check the highest ID in use before numbering a new one (tails: **B50, D65, R28**).
 
 When an item is fixed, copy its block to `../archive/tech_debt_archive.md` with `✅ Fixed S<N>` and remove it here.
 
@@ -55,7 +55,7 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B45 | A reputation failure after a rating is saved returns an error but keeps the rating | Low-Medium |
 | B46 | `JwtPayload` does not describe the payloads that are signed (`clientId` missing, `did` never set) | Low |
 | B47 | Reputation starting scores and the 500 maximum disagree with the formula | Medium |
-| B49 | Importing the API starts a WebSocket heartbeat timer, so `npm test` force-exits and single-file runs hang | Low |
+| B50 | SIGTERM and SIGINT each run two handlers, and the entry point's exits the process before the graceful close finishes | Low-Medium |
 | D5 | No HS code on products | Medium-High |
 | D6 | Currency layer absent | Medium |
 | D7 | Provider rating field exists but isn't populated | Medium |
@@ -337,11 +337,11 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Fix:** Pam decides. (a) Seed new rows at the formula's blank-record value and drop the separate trust score; or (b) keep the trust score as its own number used for something else, and say what. And decide whether `maxScore` stays 500 (a ceiling the formula does not reach) or becomes 420. Decide before the B43 recalculation is built.
 **Priority:** Medium. Found S44 while explaining reputation; not fixed.
 
-### B49. Importing `src/api/index.ts` starts a WebSocket heartbeat timer that outlives the caller
-**What:** The module calls `initializeWebSocket(httpServer)` at import (`index.ts:148`), which constructs `WebSocketManager`, and its constructor calls `startHeartbeat()` (`websocket/server.ts:52`), a 30-second `setInterval` (`websocket/server.ts:313`) that is never `unref()`ed. Consequences in tests: `npm test` ends with `A worker process has failed to exit gracefully and has been force exited`, and a run of a single test file without `--forceExit` never exits at all (two 300-second hangs in S44). `--detectOpenHandles` reports exactly one handle, that interval. It is not a network call: the HTTP server is created but never listens, no client ever connects, and the interval's body iterates an empty client set. The scheduler is not started at import either: `initializeScheduler` is only called inside `startServer()`.
-**Where:** `src/api/index.ts` (import-time `initializeWebSocket`, and `process.on('SIGTERM'|'SIGINT')` handlers registered at import), `src/api/websocket/server.ts` (`startHeartbeat`, line 313).
-**Fix:** Decided (Pam, 26 Nov, S44): `unref()` the heartbeat interval, so the timer alone no longer keeps the process alive. In production the listening HTTP server keeps the process running, so nothing changes there. Until then every test run of the API suite needs `--forceExit` or hangs, and jest force-exits the worker.
-**Priority:** Low. Found while fixing B38; reported, not fixed.
+### B50. SIGTERM and SIGINT each run two handlers, and the second kills the graceful shutdown
+**What:** `src/api/index.ts` registers `process.on('SIGTERM')` and `process.on('SIGINT')` at import (lines 171 and 172), both calling `shutdown()`: stop the scheduler, `wsManager.shutdown()`, then `httpServer.close()` and `process.exit(0)` from the close callback. The real entry point, `src/api/server.ts` (`npm run start:api`), registers its own `SIGTERM` and `SIGINT` handlers (lines 27 and 32) that log and call `process.exit(0)` immediately. `server.ts` imports `index.ts` on line 12, before those registrations, so index's handler is registered first and Node runs listeners in registration order: the graceful close starts, and the entry point's handler exits the process before the close callback can run. By reading, the "Server closed" log never prints, in-flight requests are cut and WebSocket clients are closed without waiting. Importing the app also leaves a signal handler that can call `process.exit(0)` in a test worker. Not verified at runtime: doing so means sending a signal to a real process, and `server.ts` calls `startServer()`, which starts the scheduler and its database jobs.
+**Where:** `src/api/server.ts` (lines 26 to 34), `src/api/index.ts` (lines 159 to 172).
+**Fix:** One handler set, in the entry point or in `index.ts`, with the other removed, and the handler waiting for the HTTP server and the WebSocket manager before exiting.
+**Priority:** Low-Medium. Found S44 while checking that nothing relies on the heartbeat timer to keep the process alive (B49). Reported, not fixed.
 
 ### D5. No HS code on products
 **What:** Required for international shipping.
