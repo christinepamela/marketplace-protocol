@@ -1,6 +1,6 @@
 # Tech Debt: open items
 
-**Last updated:** 2026-11-25 (Session 44)
+**Last updated:** 2026-11-26 (Session 44)
 **Closed items:** `../archive/tech_debt_archive.md`  |  **Companion docs:** `operations.md`, `troubleshooting.md`
 
 ---
@@ -341,13 +341,13 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 ### B48. The health suite's CORS test expects a header the `cors` package never sends
 **What:** Now that the suite loads (B38), one of its eight tests fails: `health.test.ts:85` expects `access-control-allow-origin` on a plain `GET /health`. `src/api/index.ts:70` configures `cors({ origin: config.corsOrigins, credentials: true, ... })`, and `corsOrigins` is an array (`config.ts`, `CORS_ORIGINS.split(',')`, default `['http://localhost:3001']`). The `cors` package echoes the request's `Origin` back only when it is in the allowed array, and sets no `Access-Control-Allow-Origin` at all when the request carries no `Origin` header; supertest sends none, and a browser never sends a cross-origin CORS request without one either. Probed S44 with a throwaway test, since deleted: no `Origin` gives no header, `Origin: http://localhost:3001` gives `access-control-allow-origin: http://localhost:3001`, `Origin: https://evil.example` gives no header. So the middleware behaves correctly and the expectation, not the app, is wrong.
 **Where:** `src/api/__tests__/health.test.ts` (the CORS block, `should include CORS headers`), `src/api/index.ts` (the `cors()` call), `src/api/core/config.ts` (`corsOrigins`).
-**Fix:** Pam decides. Either the test sends an allowed `Origin` and keeps its assertion, or it asserts the no-header case for a request without one. Do not relax the middleware to make it pass.
+**Fix:** Decided (Pam, 26 Nov, S44): the test sends an allowed `Origin` and keeps its assertion, and a second case shows that a foreign `Origin` gets no header. Do not relax the middleware to make it pass.
 **Priority:** Low. Found while fixing B38; reported, not fixed.
 
 ### B49. Importing `src/api/index.ts` starts a WebSocket heartbeat timer that outlives the caller
 **What:** The module calls `initializeWebSocket(httpServer)` at import (`index.ts:148`), which constructs `WebSocketManager`, and its constructor calls `startHeartbeat()` (`websocket/server.ts:52`), a 30-second `setInterval` (`websocket/server.ts:313`) that is never `unref()`ed. Consequences in tests: `npm test` ends with `A worker process has failed to exit gracefully and has been force exited`, and a run of a single test file without `--forceExit` never exits at all (two 300-second hangs in S44). `--detectOpenHandles` reports exactly one handle, that interval. It is not a network call: the HTTP server is created but never listens, no client ever connects, and the interval's body iterates an empty client set. The scheduler is not started at import either: `initializeScheduler` is only called inside `startServer()`.
 **Where:** `src/api/index.ts` (import-time `initializeWebSocket`, and `process.on('SIGTERM'|'SIGINT')` handlers registered at import), `src/api/websocket/server.ts` (`startHeartbeat`, line 313).
-**Fix:** Pam decides: `unref()` the heartbeat interval, or move `initializeWebSocket` into `startServer()` so importing the module has no side effects. Until then every test run of the API suite needs `--forceExit` or hangs, and jest force-exits the worker.
+**Fix:** Decided (Pam, 26 Nov, S44): `unref()` the heartbeat interval, so the timer alone no longer keeps the process alive. In production the listening HTTP server keeps the process running, so nothing changes there. Until then every test run of the API suite needs `--forceExit` or hangs, and jest force-exits the worker.
 **Priority:** Low. Found while fixing B38; reported, not fixed.
 
 ### D5. No HS code on products

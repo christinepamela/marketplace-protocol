@@ -21,7 +21,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 **Files and git**
 - Work on a branch named `<item id>-<short name>` (for example `b36-rating-cap`), in a separate worktree. Never commit to `main`. Never push. Never merge. Pam runs the merge and push.
-- Do not create files in the repo or in `.git` without saying so first. Delete scratch files before you commit.
+- You may create your own channel, branch, worktree and scratch files without asking, as long as they stay in your own folders and do not touch the project. List what you created in the report, and delete scratch files before you commit. Never write into Pam's own checkout (`C:\Users\chris\marketplace-protocol`) or her `.env`, and never push.
 - One item per branch and one item per channel. If you find another problem, report it. Do not fix it.
 - Commit messages: first line is `<item id>: what it does`. The body says what was wrong, what you changed, how you checked it. End with a `Co-authored-by:` line for yourself.
 - **Session label:** never choose one. Pam gives the label in the brief (for example "S44"); copy it into `Fixed S<N>`, the "Last updated" line and anywhere else a session is named. (B36 first used the wrong label, S46.)
@@ -44,7 +44,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 1. The fix is limited to the item. No unrelated cleanup.
 2. A unit test fails before and passes after, and it runs with `npm test`.
-3. `npx tsc --noEmit` shows no new errors. Baselines today: 0 at the root and 15 in `rangkai-marketplace` (B23).
+3. `npx tsc --noEmit` shows no new errors. Baselines today: 0 at the root and 15 in `rangkai-marketplace` (B23). `npm test` baseline today: 3 suites, 35 tests passed and 1 failing, the CORS test (B48). Run a single test file with a timeout (for example `timeout 60`), because the API suite can hang without `--forceExit` (B49).
 4. You say what you could not check.
 5. The `tech_debt.md` entry is updated in the same branch: the item's block is moved to `docs/archive/tech_debt_archive.md` with `**Status:** ✅ Fixed S<number>.` and a one-line summary, the index row is removed, the "tails" line is correct. New problems you found become new items with the next free ID.
 6. You deliver a patch (`git format-patch`) and a report. Pam reads the patch. Say how it applies: Pam merges the branch from the worktree, and a multi-commit patch needs `git am`, not `git apply`. Test the patch in a throwaway clone before you say it applies.
@@ -62,7 +62,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 | Level | Meaning | Items today |
 |---|---|---|
-| 1 | Pam names the item. You propose a patch. | B37, B39, B17 |
+| 1 | Pam names the item. You propose a patch. | B48, B49, B37, B39, B17 |
 | 2 | Same, and you also update `tech_debt.md` and the archive in the patch | Start here once an item at Level 1 has passed review |
 | 3 | You may choose a low-risk item yourself | Not yet |
 | Human decision first | Do not start without Pam | B26 to B28, B31 to B35, **B42, B43, B45 and B47** (reputation design: decided in principle S44; Pam and Claude split it into branches before an agent starts), D58, D59, D60, D62, D63, anything touching a key, a payout or the council |
@@ -97,6 +97,13 @@ Anything not listed: ask.
 - **Done wrong:** the first report said no site passed `'user'`, from a search of `src/` only. The signing helper and its callers were in `scripts/`.
 - **Lesson:** "no callers" is a claim about the whole repo. Search all of it, and say what the compiler does not cover.
 
+## Worked example: B38 (test environment)
+
+- **Result:** merged as `d691f29` and `b9eab6b`. `npm test` now loads the health suite (35 of 36 tests pass). A root `jest.setup-env.js` supplies fake, test-only environment values.
+- **Done well:** chose the fix that kept the test importing the real app; made every value obviously fake and assigned unconditionally; checked what importing the app really does before working around it (no network, no scheduler, but a heartbeat timer); reported the two findings (B48, B49) instead of fixing them; printed the new file in full; disclosed the one slip.
+- **Done wrong:** nothing that counts. The slip (creating its channel and worktree before saying so) is now allowed, see the rule above.
+- **Lesson:** making a suite load can reveal tests that were never running. Report what they show; do not fix it in the same branch.
+
 ## How an agent earns independence
 
 The aim is an agent that gets it right without being checked every time. Independence is earned by a record of clean patches, and lost when a rule is broken. Pam decides every step up; the agent never moves itself.
@@ -126,8 +133,9 @@ Pam can move the agent down or up at any time.
 | B36 | No | Wrong session label; wording said ratings now moved reputation; patch applied only in part by `git apply` |
 | B41 | Yes | |
 | B40 | No | Searched `src/` only and missed the signing helper's 17 callers in `scripts/`; corrected well after review |
+| B38 | Yes | |
 
-Clean patches in a row: 0 (needs 3 for stage 2). Stage: 1.
+Clean patches in a row: 1 (needs 3 for stage 2). Stage: 1.
 
 ## Open items for this brief
 
