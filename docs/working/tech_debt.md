@@ -55,7 +55,6 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B45 | A reputation failure after a rating is saved returns an error but keeps the rating | Low-Medium |
 | B46 | `JwtPayload` does not describe the payloads that are signed (`clientId` missing, `did` never set) | Low |
 | B47 | Reputation starting scores and the 500 maximum disagree with the formula | Medium |
-| B48 | The health suite's CORS test expects a header the `cors` package never sends without an `Origin` | Low |
 | B49 | Importing the API starts a WebSocket heartbeat timer, so `npm test` force-exits and single-file runs hang | Low |
 | D5 | No HS code on products | Medium-High |
 | D6 | Currency layer absent | Medium |
@@ -337,12 +336,6 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Where:** `layer0-identity/types.ts` (`DEFAULT_TRUST_SCORES`, `DEFAULT_REPUTATION_PARAMS`, `calculateReputationScore`), `layer0-identity/identity.service.ts`.
 **Fix:** Pam decides. (a) Seed new rows at the formula's blank-record value and drop the separate trust score; or (b) keep the trust score as its own number used for something else, and say what. And decide whether `maxScore` stays 500 (a ceiling the formula does not reach) or becomes 420. Decide before the B43 recalculation is built.
 **Priority:** Medium. Found S44 while explaining reputation; not fixed.
-
-### B48. The health suite's CORS test expects a header the `cors` package never sends
-**What:** Now that the suite loads (B38), one of its eight tests fails: `health.test.ts:85` expects `access-control-allow-origin` on a plain `GET /health`. `src/api/index.ts:70` configures `cors({ origin: config.corsOrigins, credentials: true, ... })`, and `corsOrigins` is an array (`config.ts`, `CORS_ORIGINS.split(',')`, default `['http://localhost:3001']`). The `cors` package echoes the request's `Origin` back only when it is in the allowed array, and sets no `Access-Control-Allow-Origin` at all when the request carries no `Origin` header; supertest sends none, and a browser never sends a cross-origin CORS request without one either. Probed S44 with a throwaway test, since deleted: no `Origin` gives no header, `Origin: http://localhost:3001` gives `access-control-allow-origin: http://localhost:3001`, `Origin: https://evil.example` gives no header. So the middleware behaves correctly and the expectation, not the app, is wrong.
-**Where:** `src/api/__tests__/health.test.ts` (the CORS block, `should include CORS headers`), `src/api/index.ts` (the `cors()` call), `src/api/core/config.ts` (`corsOrigins`).
-**Fix:** Decided (Pam, 26 Nov, S44): the test sends an allowed `Origin` and keeps its assertion, and a second case shows that a foreign `Origin` gets no header. Do not relax the middleware to make it pass.
-**Priority:** Low. Found while fixing B38; reported, not fixed.
 
 ### B49. Importing `src/api/index.ts` starts a WebSocket heartbeat timer that outlives the caller
 **What:** The module calls `initializeWebSocket(httpServer)` at import (`index.ts:148`), which constructs `WebSocketManager`, and its constructor calls `startHeartbeat()` (`websocket/server.ts:52`), a 30-second `setInterval` (`websocket/server.ts:313`) that is never `unref()`ed. Consequences in tests: `npm test` ends with `A worker process has failed to exit gracefully and has been force exited`, and a run of a single test file without `--forceExit` never exits at all (two 300-second hangs in S44). `--detectOpenHandles` reports exactly one handle, that interval. It is not a network call: the HTTP server is created but never listens, no client ever connects, and the interval's body iterates an empty client set. The scheduler is not started at import either: `initializeScheduler` is only called inside `startServer()`.
