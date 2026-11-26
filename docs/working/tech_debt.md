@@ -53,7 +53,7 @@ B = broken but shipped. D = deferred or partial. R = roadmap, not v1.
 | B43 | The rating path writes `score` directly instead of going through the reputation formula | Medium-High |
 | B44 | The rating path changes a reputation row without updating `last_updated` | Low |
 | B45 | A reputation failure after a rating is saved returns an error but keeps the rating | Low-Medium |
-| B46 | `JwtPayload` does not describe the payloads that are signed (`clientId` missing, `did` never set) | Low |
+| B46 | `JwtPayload.did` is declared but no signing code sets it (`clientId` fixed S44) | Low |
 | B47 | Reputation starting scores and the 500 maximum disagree with the formula | Medium |
 | B50 | SIGTERM and SIGINT each run two handlers, and the entry point's exits the process before the graceful close finishes | Low-Medium |
 | D5 | No HS code on products | Medium-High |
@@ -325,11 +325,11 @@ Interacts with B20: weight bounds are the one matcher filter with no graceful-de
 **Decision (Pam, 25 Nov, S44):** log and return. The rating counts and stays saved; reputation is recomputed from stored data, so a missed update is repaired later (B43 plan, step 6). Built together with B43.
 **Priority:** Low-Medium. Found while reviewing B41; reported, not fixed.
 
-### B46. `JwtPayload` does not describe the payloads that are signed
-**What:** Every token that is signed carries `clientId` (`identity.routes.ts:154`, `:171`, `:233`, `:246`, `:305`), but `JwtPayload` does not declare it, so code reading `req.user?.clientId` would not typecheck even though the value is in the token; the refresh route only gets away with `payload.clientId` because it types the verified payload as `any` (`identity.routes.ts:281`). The other way round, `JwtPayload.did` is declared and `express.d.ts:14` intersects it in "for convenience", but no `jwt.sign` call sets `did`; the three helpers that prefer it (`bitcoin.routes.ts:17`, `logistics.routes.ts:27`, `order.routes.ts:27`) always fall through to `sub`.
-**Where:** `src/api/core/auth.ts` (`JwtPayload`, lines 15 to 23), `src/api/types/express.d.ts` (line 14), the `jwt.sign` calls in `src/api/routes/identity.routes.ts`.
-**Fix:** Declare `clientId?: string`, and either drop `did` or have the signing code set it. Type-only, but it changes what `req.user` advertises, so decide it on its own branch.
-**Priority:** Low. Found while fixing B40; reported, not fixed.
+### B46. `JwtPayload.did` is declared but no signing code sets it
+**What:** The `clientId` half is fixed (S44, this branch): `JwtPayload` now declares `clientId?: string` (`src/api/core/auth.ts:19`), which every signed token already carried (`identity.routes.ts:154`, `:171`, `:233`, `:245`, `:305`), so `req.user?.clientId` typechecks. What is left is the opposite mismatch: `JwtPayload.did` is declared (`auth.ts:17`), and `express.d.ts:14` intersects it in "for convenience", but no `jwt.sign` call sets `did`; the three helpers that prefer it (`bitcoin.routes.ts:17`, `logistics.routes.ts:27`, `order.routes.ts:27`) always fall through to `sub`.
+**Where:** `src/api/core/auth.ts` (`JwtPayload.did`, line 17), `src/api/types/express.d.ts` (line 14), the `jwt.sign` calls in `src/api/routes/identity.routes.ts`.
+**Fix:** Pam decides: drop `did` from `JwtPayload` (and the intersection, and the three prefer-`did` helpers), or set `did` at each sign site so the field is real. Type-only either way, but it changes what `req.user` advertises. Do not decide it in the same branch as the `clientId` declaration.
+**Priority:** Low. Found while fixing B40; the `clientId` half was fixed S44.
 
 ### B47. Reputation starting scores and the 500 maximum disagree with the formula
 **What:** A new identity's reputation row is seeded with the trust score (KYC 75, Nostr 35, anonymous 20: `identity.service.ts:43`, `:74` and `:359`, `DEFAULT_TRUST_SCORES`). The formula gives a blank record (base 50, no transactions, no ratings) times the multiplier: KYC 60, Nostr 50, anonymous 40. So the first recalculation moves a new KYC vendor from 75 to 60 and an anonymous one from 20 to 40. Separately, the formula's best possible score is (50 + 200 + 100) x 1.2 = 420 for KYC, so `maxScore` 500 can never be reached by the formula; only the old rating shortcut could pass 420. `actors_and_trust.md` stated both starting numbers.

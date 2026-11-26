@@ -16,6 +16,7 @@ export interface JwtPayload {
   sub: string;           // Subject (user DID or client ID)
   did?: string;
   type: IdentityType;    // 'kyc' | 'nostr' | 'anonymous': what identity.routes.ts signs
+  clientId?: string;     // Set by every identity.routes.ts sign site; absent on older tokens
   tokenType?: 'access' | 'refresh';
   permissions?: string[];
   iat?: number;          // Issued at
