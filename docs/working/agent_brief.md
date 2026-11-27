@@ -44,7 +44,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 
 1. The fix is limited to the item. No unrelated cleanup.
 2. A unit test fails before and passes after, and it runs with `npm test`.
-3. `npx tsc --noEmit` shows no new errors. Baselines today (S44, `678e8a6`): 0 at the root and 14 in `rangkai-marketplace` (B23). `npm test` baseline today: 5 suites, 40 tests passed, none failing. Single test files now exit on their own (B49).
+3. `npx tsc --noEmit` shows no new errors. Baselines today (S44, after B44): 0 at the root and 14 in `rangkai-marketplace` (B23). `npm test` baseline today: 5 suites, 42 tests passed, none failing. Single test files now exit on their own (B49).
 4. You say what you could not check.
 5. The `tech_debt.md` entry is updated in the same branch: the item's block is moved to `docs/archive/tech_debt_archive.md` with `**Status:** ✅ Fixed S<number>.` and a one-line summary, the index row is removed, the "tails" line is correct. New problems you found become new items with the next free ID.
 6. You deliver a patch (`git format-patch`) and a report. Pam reads the patch. Say how it applies: Pam merges the branch from the worktree, and a multi-commit patch needs `git am`, not `git apply`. Test the patch in a throwaway clone before you say it applies.
@@ -64,7 +64,7 @@ Rangkai is an open protocol for cross-border small-business B2B trade: federated
 |---|---|---|
 | 1 | Pam names the item. You propose a patch. | B37, B39 |
 | 2 | Same, and you also update `tech_debt.md` and the archive in the patch | Start here once an item at Level 1 has passed review |
-| 3 | You may choose a low-risk item yourself, from the pre-approved list only (stage 2, granted by Pam 26 Nov S44) | **Pre-approved list: B44, D57, B51** (B46 and B17 are done). Pam approved this list on 26 Nov S44 from the triage (`docs/working/triage.md`); it grows only when Pam adds to it |
+| 3 | You may choose a low-risk item yourself, from the pre-approved list only (stage 2, granted by Pam 26 Nov S44) | **Pre-approved list: D57, B51** (B46, B17 and B44 are done). Pam approved this list on 26 Nov S44 from the triage (`docs/working/triage.md`); it grows only when Pam adds to it |
 | Human decision first | Do not start without Pam | B26 to B28, B31 to B35, **B42, B43, B45 and B47** (reputation design: decided in principle S44; Pam and Claude split it into branches before an agent starts), D58, D59, D60, D62, D63, anything touching a key, a payout or the council |
 
 Anything not listed: ask.
@@ -155,8 +155,9 @@ Pam can move the agent down or up at any time.
 | triage-backlog | Yes | |
 | B46 | Yes | |
 | B17 | Yes | |
+| B44 | Yes | Merged after review; 13 tests in the file, new test fails before the fix |
 
-Clean patches in a row: 6 (B38, B48, B49, triage-backlog, B46, B17); 3 of them since stage 2 was granted by Pam on 26 Nov S44. The next step up needs 5 clean patches at stage 2 and CI, so 2 more and CI.
+Clean patches in a row: 7 (B38, B48, B49, triage-backlog, B46, B17, B44); 4 of them since stage 2 was granted by Pam on 26 Nov S44. The next step up needs 5 clean patches at stage 2 and CI, so 1 more and CI.
 
 ## Open items for this brief
 

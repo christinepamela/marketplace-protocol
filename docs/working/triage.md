@@ -52,7 +52,7 @@ from an earlier session (that is marked "per the item").
 
 Pam's decisions on 26 Nov S44 are recorded here; the tables below are the triage as first written.
 
-- **Approved A list, now two items: B44 and D57.** B17 and B46 are done. B50 moved to class B.
+- **Approved A list, now two items: B44 and D57.** B17 and B46 are done. B50 moved to class B. **Update (27 Nov S44): B44 is done too (reviewed, merged by Pam), so the list is D57 and B51.**
 - **B51 approved** (a test runner for both Next apps) and added to `tech_debt.md`. It is pre-approved for stage 2, so the A list is **B44, D57, B51**.
 - **D26 and D33 closed** as misdiagnosed and archived.
 - **D32** (`keys/`): Pam deletes it locally after checking `.env`; the item closes when she confirms.

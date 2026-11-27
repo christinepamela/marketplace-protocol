@@ -21,6 +21,19 @@ Do not re-type standing content into the handover; link to it. Before declaring 
 
 ---
 
+## How the work is done: two modes
+
+A session works in one of two modes. Say which one at the top of the handover.
+
+| Mode | Who does the work | Claude's role | Use when |
+|---|---|---|---|
+| **A. Buzz agent (default from S45)** | The Buzz agent (Pollen) works the items, one at a time, from `agent_brief.md`, at the stage its track record has earned | Second reviewer: reads the patch against the code, runs it, writes the briefs and the docs commit. Does not write the fix itself | The agent is reachable and the items are on the pre-approved list. Cheaper: the S44 run closed 11 items for about USD 0.66 of agent compute |
+| **B. Claude does the work** (the previous way) | Claude, in the session | Writes the fix, tests it and delivers the patch | The agent is not reachable, the item needs a decision or a database check, or it is money, identity, keys or governance (never given to an agent) |
+
+Rules that hold in both modes: Claude's clone is read-only, Pam runs all git, files reach Pam through attachments, and the standing docs are updated the same turn. In mode A, `agent_brief.md` governs the agent; read it before giving it a task, and update its track record after each merge. If the agent becomes unavailable mid-session, switch to mode B and note the switch in the handover.
+
+---
+
 ## Template
 
 ```markdown
@@ -36,6 +49,8 @@ Top commit should be `<hash> <message>`. Confirm with `git log --oneline -5`. If
 
 <Anything that changes how the next session should start. Two or three lines, or say there is nothing.>
 
+**Mode:** <A (Buzz agent) or B (Claude does the work); say if it switched.>
+
 **Plan versus actual:** <Did this session follow the plan the last handover set? If not, say so and why.>
 
 ## What happened
@@ -45,6 +60,7 @@ Top commit should be `<hash> <message>`. Confirm with `git log --oneline -5`. If
 
 ### <Item>: ✅ DONE / ⚠️ PARTIAL / ❌ NOT STARTED
 **What / Why / How / Files changed / Tested** (what was actually run, and what passed)
+<Mode A: also who did it, the review result, and whether the patch counted as clean in the track record.>
 
 <Say plainly what was not started.>
 
@@ -80,4 +96,5 @@ Two blocks per session, not seven. Order by what can actually finish. Stop at 80
 - [ ] Credential, test-data and design-rule changes are in `operations.md`
 - [ ] Items not completed are recorded as not completed, not dropped
 - [ ] The handover copies nothing from a standing doc
+- [ ] Mode A: the agent track record and approved list in `agent_brief.md` match what merged
 - [ ] Work is committed and pushed, and the top commit hash is in the handover
